@@ -118,74 +118,94 @@ export default async function DangerZonePage({
       : 'This race’s results are published. Take them down on its Results page before wiping it.';
 
   return (
-    <RaceFrame slug={slug} name={event.name} current={null} page="Danger zone">
-      <>
-        <h1>Danger zone</h1>
-
-        <p className="lede">{event.name}</p>
+    <RaceFrame slug={slug} name={event.name} current={null} page="Danger zone" wide>
+      <div className="club-wrap-narrow">
+        <div className="club-phead">
+          <h1>Danger zone</h1>
+          <p className="club-lede">{event.name}</p>
+        </div>
 
         {outcome === null ? null : (
-          <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
+          <p
+            className={
+              outcome.tone === 'ok' ? 'club-notice' : 'club-notice timing-notice-bad'
+            }
+          >
+            {outcome.message}
+          </p>
         )}
 
-        <p>
-          Wiping this race removes <strong>every crossing and every entry</strong>{' '}
-          recorded against it and puts it back to not started and not finished. It is how
-          the field is cleared between two runs of the same rehearsal. It cannot be
-          undone, and there is no export of what it removes.
-        </p>
+        <section className="timing-danger-card" aria-labelledby="danger-removed">
+          <p>
+            Wiping this race removes <strong>every crossing and every entry</strong>{' '}
+            recorded against it and puts it back to not started and not finished. It is
+            how the field is cleared between two runs of the same rehearsal. It cannot be
+            undone, and there is no export of what it removes.
+          </p>
 
-        {/* ⚠️ **The blast radius is read from the database rather than described in prose.**
+          {/* ⚠️ **The blast radius is read from the database rather than described in prose.**
           The whole argument for a typed confirmation is that somebody has looked at what they
           are about to remove; a sentence saying "this will remove your crossings" is not
           something anybody can check themselves against. */}
-        <h2>What would be removed</h2>
+          <h2 id="danger-removed">What would be removed</h2>
 
-        <dl>
-          <dt>Entries</dt>
-          <dd>{event.counts.teams}</dd>
+          <dl className="club-meta timing-details">
+            <div>
+              <dt>Entries</dt>
+              <dd>{event.counts.teams}</dd>
+            </div>
+            <div>
+              <dt>Runners</dt>
+              <dd>{event.counts.runners}</dd>
+            </div>
+            <div>
+              <dt>Crossings recorded</dt>
+              <dd>{event.counts.crossings}</dd>
+            </div>
+            <div>
+              <dt>Anomalies needing a human</dt>
+              <dd>{event.counts.open_anomalies}</dd>
+            </div>
+          </dl>
 
-          <dt>Runners</dt>
-          <dd>{event.counts.runners}</dd>
-
-          <dt>Crossings recorded</dt>
-          <dd>{event.counts.crossings}</dd>
-
-          <dt>Anomalies needing a human</dt>
-          <dd>{event.counts.open_anomalies}</dd>
-        </dl>
-
-        {/* ⚠️ **What survives is on the page beside what does not**, because "danger zone" reads
+          {/* ⚠️ **What survives is on the page beside what does not**, because "danger zone" reads
           as "delete the race" and the next thing this volunteer does is look for the race they
           just reset. The marshal count is here rather than above for the same reason: it is the
           number somebody would otherwise fear they had to rebuild. */}
-        <h2>What would be kept</h2>
+          <h2>What would be kept</h2>
 
-        <dl>
-          <dt>Marshals rostered</dt>
-          <dd>{event.counts.marshals}</dd>
+          <dl className="club-meta timing-details">
+            <div>
+              <dt>Marshals rostered</dt>
+              <dd>{event.counts.marshals}</dd>
+            </div>
+            <div>
+              <dt>Actually started</dt>
+              <dd>{orDash(event.actually_started_at)}</dd>
+            </div>
+            <div>
+              <dt>Finished</dt>
+              <dd>{orDash(event.finished_at)}</dd>
+            </div>
+          </dl>
 
-          <dt>Actually started</dt>
-          <dd>{orDash(event.actually_started_at)}</dd>
+          <p>
+            The race itself, its name, its start time and its marshals are kept. The two
+            times above are cleared. What has been done to this race stays recorded, and
+            wiping it is recorded too.
+          </p>
 
-          <dt>Finished</dt>
-          <dd>{orDash(event.finished_at)}</dd>
-        </dl>
+          <form method="post" action={action}>
+            <WipeConfirm slug={event.slug} blockedBy={publishedReason} />
+          </form>
+        </section>
 
-        <p>
-          The race itself, its name, its start time and its marshals are kept. The two
-          times above are cleared. What has been done to this race stays recorded, and
-          wiping it is recorded too.
+        <p className="club-btns timing-back">
+          <Link className="club-btn club-btn-secondary" href={`/events/${slug}`}>
+            Back to this race
+          </Link>
         </p>
-
-        <form method="post" action={action}>
-          <WipeConfirm slug={event.slug} blockedBy={publishedReason} />
-        </form>
-
-        <p>
-          <Link href={`/events/${slug}`}>Back to this race</Link>
-        </p>
-      </>
+      </div>
     </RaceFrame>
   );
 }

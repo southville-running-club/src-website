@@ -39,15 +39,15 @@ export function WipeConfirm({
 
   return (
     <>
-      <div className="field">
-        <label className="field-label" htmlFor="confirmation">
+      <div className="club-field">
+        <label className="club-label" htmlFor="confirmation">
           Type <strong>{slug}</strong> to confirm
         </label>
-        <p className="field-hint" id="confirmation-hint">
+        <p className="club-hint" id="confirmation-hint">
           Exactly as it appears above, in lower case.
         </p>
         <input
-          className="field-input"
+          className="club-input"
           id="confirmation"
           name="confirmation"
           type="text"

@@ -71,6 +71,7 @@ supplied.
 | #330 | No action in this work. Whether its early merge was intended came back both ways at HALT 2; it does not affect anything here |
 | Also agreed | The start caption sits above the button; "NN 2026" in the console bar; no marshal name in the capture bar; the server check backs up Wipe without JavaScript |
 | Cut line | By **Friday 23 October**: Slice A (only what B and D need), B, the race launchpad, D, and the disabled states for Publish and Wipe. Everything else waits until after the race |
+| Slice E, brought forward (4 Oct) | Everything on the cut line was live on 4 October, nineteen days early, so **Slice E comes forward**: the leaderboard, results, entry list, marshals roster and danger zone are restyled before the 23 October last merge, so the 27 October mock race runs on the finished screens. **Slice F stays after the race** |
 
 Because of D3, every mention below of separate Timing log or Anomalies pages, or of a "Race
 control" route, now means **sections of the one console**. The console's label is "Race

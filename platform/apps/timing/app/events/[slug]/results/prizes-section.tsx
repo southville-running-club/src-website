@@ -111,7 +111,7 @@ function Prize({
     pool.length === 0 ? undefined : pool[Math.floor(Math.random() * pool.length)];
 
   return (
-    <li className="triage-card">
+    <li className="triage-card club-card timing-prize">
       <p className="triage-time">
         <strong>{award.title}</strong>
       </p>
@@ -149,7 +149,7 @@ function Prize({
                 the team from **every** award and the word has to say more than the button did in
                 the application this replaces. */}
             <Link
-              className="button button-quiet"
+              className="club-btn club-btn-secondary"
               href={withParam(slug, choices, { pass: winner.team.id })}
             >
               Not here — pass to the next
@@ -193,7 +193,7 @@ export function PrizesSection({
   return (
     <>
       {choices.passed.size > 0 ? (
-        <p className="notice notice-ok">
+        <p className="club-notice">
           {choices.passed.size === 1
             ? '1 team has been passed over and is out of every prize below.'
             : `${choices.passed.size} teams have been passed over and are out of every prize below.`}{' '}
@@ -202,14 +202,14 @@ export function PrizesSection({
       ) : null}
 
       {payload.open_anomalies > 0 ? (
-        <p className="notice notice-bad">
+        <p className="club-notice timing-notice-bad">
           Some captures on this race are still to be resolved, so a time below may change.{' '}
           <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link> before
           reading these out.
         </p>
       ) : null}
 
-      <ul className="triage">
+      <ul className="triage club-g2 timing-prizes">
         {awards.map((award) => (
           <Prize key={award.kind} award={award} slug={slug} choices={choices} />
         ))}
@@ -227,15 +227,20 @@ export function PrizesSection({
         {[...choices.draws].map(([kind, id]) => (
           <input key={kind} type="hidden" name={kind} value={id} />
         ))}
-        <p>
-          <button type="submit" name="format" value="csv" className="button">
+        <p className="club-btns">
+          <button
+            type="submit"
+            name="format"
+            value="csv"
+            className="club-btn club-btn-primary"
+          >
             Prizes as CSV
-          </button>{' '}
+          </button>
           <button
             type="submit"
             name="format"
             value="xlsx"
-            className="button button-quiet"
+            className="club-btn club-btn-secondary"
           >
             Prizes as a spreadsheet
           </button>

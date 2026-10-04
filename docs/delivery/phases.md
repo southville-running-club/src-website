@@ -541,8 +541,10 @@ accepted 4 October 2026.
   the copy and its drift test in the same pull request. It touches the stylesheet the club
   pages load, so it carries pixel baselines of `/`, `/events/` and `/membership/`, and
   `club-contrast.test.ts` reads the new file.
-- **The rest of the timing restyle:** leaderboard, results, entry list, marshals and danger
-  zone (Slice E), and print, PWA and the accessibility pass (Slice F).
+- **The rest of the timing restyle:** print, PWA and the accessibility pass (Slice F). ⚠️
+  **Slice E — the leaderboard, results, entry list, marshals and danger zone — was brought
+  forward on 4 October 2026** and lands before the 23 October last merge, because everything on
+  the cut line was already live.
 - **Move `STAFF_ROLES` into `packages/shared`** and import it from both apps, deleting
   `apps/timing/lib/staff-roles.ts` and its drift test (Slice B's copy, for the same reason as
   the `club.css` one).

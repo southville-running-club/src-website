@@ -543,6 +543,165 @@ body:has(.timing-ui) {
   opacity: 0.5;
 }
 
+/* A notice that something did not happen: the club's error-summary border on a card, rather
+   than the highlight a neutral notice wears. Ink on the card, 14.2:1; the border, 7.46:1. */
+.club-notice.timing-notice-bad {
+  border: 3px solid var(--club-danger);
+  background: var(--club-surface);
+  color: var(--club-text);
+}
+
+/* Slice E's restyled pages lay their forms and lists out as cards. */
+.timing-ui form.club-card {
+  margin-bottom: 1.5rem;
+}
+
+/* One rostered marshal: the name, when they were added, and Remove as danger text. */
+.timing-person {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.timing-person h3 {
+  margin: 0;
+}
+
+.timing-person .club-meta {
+  margin: 0;
+}
+
+.timing-person form {
+  margin: 0;
+}
+
+/* The danger zone's card: the club's error-summary treatment, so the one page that removes a
+   race's data looks unlike every page that adds to it. Ink on the card, 14.2:1. */
+.timing-danger-card {
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 1.4rem;
+  border: 3px solid var(--club-danger);
+  border-radius: 14px;
+  background: var(--club-surface);
+}
+
+.timing-danger-card h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.3rem;
+}
+
+.timing-danger-card > :last-child {
+  margin-bottom: 0;
+}
+
+/* A way back, as a quiet button rather than a bare link. */
+.timing-back {
+  margin-top: 1.5rem;
+}
+
+/* One job on a work page — import, upload, a walk-in — as a card with a working heading,
+   smaller than the page's sections so the card reads as one unit. */
+.timing-job {
+  margin: 0 0 1.5rem;
+}
+
+.timing-job h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.4rem;
+}
+
+.timing-job form {
+  margin: 0;
+}
+
+/* One entry on the start list, and the bib written on it: field and Save side by side. */
+.timing-entry h3 {
+  margin: 0 0 0.5rem;
+}
+
+.timing-bib-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.timing-bib-form .club-field {
+  margin: 0;
+}
+
+.timing-bib-form .club-input {
+  width: 8rem;
+}
+
+/* What a file check found, inside the outcome notice. */
+.timing-findings {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+/* Prize giving: one card per award, two to a row from 44em. The class they also carry,
+   `.triage-card`, is base.css's and brings a border the club's cards do not have. */
+.timing-prizes .triage-card {
+  border: 0;
+}
+
+.timing-prize .triage-actions {
+  margin: 0.5rem 0 0;
+}
+
+/* The leaderboard's orderings: links, so a sorted board is a URL somebody can send and works
+   with scripting off. The current one is the ink pill: 13.06:1 light, 15.05:1 dark. */
+.timing-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-sort-label {
+  margin-right: 0.25rem;
+  font-weight: 700;
+}
+
+.timing-sort a,
+.timing-sort [aria-current='true'] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.timing-sort [aria-current='true'] {
+  border-color: var(--club-text);
+  background: var(--club-text);
+  color: var(--club-background);
+}
+
+.timing-freshness {
+  margin: 0 0 0.75rem;
+}
+
+/* The console's anomalies and timing log keep their markup until the console is split after the
+   race (D3); here their capture cards take the club's card shape, so the console reads as one
+   design. `.triage-card` is base.css's, and the tests find captures by it, so it is restyled
+   rather than renamed. Ink on the card, 14.2:1. */
+.timing-console .triage-card {
+  border: 0;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
 /* A guarded action and why it is blocked, side by side: the reason is the button's
    description, so it sits where the eye already is (brief §6.2 #6). Muted on the page, 6.58:1. */
 .timing-guarded-action {

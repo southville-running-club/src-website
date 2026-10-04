@@ -126,53 +126,65 @@ export default async function LeaderboardPage({
       name={event.name}
       current="leaderboard"
       page="Live leaderboard"
+      wide
     >
-      <>
-        <h1>Leaderboard</h1>
-        <p>{event.name}</p>
+      <div>
+        <div className="club-phead">
+          <h1>Leaderboard</h1>
+          <p className="club-lede">{event.name}</p>
+        </div>
 
-        <dl>
-          <dt>Started</dt>
-          <dd>
-            {event.actually_started_at === null
-              ? 'Not started'
-              : formatLondon(event.actually_started_at)}
-          </dd>
-          <dt>Finished</dt>
-          <dd>
-            {event.finished_at === null
-              ? 'Not finished'
-              : formatLondon(event.finished_at)}
-          </dd>
-          <dt>Open captures</dt>
-          <dd>{payload.open_anomalies}</dd>
+        <dl className="club-meta timing-details">
+          <div>
+            <dt>Started</dt>
+            <dd>
+              {event.actually_started_at === null
+                ? 'Not started'
+                : formatLondon(event.actually_started_at)}
+            </dd>
+          </div>
+          <div>
+            <dt>Finished</dt>
+            <dd>
+              {event.finished_at === null
+                ? 'Not finished'
+                : formatLondon(event.finished_at)}
+            </dd>
+          </div>
+          <div>
+            <dt>Open captures</dt>
+            <dd>{payload.open_anomalies}</dd>
+          </div>
         </dl>
 
         {/* ⚠️ **Plain links rather than a form**, and it is the same decision `/admin/nn/`'s filter
           chips took: a sorted board is a URL somebody can send, and it works with scripting off.
           The two leg orderings are hidden on a solo race because a solo race has no legs — see
           `Leaderboard.columns`. */}
-        <p>
-          Order by:{' '}
-          {SORTS.filter((option) => relay || !option.relayOnly).map((option, index) => (
-            <span key={option.key}>
-              {index === 0 ? null : ' · '}
-              {option.key === sort ? (
-                <strong>{option.label}</strong>
-              ) : (
-                <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
-                  {option.label}
-                </Link>
-              )}
-            </span>
-          ))}
-        </p>
+        <nav aria-label="Order by">
+          <ul className="timing-sort">
+            <li className="timing-sort-label" aria-hidden="true">
+              Order by
+            </li>
+            {SORTS.filter((option) => relay || !option.relayOnly).map((option) => (
+              <li key={option.key}>
+                {option.key === sort ? (
+                  <span aria-current="true">{option.label}</span>
+                ) : (
+                  <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
+                    {option.label}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <LiveBoard slug={slug} initial={payload} sort={sort} />
 
         {payload.open_anomalies > 0 ? (
           <p>
-            <Link href={`/events/${slug}/anomalies`}>
+            <Link href={`/events/${slug}/console?section=anomalies#anomalies`}>
               {payload.open_anomalies === 1
                 ? '1 capture is waiting to be resolved'
                 : `${payload.open_anomalies} captures are waiting to be resolved`}
@@ -184,11 +196,13 @@ export default async function LeaderboardPage({
         <p>
           <Link href={`/events/${slug}/results`}>Results and publishing</Link>
           {' · '}
-          <Link href={`/events/${slug}/crossings`}>Timing log</Link>
+          <Link href={`/events/${slug}/console?section=crossings#crossings`}>
+            Timing log
+          </Link>
           {' · '}
           <Link href={`/events/${slug}`}>Back to this race</Link>
         </p>
-      </>
+      </div>
     </RaceFrame>
   );
 }
