@@ -2364,6 +2364,20 @@ now is whether it holds up on a field of real phones, not whether it can be buil
 
 ### Sharp things already paid for here
 
+⚠️ **The timing redesign's styles depend on their import order, and a reorder breaks them
+silently.** `apps/timing/app/styles/timing.css` restates `club.css`'s bare heading, paragraph,
+link and `main` rules for the club's components, under `:where(.timing-ui)`, which has **no
+specificity**. That is deliberate: it ties with `base.css`'s type selectors and wins only by
+loading later, while losing to every class, so `.club-wrap` keeps its gutter on a `<main>` and
+`.club-facts a` keeps its colour. A plain `.timing-ui main` would outrank both and quietly undo
+them. So `app/layout.tsx` imports `base.css`, then `club-chrome.css`, then `club-content.css`, then
+`timing.css`, and **that order is load-bearing**: swap them and every restyled page gets Inter
+headings and a 40rem `main`, which no visual test would catch.
+`tests/unit/stylesheet-order.test.ts` holds both `layout.tsx` and `global-error.tsx` to it.
+`club-content.css` is a **copy** of rules from `club.css`, held to it by
+`tests/unit/club-content-drift.test.ts`; never edit a rule in the copy, and delete both when
+`club.css` is split after the race (`docs/delivery/phases.md`). ADR-054, Slice A.
+
 ⚠️ **The race console admits `timing.crossing.resolve` alone and then refuses it, and it is
 latent, not fixed.** The door's row is `timing.event.manage` **or** `timing.crossing.resolve`
 (`lib/access.ts`; `access.test.ts` asserts a resolve-only caller is admitted), but

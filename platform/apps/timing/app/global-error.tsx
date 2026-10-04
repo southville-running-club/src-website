@@ -7,6 +7,8 @@
 // page most likely to be seen while somebody is standing at a finish line.
 import '@src/shared/styles/base.css';
 import '@src/shared/styles/club-chrome.css';
+import './styles/club-content.css';
+import './styles/timing.css';
 import { ClubFrame } from './chrome/club-frame';
 
 /**

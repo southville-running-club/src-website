@@ -1,0 +1,730 @@
+/*
+ * The timing app's own layer, on the club website's tokens.
+ *
+ * ADR-054 and `docs/timing/nn-timing-redesign-brief.md`. The look was signed off at HALT 2 as
+ * `docs/timing/mockups/timing-mock.css`; this is that file made safe to load on every page.
+ *
+ * ## Nothing here paints a page that has not opted in
+ *
+ * Every rule is scoped to a `.timing-*` class, or sits under `.timing-ui`, the class a restyled
+ * frame puts around its page (Slices B and D). The exceptions are `:root`, which only *defines*
+ * a token, and rules gated on `:has(.timing-ui)` or `:has(.timing-force-light)`, which match
+ * nothing until a frame sets those classes. So loading this file, and `club-content.css`, on
+ * today's pages changes nothing anybody can see.
+ *
+ * ## Why `.timing-ui` restates bare-element rules
+ *
+ * The club's components were designed under `club.css`'s bare `h1`–`h4`, `p`, `a` and `main`
+ * rules, and the timing app loads `base.css` instead, whose bare rules differ: Inter headings, a
+ * `main` capped at a 40rem prose measure (the trap `CLAUDE.md` records against
+ * `/admin/people/`), and a two-column `dl` grid that would fight `.club-meta`. So the values the
+ * components took for granted are restated under `.timing-ui`, and the `base.css` rules that
+ * would leak in are neutralised there.
+ *
+ * ⚠️ **The scope is `:where(.timing-ui)`, which has no specificity, and that is load-bearing.**
+ * It ties with `base.css`'s type selectors and wins on order: this file is imported after
+ * `base.css` in `app/layout.tsx`, **so keep it there.** And it loses to every class, so
+ * `.club-wrap` keeps its gutter on a `<main>` and `.club-facts a` keeps its colour. A plain
+ * `.timing-ui main` would outrank both and quietly undo them.
+ *
+ * Every colour is a `--club-*` token. `tests/unit/timing-contrast.test.ts` measures every
+ * pairing here in light, dark and the forced-light screens.
+ */
+
+/* -------------------------------------------------------------------------------------
+ * Tokens
+ * ------------------------------------------------------------------------------------- */
+
+/* Text on a danger fill. The club has no danger fill of its own; 7.46:1 light, 8.56:1 dark. */
+:root {
+  --club-on-danger: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --club-on-danger: #0f1f15;
+  }
+
+  /*
+   * The race console and the capture screen are always light (D5, 4 October 2026): they are
+   * used outdoors in daylight. These are the light values of every token `club-chrome.css`
+   * redefines for dark, restated for those two screens only. `:has()` because a frame can set a
+   * class on its own wrapper but not on `<html>`, which the root layout owns.
+   *
+   * ⚠️ **If `club-chrome.css` gains a dark token, it must be added here too**, or that one
+   * colour turns dark on a light screen. `timing-contrast.test.ts` fails if a token the chrome
+   * redefines for dark is missing from this block.
+   */
+  :root:has(.timing-force-light) {
+    color-scheme: light;
+    --club-background: #f1f7ef;
+    --club-surface: #ffffff;
+    --club-surface-alt: #e6f1e3;
+    --club-text: #16301f;
+    --club-muted: #4a5c4e;
+    --club-link: #236a33;
+    --club-role: #17703b;
+    --club-logo: #1a7d3f;
+    --club-photo: #c8dfc1;
+    --club-rule: #d3e3cf;
+    --club-rule-strong: #76887a;
+    --club-danger: #a3231b;
+    --club-focus: #16301f;
+    --club-on-danger: #ffffff;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * The scope: what club.css's bare rules gave the components, under .timing-ui
+ * ------------------------------------------------------------------------------------- */
+
+body:has(.timing-ui) {
+  background: var(--club-background);
+}
+
+.timing-ui {
+  --timing-focus-bar-h: 3.25rem;
+
+  background: var(--club-background);
+  color: var(--club-text);
+  font-family: var(--club-font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+:where(.timing-ui) :is(h1, h2, h3, h4) {
+  margin: 0 0 0.6em;
+  font-family: var(--club-font-display);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+:where(.timing-ui) h1 {
+  font-size: 2.15rem;
+}
+
+:where(.timing-ui) h2 {
+  font-size: 1.6rem;
+}
+
+:where(.timing-ui) h3 {
+  font-size: 1.2rem;
+}
+
+:where(.timing-ui) h4 {
+  font-size: 1.05rem;
+}
+
+:where(.timing-ui) p {
+  margin: 0 0 1em;
+  max-width: var(--club-measure);
+}
+
+:where(.timing-ui) a {
+  color: var(--club-link);
+  text-underline-offset: 0.18em;
+}
+
+/* `base.css` makes `main` the prose measure. Here the width belongs to `.club-wrap`. */
+:where(.timing-ui) main {
+  max-width: none;
+  margin: 0;
+  padding: 0 0 2.5rem;
+}
+
+:where(.timing-ui) main :is(ul, ol) {
+  max-width: var(--club-measure);
+}
+
+/* `base.css`'s `dl` is a two-column grid, and its `dt` is in the display face. */
+:where(.timing-ui) dl {
+  grid-template-columns: none;
+}
+
+:where(.timing-ui) dt {
+  font-family: inherit;
+}
+
+:where(.timing-ui) dd {
+  margin: 0;
+}
+
+:where(.timing-ui) :focus-visible {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 3px;
+}
+
+@media (min-width: 62em) {
+  :where(.timing-ui) h1 {
+    font-size: 3.4rem;
+  }
+
+  :where(.timing-ui) h2 {
+    font-size: 2.1rem;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Page furniture
+ * ------------------------------------------------------------------------------------- */
+
+/* The status row: a count, how fresh it is, and the page's one action. */
+.timing-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 1.5rem;
+}
+
+.timing-status .club-badge {
+  margin: 0;
+}
+
+.timing-status .club-btn {
+  margin-left: auto;
+}
+
+.timing-count {
+  font-weight: 800;
+}
+
+.timing-stack {
+  display: grid;
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-stack > li {
+  margin: 0;
+}
+
+.timing-section-title {
+  margin: 2.5rem 0 1rem;
+}
+
+/* A launchpad card: title, one line, and an optional count. */
+.timing-link-card {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 100%;
+}
+
+.timing-link-card p {
+  margin: 0;
+}
+
+.timing-link-card .club-badge {
+  justify-self: start;
+  margin: 0.25rem 0 0;
+}
+
+.timing-ui :is(ul.club-g2, ul.club-g3) > li {
+  margin: 0;
+}
+
+/* Six facts rather than the home page's five: an even grid instead of its spans. */
+.timing-facts ul {
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+}
+
+.timing-facts li:nth-child(3) {
+  grid-column: auto;
+}
+
+/* The console's sections, one tap away inside the one page (D3 is deferred). */
+.timing-jump {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--club-rule);
+  background: var(--club-background);
+}
+
+.timing-jump ul {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.timing-jump a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.timing-jump a[aria-current='true'] {
+  border-color: var(--club-text);
+}
+
+/* A section jumped to lands below the sticky jump bar rather than under it. */
+.timing-ui section[id]:not(.timing-go) {
+  scroll-margin-top: 4.5rem;
+}
+
+/* Show one of two spellings by width: "Nightingale Nightmare 2026" or "NN 2026". The hidden
+   one is `display: none`, so it is out of the accessibility tree too — never `aria-hidden`,
+   which would leave a link with no name on the width where it is the only one shown. */
+.timing-narrow {
+  display: none;
+}
+
+@media (max-width: 47.99em) {
+  .timing-wide {
+    display: none;
+  }
+
+  .timing-narrow {
+    display: inline;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
+ * Buttons the club does not have
+ * ------------------------------------------------------------------------------------- */
+
+/* Paired with `.club-btn`. The ink as the fill: 13.06:1 light, 15.05:1 dark. */
+.timing-btn-dark {
+  min-height: 56px;
+  border-color: var(--club-text);
+  background: var(--club-text);
+  color: var(--club-background);
+}
+
+/* Paired with `.club-btn`. */
+.timing-btn-danger {
+  border-color: var(--club-danger);
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+}
+
+/* A blocked action looks blocked, with its reason beside it in the markup (brief §6.2 #6). */
+.timing-ui .club-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.timing-danger-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--club-danger);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------------------------------
+ * The focus header, one row (the race console and the capture screen)
+ * -------------------------------------------------------------------------------------
+ * A modifier on `club-chrome.css`'s `.club-focus`, so ADR-053's focus header is untouched until
+ * a frame asks for this one. On a phone the club's name drops and the race is shortened; its
+ * full name stays in the page title. */
+.timing-focus-bar .club-focus-inner {
+  flex-wrap: nowrap;
+  min-height: var(--timing-focus-bar-h);
+}
+
+.timing-focus-bar .club-focus-title {
+  min-width: 0;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.timing-focus-bar .club-focus-race {
+  flex-basis: auto;
+}
+
+.timing-focus-bar .club-focus-race::before {
+  content: '·';
+  margin: 0 0.35rem 0 0.1rem;
+}
+
+/* The capture screen's bar adds what is waiting and whether there is signal. */
+.timing-focus-extra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------------------------------------
+ * T2: the race control, where the whole screen goes green
+ * ------------------------------------------------------------------------------------- */
+
+/* `--club-on-brand` on `--club-brand`, 5.07:1. Never white on this green. */
+.timing-go {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.9rem;
+  min-height: calc(100dvh - var(--timing-focus-bar-h));
+  padding: 2rem var(--club-gutter);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  text-align: center;
+  animation: timing-fade 0.25s ease;
+}
+
+.timing-go h1 {
+  max-width: 18ch;
+  margin: 0;
+  color: inherit;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+}
+
+.timing-go p {
+  max-width: 34rem;
+  margin: 0;
+}
+
+.timing-go-race {
+  font-weight: 700;
+}
+
+.timing-go-caption {
+  font-size: 0.95rem;
+}
+
+.timing-go form {
+  display: contents;
+}
+
+.timing-go .timing-btn-dark {
+  width: min(28rem, 100%);
+  font-size: 1.15rem;
+}
+
+.timing-go-rule {
+  width: min(28rem, 100%);
+  height: 0;
+  margin: 0.25rem 0;
+  border: 0;
+  border-top: 1px solid currentcolor;
+  opacity: 0.35;
+}
+
+.timing-go a {
+  color: inherit;
+  font-weight: 700;
+}
+
+/* The ink on the green: 4.06:1, over the 3:1 a focus indicator needs. The race control screen
+   is always light (D5); were it ever drawn dark, the dark ink on this green is still 3.08:1. */
+.timing-go :focus-visible {
+  outline: 3px solid var(--club-text);
+  outline-offset: 3px;
+}
+
+.timing-go-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.25rem;
+}
+
+@keyframes timing-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The big clock. Bricolage's subset carries tabular figures: "11:11:11", "00:00:00" and
+   "88:88:88" measure identically, so the digits do not jitter as it ticks (HALT 2). */
+.timing-clock {
+  margin: 0;
+  font: 800 clamp(3.25rem, 14vw, 6rem) / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* -------------------------------------------------------------------------------------
+ * T5: Record crossings
+ * -------------------------------------------------------------------------------------
+ * The screen is exactly the viewport: the bar, then the tool, and only the queue scrolls. The
+ * wrapper is the flex container because the root layout owns `<body>`. */
+.timing-tool-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.timing-tool {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 0;
+  padding-block: 0.9rem 0;
+}
+
+/* `--club-on-brand` on `--club-brand`, 5.07:1. */
+.timing-capture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: clamp(11rem, 34vh, 18rem);
+  border: 0;
+  border-radius: var(--club-radius-card);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  font: 800 clamp(2.25rem, 8vw, 3rem) / 1.1 var(--club-font-display);
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.timing-capture:active {
+  transform: scale(0.97);
+}
+
+.timing-capture:focus-visible {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 3px;
+}
+
+.timing-tool-hints p {
+  max-width: none;
+  margin: 0 0 0.25rem;
+}
+
+.timing-queue-wrap {
+  overflow-y: auto;
+  padding-bottom: 1.25rem;
+}
+
+.timing-queue-wrap h2 {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 1.3rem;
+}
+
+.timing-queue {
+  display: grid;
+  gap: 0.75rem;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-qcard {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.timing-qcard[data-state='open'] {
+  border: 2px solid var(--club-text);
+}
+
+.timing-qcard[data-state='failed'] {
+  border: 2px solid var(--club-danger);
+}
+
+.timing-qcard p {
+  max-width: none;
+  margin: 0;
+}
+
+.timing-qcard-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.timing-qcard-row .timing-state {
+  margin: 0 0 0 auto;
+}
+
+.timing-qcard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.timing-time {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-time small {
+  margin-right: 0.35rem;
+  color: var(--club-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.timing-fail {
+  color: var(--club-danger);
+  font-weight: 700;
+}
+
+/* A soft warning: shown, never blocking (an anomaly flags and never blocks). */
+.timing-warn {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.timing-key {
+  min-height: 56px;
+  border: 2px solid var(--club-rule-strong);
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
+  font: 800 1.5rem / 1 var(--club-font-body);
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.1s ease;
+}
+
+.timing-key:active {
+  transform: scale(0.97);
+}
+
+.timing-key-wide {
+  grid-column: span 2;
+  font-size: 1rem;
+}
+
+/* -------------------------------------------------------------------------------------
+ * Small parts
+ * ------------------------------------------------------------------------------------- */
+
+/* The bib tile, after the date tile on /events/. */
+.timing-bib {
+  display: inline-grid;
+  place-items: center;
+  min-width: 3.5rem;
+  min-height: 3rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--club-rule);
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
+  font: 800 1.35rem / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-bib-empty {
+  color: var(--club-muted);
+  font: 700 0.95rem / 1.2 var(--club-font-body);
+}
+
+.timing-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  border-radius: var(--club-radius-button);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.timing-conn::before {
+  content: '';
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.timing-conn[data-online='true'] {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-conn[data-online='false'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+/* State badges, paired with `.club-badge`. The default is the club badge's own colours. */
+.timing-state {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.timing-state[data-state='flagged'],
+.timing-state[data-state='queued'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-state[data-state='ok'],
+.timing-state[data-state='resolved'] {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-state[data-state='failed'],
+.timing-state[data-state='discarded'] {
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+}
+
+@media (min-width: 62em) {
+  .timing-tool {
+    max-width: 44rem;
+  }
+
+  .timing-capture {
+    min-height: 11.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timing-go {
+    animation: none;
+  }
+
+  .timing-capture,
+  .timing-key {
+    transition: none;
+  }
+
+  .timing-capture:active,
+  .timing-key:active {
+    transform: none;
+  }
+}

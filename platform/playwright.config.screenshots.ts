@@ -60,7 +60,11 @@ export default defineConfig({
   // **The separation from the gate does not rest on this line**, which is what makes an explicit
   // list cost nothing: the base config's `testMatch` ends in `.spec.ts`, so no `.screens.ts` can
   // reach the ordinary suite whatever is written here.
-  testMatch: ['**/timing-race-night.screens.ts', '**/admin-people-layout.screens.ts'],
+  testMatch: [
+    '**/timing-race-night.screens.ts',
+    '**/admin-people-layout.screens.ts',
+    '**/timing-redesign-baseline.screens.ts',
+  ],
   testIgnore: [
     '**/node_modules/**',
     '**/dist/**',
