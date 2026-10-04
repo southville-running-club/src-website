@@ -1,5 +1,6 @@
 import { formatLondon } from '@src/shared';
 import { startOutcomeFor } from '../../../../../lib/start-outcomes';
+import { ConfirmStart } from './confirm-start';
 import { RaceClock } from './race-clock';
 import type { EventDetail } from '../event-detail';
 
@@ -178,9 +179,8 @@ export function StartSection({
           <form method="post" action={action}>
             <input type="hidden" name="intent" value="start" />
 
-            <button className="club-btn timing-btn-dark" type="submit">
-              Start the race
-            </button>
+            {/* D4: asked twice with scripting on, once without — `confirm-start.tsx`. */}
+            <ConfirmStart />
           </form>
 
           <p>

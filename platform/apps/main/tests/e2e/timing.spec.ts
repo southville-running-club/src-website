@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { axeViolations } from '../axe';
 import {
   anomalyCrossing,
@@ -772,7 +772,46 @@ test.describe('a race that has not started', () => {
   });
 });
 
+/**
+ * Press "Start the race" the way the person on this project would (D4, 4 October 2026).
+ *
+ * With scripting on, the first press asks "Confirm the start" and the second records it; with
+ * scripting off the form submits on the first press, as it always did. **Decided by the project,
+ * never by looking for the Confirm button**: a read that decides what to do next on a page that
+ * may not have hydrated yet is the trap `CLAUDE.md` records against `nn-consolidated.spec.ts`.
+ */
+async function pressStart(page: Page, testInfo: TestInfo): Promise<void> {
+  await page.getByRole('button', { name: 'Start the race' }).click();
+  if (testInfo.project.name !== 'no-javascript') {
+    await page.getByRole('button', { name: 'Confirm the start' }).click();
+  }
+}
+
 test.describe('the gun', () => {
+  test('asks before it starts, and Cancel records nothing @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const path = startPath(testInfo.project.name, 'pending');
+    await page.goto(path);
+
+    await page.getByRole('button', { name: 'Start the race' }).click();
+
+    // The question replaces the button, and takes focus so a keyboard lands on it.
+    const confirm = page.getByRole('button', { name: 'Confirm the start' });
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toBeFocused();
+    // A `<details>` is a group too, so the question is found by the name it gives its group.
+    await expect(page.getByRole('group', { name: /Start the race now\?/ })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
+
+    // Nothing was recorded: the race is still not started when read back from the server.
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+  });
+
   /**
    * ⚠️ **One test for the whole thing, deliberately** — the roster's argument, and here it is
    * stronger: a race can only be started once, so a second test asserting the second press
@@ -790,7 +829,7 @@ test.describe('the gun', () => {
     const path = startPath(testInfo.project.name, 'press');
     await page.goto(path);
 
-    await page.getByRole('button', { name: 'Start the race' }).click();
+    await pressStart(page, testInfo);
 
     await expect(page.getByText(/The race has started/)).toBeVisible();
     await expect(
