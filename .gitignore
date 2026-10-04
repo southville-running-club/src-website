@@ -73,3 +73,7 @@ pnpm-debug.log*
 # a local artefact, not a shared one. Committing it would put a large generated JSON in the
 # way of every merge.
 graphify-out/
+
+# The race-night runbook names controls in bold rather than carrying pictures, so the
+# screenshots timing-race-night.screens.ts writes are never committed. See that runbook.
+/docs/delivery/runbooks/images/timing-race-night/
