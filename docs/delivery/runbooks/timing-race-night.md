@@ -515,8 +515,9 @@ their old addresses and headings — and, because no gate runs it, nobody notice
 2026, when it was fixed and ran seven green again. **They are not committed**, for the reason in
 the paragraph below rather than because anything went wrong, and
 `docs/delivery/runbooks/images/timing-race-night/` is where they land when anybody re-runs it.
-⚠️ **Five of them are in the repository anyway** (`01` to `05`, from #320 on 26 September 2026),
-against that rule; whether to delete them or commit the set is the club's call.
+The folder is git-ignored since 4 October 2026, when the five pictures #320 had committed
+against this rule (`01` to `05`) were deleted — a re-run had left them untracked and a commit
+swept them up, and the ignore rule is what stops that happening again.
 
 ⚠️ **Run it through `./dev e2e` from the repository root, not `npx playwright test`** — a scoped
 Playwright run needs the three Supabase variables `./dev` exports, and without them the fixtures
