@@ -27,9 +27,12 @@ export { PlainFrame } from './app-shell';
  * scopes its restatements of the club's bare-element rules under, so it is what puts a page on
  * the club website's type and colours.
  *
- * **Content is held to `.club-wrap-narrow` until its page is restyled.** The pages inside these
- * frames were laid out for `base.css`'s 40rem column, with `.button-wide` and forms sized to it;
- * the club's 1200px wrap would stretch them. A page restyled in a later slice passes `wide`.
+ * **Content is held to `.club-wrap-narrow` and `.timing-legacy` until its page is restyled.**
+ * The pages inside these frames were laid out for `base.css`'s 40rem column and its text
+ * metrics, with `.button-wide` and forms sized to them. The club's 1200px wrap would stretch
+ * them, and the club's tighter line height pulled a "Back to…" link to 23px from the button
+ * above it on three pages, under axe's 24px target spacing, on CI's Linux fonts. A page
+ * restyled in a later slice passes `wide` and leaves both behind.
  */
 
 /** What every app-shell page shares: the header, the bar if there is one, and the footer. */
@@ -60,7 +63,9 @@ async function AppShell({
       <main
         id="main"
         className={
-          wide ? 'club-wrap timing-main' : 'club-wrap club-wrap-narrow timing-main'
+          wide
+            ? 'club-wrap timing-main'
+            : 'club-wrap club-wrap-narrow timing-main timing-legacy'
         }
       >
         {children}

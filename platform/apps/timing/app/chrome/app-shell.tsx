@@ -186,7 +186,7 @@ export function PlainFrame({ children }: { children: ReactNode }) {
           <HomeMark />
         </div>
       </header>
-      <main id="main" className="club-wrap club-wrap-narrow timing-main">
+      <main id="main" className="club-wrap club-wrap-narrow timing-main timing-legacy">
         {children}
       </main>
       <AppFooter />

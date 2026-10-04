@@ -319,6 +319,16 @@ body:has(.timing-ui) {
   padding-top: 2rem;
 }
 
+/* A page not yet restyled keeps `base.css`'s text metrics, which its spacing was laid out on.
+   The club's 1rem / 1.55 is tighter, and on three pages it pulled a "Back to…" link to 23px
+   from the button above it on Linux fonts: under axe's 24px target spacing, so a WCAG 2.2
+   failure. Passing `wide` to a frame, when its page is restyled, drops this with the narrow
+   column. */
+.timing-legacy {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
 @media (min-width: 62em) {
   .app-area-name {
     display: none;
