@@ -64,6 +64,7 @@ export default defineConfig({
     '**/timing-race-night.screens.ts',
     '**/admin-people-layout.screens.ts',
     '**/timing-redesign-baseline.screens.ts',
+    '**/timing-redesign-shell.screens.ts',
   ],
   testIgnore: [
     '**/node_modules/**',
