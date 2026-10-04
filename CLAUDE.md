@@ -2364,6 +2364,19 @@ now is whether it holds up on a field of real phones, not whether it can be buil
 
 ### Sharp things already paid for here
 
+⚠️ **The race console admits `timing.crossing.resolve` alone and then refuses it, and it is
+latent, not fixed.** The door's row is `timing.event.manage` **or** `timing.crossing.resolve`
+(`lib/access.ts`; `access.test.ts` asserts a resolve-only caller is admitted), but
+`console/page.tsx` always calls `timing.event_detail()` for the race's identity, and that
+function requires `timing.event.manage`
+(`20260914140000_timing_results_preview.sql`). So a resolve-only caller gets past the door and
+is shown "Not found" before the Anomalies and Timing log sections — the two they hold the
+permission for — are ever drawn. **Nobody meets it today**: only `timing-admin` and
+`src-admin` hold `crossing.resolve`, and both hold `event.manage` too. **It is the first thing
+to fix when the console is split** (the timing redesign's D3, deferred until after the race),
+because a standalone Anomalies or Timing log page reading `event_detail()` would 404 the same
+way. Found in the redesign's Phase 1 inventory, 3 October 2026.
+
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because
 `timing.events` had **no `results_published_at` column** and named #241 as its owner, which is

@@ -512,9 +512,48 @@ club's own database.
   breadcrumbs, and a slim focus header on the race console and the marshal's capture screen —
   [ADR-053](../architecture/decisions/adr-053-the-timing-app-wears-the-club-header.md). **Built
   on the `club-header-timing` branch, stacked on PR 1, and merged after 1 November**, outside
-  any race-week freeze, because the timing app runs the race. Its pre-flight found the reported `/timing/events/` "Not found" is not a trailing-slash
+  any race-week freeze, because the timing app runs the race. ⚠️ **It merged on 2 October
+  2026 (#330), not after the race**, and is live; the timing redesign below does not revert it. Its pre-flight found the reported `/timing/events/` "Not found" is not a trailing-slash
   defect — the slash form answers 308 to the bare one — but the ordinary refusal anybody without
   `timing.event.manage` gets; see `CLAUDE.md`.
+
+⚠️ **The timing redesign lands inside the race window, on the timing Worker only.**
+[`docs/timing/nn-timing-redesign-brief.md`](../timing/nn-timing-redesign-brief.md): PTB's page
+structure in the club website's design, and a signed-in app shell in place of ADR-053's club
+header — [ADR-054](../architecture/decisions/adr-054-the-signed-in-area-is-an-app-shell.md),
+accepted 4 October 2026.
+
+- **Last merge Friday 23 October 2026.** Slice A (only what B and D need), the shell (B), the
+  race overview, the race console and the capture screen (D, including a client-side confirm
+  before "Start the race"), and the disabled states on Publish and Wipe. Anything not merged by
+  then waits until after the race; the current pages keep working.
+- **Mock race Tuesday 27 October 2026**, after the clocks change, so it runs on GMT like race
+  day: two phones capturing, one laptop on admin, start to unpublish. **Nothing merges after it**
+  unless it fixes something it found.
+- **Nothing under `platform/packages/` changes before the race**, because a change there also
+  redeploys `apps/main` mid-entries. The ClubBase content rules timing needs are copied into
+  `apps/timing`, with a test that fails if they drift from `club.css`.
+
+### After the race: what the timing redesign deferred
+
+- **Split `club.css` into a class-scoped content file**, the way #329 split out
+  `club-chrome.css`, so `apps/timing` imports the components instead of carrying a copy. Delete
+  the copy and its drift test in the same pull request. It touches the stylesheet the club
+  pages load, so it carries pixel baselines of `/`, `/events/` and `/membership/`, and
+  `club-contrast.test.ts` reads the new file.
+- **The rest of the timing restyle:** leaderboard, results, entry list, marshals and danger
+  zone (Slice E), and print, PWA and the accessibility pass (Slice F).
+- **The app shell on `/account/*` and `/admin/*`** (ADR-054 §6), with a real sign-out button,
+  and the duplicate "Race timing" and "Club admin" links removed from those pages' bars.
+- **Split the race console** (brief D3) — Race control, Timing log, Anomalies — which supersedes
+  [ADR-045](../architecture/decisions/adr-045-race-night-is-one-console.md) and has to fix the
+  `crossing.resolve` "Not found" defect first (`CLAUDE.md`).
+- **The PTB behaviours NN lacks** (brief D4), each its own slice: Undo after discard, a
+  sync-count connection pill, prize-giving mode, and a printable start list with
+  "Collected ✓". The confirm before "Start the race" is **not** on this list: it lands before
+  the race in Slice D (decided 4 October).
+- **The relay leftovers in prize logic** (`awards.ts`, for Mark), and the danger zone not
+  checking whether results are published.
 
 ---
 
