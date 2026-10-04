@@ -640,6 +640,68 @@ body:has(.timing-ui) {
   padding-left: 1.25rem;
 }
 
+/* Prize giving: one card per award, two to a row from 44em. The class they also carry,
+   `.triage-card`, is base.css's and brings a border the club's cards do not have. */
+.timing-prizes .triage-card {
+  border: 0;
+}
+
+.timing-prize .triage-actions {
+  margin: 0.5rem 0 0;
+}
+
+/* The leaderboard's orderings: links, so a sorted board is a URL somebody can send and works
+   with scripting off. The current one is the ink pill: 13.06:1 light, 15.05:1 dark. */
+.timing-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-sort-label {
+  margin-right: 0.25rem;
+  font-weight: 700;
+}
+
+.timing-sort a,
+.timing-sort [aria-current='true'] {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.95rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-button);
+  background: var(--club-surface);
+  color: var(--club-text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.timing-sort [aria-current='true'] {
+  border-color: var(--club-text);
+  background: var(--club-text);
+  color: var(--club-background);
+}
+
+.timing-freshness {
+  margin: 0 0 0.75rem;
+}
+
+/* The console's anomalies and timing log keep their markup until the console is split after the
+   race (D3); here their capture cards take the club's card shape, so the console reads as one
+   design. `.triage-card` is base.css's, and the tests find captures by it, so it is restyled
+   rather than renamed. Ink on the card, 14.2:1. */
+.timing-console .triage-card {
+  border: 0;
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
 /* A guarded action and why it is blocked, side by side: the reason is the button's
    description, so it sits where the eye already is (brief §6.2 #6). Muted on the page, 6.58:1. */
 .timing-guarded-action {

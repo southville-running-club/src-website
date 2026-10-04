@@ -300,108 +300,138 @@ export default async function ResultsPage({
   ];
 
   return (
-    <RaceFrame slug={slug} name={payload.event.name} current="results" page="Results">
-      <>
-        <h1>Results</h1>
+    <RaceFrame
+      slug={slug}
+      name={payload.event.name}
+      current="results"
+      page="Results"
+      wide
+    >
+      <div>
+        <div className="club-phead">
+          <h1>Results</h1>
+        </div>
 
         {outcome === null ? null : (
-          <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
+          <p
+            className={
+              outcome.tone === 'ok' ? 'club-notice' : 'club-notice timing-notice-bad'
+            }
+          >
+            {outcome.message}
+          </p>
         )}
 
-        <dl>
-          <dt>State</dt>
-          <dd>{words.label}</dd>
-          <dt>Finished</dt>
-          <dd>
-            {payload.event.finished_at === null
-              ? 'Not finished'
-              : formatLondon(payload.event.finished_at)}
-          </dd>
-          <dt>Published</dt>
-          <dd>
-            {payload.event.results_published_at === null
-              ? 'Not published'
-              : formatLondon(payload.event.results_published_at)}
-          </dd>
-          <dt>Open captures</dt>
-          <dd>{open}</dd>
+        <dl className="club-meta timing-details">
+          <div>
+            <dt>State</dt>
+            <dd>{words.label}</dd>
+          </div>
+          <div>
+            <dt>Finished</dt>
+            <dd>
+              {payload.event.finished_at === null
+                ? 'Not finished'
+                : formatLondon(payload.event.finished_at)}
+            </dd>
+          </div>
+          <div>
+            <dt>Published</dt>
+            <dd>
+              {payload.event.results_published_at === null
+                ? 'Not published'
+                : formatLondon(payload.event.results_published_at)}
+            </dd>
+          </div>
+          <div>
+            <dt>Open captures</dt>
+            <dd>{open}</dd>
+          </div>
         </dl>
 
         <p>{words.detail}</p>
 
         <PreviewTable payload={payload} />
 
-        <h2>Files</h2>
+        <section className="club-card timing-job" aria-labelledby="results-files">
+          <h2 id="results-files">Files</h2>
 
-        {/* ⚠️ **A POST rather than a link**, like every other write-shaped thing here: a plain
+          {/* ⚠️ **A POST rather than a link**, like every other write-shaped thing here: a plain
           `<form method="post">` answered by a route handler is HTML that cannot fail with
           scripting off, which is the property the whole `no-javascript` project exists to keep.
           Downloading is not a write, and the two presses are two buttons in one form rather
           than two forms, because they ask for the same rows in two shapes. */}
-        <form method="post" action={exportAction}>
-          <p>
-            <button type="submit" name="format" value="csv" className="button">
-              Results as CSV
-            </button>{' '}
-            <button
-              type="submit"
-              name="format"
-              value="xlsx"
-              className="button button-quiet"
-            >
-              Results as a spreadsheet
-            </button>
-          </p>
-        </form>
-
-        <p>
-          A spreadsheet keeps a bib of <code>0311</code> as <code>0311</code>; a CSV
-          opened in Excel becomes <code>311</code>. Use the spreadsheet if the numbers
-          matter, and the CSV if something else is going to read the file.
-        </p>
-
-        <h2>
-          {state === 'published' ? 'Take these results down' : 'Publish these results'}
-        </h2>
-
-        {state === 'published' ? (
-          <>
-            <p className="notice notice-ok">
-              These results are public. A correction is{' '}
-              <strong>unpublish, fix, publish</strong> — the results page goes back to not
-              found in between, rather than serving a table somebody is editing.
-            </p>
-
-            <form method="post" action={action}>
-              <input type="hidden" name="intent" value="unpublish" />
-              <button type="submit" className="button button-quiet">
-                Unpublish these results
+          <form method="post" action={exportAction}>
+            <p className="club-btns">
+              <button
+                type="submit"
+                name="format"
+                value="csv"
+                className="club-btn club-btn-primary"
+              >
+                Results as CSV
               </button>
-            </form>
-          </>
-        ) : (
-          <>
-            {payload.event.finished_at === null ? (
-              <p className="notice notice-bad" id="publish-not-finished">
-                This race has not been marked finished, so its results cannot be published
-                yet. Finishing and publishing are two separate decisions.{' '}
-                <Link href={`/events/${slug}/console#finish`}>Finish this race</Link>{' '}
-                first.
-              </p>
-            ) : null}
+              <button
+                type="submit"
+                name="format"
+                value="xlsx"
+                className="club-btn club-btn-secondary"
+              >
+                Results as a spreadsheet
+              </button>
+            </p>
+          </form>
 
-            {open > 0 ? (
-              <p className="notice notice-bad" id="publish-open-anomalies">
-                {open === 1
-                  ? 'There is 1 capture still to be resolved'
-                  : `There are ${open} captures still to be resolved`}
-                , so these results cannot be published.{' '}
-                <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link>{' '}
-                first.
-              </p>
-            ) : null}
+          <p>
+            A spreadsheet keeps a bib of <code>0311</code> as <code>0311</code>; a CSV
+            opened in Excel becomes <code>311</code>. Use the spreadsheet if the numbers
+            matter, and the CSV if something else is going to read the file.
+          </p>
+        </section>
 
-            {/*
+        <section className="club-card timing-job" aria-labelledby="results-publish">
+          <h2 id="results-publish">
+            {state === 'published' ? 'Take these results down' : 'Publish these results'}
+          </h2>
+
+          {state === 'published' ? (
+            <>
+              <p className="club-notice">
+                These results are public. A correction is{' '}
+                <strong>unpublish, fix, publish</strong> — the results page goes back to
+                not found in between, rather than serving a table somebody is editing.
+              </p>
+
+              <form method="post" action={action}>
+                <input type="hidden" name="intent" value="unpublish" />
+                <button type="submit" className="club-btn club-btn-secondary">
+                  Unpublish these results
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              {payload.event.finished_at === null ? (
+                <p className="club-notice timing-notice-bad" id="publish-not-finished">
+                  This race has not been marked finished, so its results cannot be
+                  published yet. Finishing and publishing are two separate decisions.{' '}
+                  <Link href={`/events/${slug}/console#finish`}>Finish this race</Link>{' '}
+                  first.
+                </p>
+              ) : null}
+
+              {open > 0 ? (
+                <p className="club-notice timing-notice-bad" id="publish-open-anomalies">
+                  {open === 1
+                    ? 'There is 1 capture still to be resolved'
+                    : `There are ${open} captures still to be resolved`}
+                  , so these results cannot be published.{' '}
+                  <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link>{' '}
+                  first.
+                </p>
+              ) : null}
+
+              {/*
               ⚠️ **Disabled whenever `publish_results()` would refuse**, with the reasons above
               named as its description — brief §6.2 #6: a blocked action no longer looks
               pressable. The two conditions are the function's own `not_finished` and
@@ -410,28 +440,31 @@ export default async function ResultsPage({
               with or without scripting: unlike the wipe's typed phrase, there is nothing here
               to wait for. The function still refuses a POST that never saw this page.
             */}
-            <form method="post" action={action}>
-              <input type="hidden" name="intent" value="publish" />
-              <button
-                type="submit"
-                className="club-btn club-btn-primary"
-                disabled={blockers.length > 0}
-                aria-describedby={blockers.length > 0 ? blockers.join(' ') : undefined}
-              >
-                Publish these results
-              </button>
-            </form>
+              <form method="post" action={action}>
+                <input type="hidden" name="intent" value="publish" />
+                <button
+                  type="submit"
+                  className="club-btn club-btn-primary"
+                  disabled={blockers.length > 0}
+                  aria-describedby={blockers.length > 0 ? blockers.join(' ') : undefined}
+                >
+                  Publish these results
+                </button>
+              </form>
 
-            {/* The sentence that stops somebody pressing this to see what it does. */}
-            <p>
-              Publishing puts this table on the <strong>open internet</strong>, readable
-              by anybody signed in or not. It can be undone here, and a correction is
-              unpublish, fix, publish.
-            </p>
-          </>
-        )}
+              {/* The sentence that stops somebody pressing this to see what it does. */}
+              <p>
+                Publishing puts this table on the <strong>open internet</strong>, readable
+                by anybody signed in or not. It can be undone here, and a correction is
+                unpublish, fix, publish.
+              </p>
+            </>
+          )}
+        </section>
 
-        <h2 id="prizes">Prize giving</h2>
+        <h2 id="prizes" className="timing-section-title">
+          Prize giving
+        </h2>
 
         <PrizesSection slug={slug} payload={payload} choices={prizeChoices} />
 
@@ -442,7 +475,7 @@ export default async function ResultsPage({
           {' · '}
           <Link href={`/events/${slug}`}>Back to this race</Link>
         </p>
-      </>
+      </div>
     </RaceFrame>
   );
 }

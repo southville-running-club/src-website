@@ -336,12 +336,12 @@ export function LiveBoard({
   return (
     <>
       {caveats.map((caveat) => (
-        <p className="notice notice-bad" key={caveat}>
+        <p className="club-notice timing-notice-bad" key={caveat}>
           {caveat}
         </p>
       ))}
 
-      <p>
+      <p className="club-small timing-freshness" aria-live="polite">
         {CONNECTION_WORDS[connection]}
         {updatedAt === null ? null : ` Last change ${formatLondonClock(updatedAt)}.`}
       </p>
