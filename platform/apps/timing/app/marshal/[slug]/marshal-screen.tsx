@@ -609,7 +609,7 @@ export function MarshalScreen({
   const queue = sortCards(cards);
 
   return (
-    <div className="capture">
+    <div className="capture timing-capture-screen">
       {doorRefused ? (
         <p className="notice notice-bad" role="alert">
           {SYNC_DOOR_REFUSED}
@@ -624,10 +624,10 @@ export function MarshalScreen({
         </p>
       ) : null}
 
-      <button type="button" className="button button-wide capture-tap" onClick={capture}>
+      <button type="button" className="timing-capture" onClick={capture}>
         Crossed now
       </button>
-      <p className="capture-hint">
+      <p className="club-small timing-hint">
         Press the moment a runner crosses. The time is recorded straight away — type the
         bib afterwards.
       </p>
@@ -638,7 +638,7 @@ export function MarshalScreen({
           worker has it, and the difference between the two is not something anybody can be
           expected to guess at a start line. */}
       <p
-        className="capture-hint"
+        className="club-small timing-hint"
         data-capture-offline-ready={offlineReady ? 'yes' : 'no'}
       >
         {offlineReady
@@ -646,35 +646,46 @@ export function MarshalScreen({
           : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.'}
       </p>
 
-      <h2>
-        {queue.length === 0
-          ? 'Nothing waiting'
-          : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
-      </h2>
+      {/* The queue is the one part of this screen that scrolls (T5): the tile and its hints
+          stay put above it, so the button is always where the thumb left it. ⚠️ **A region in
+          the tab order, named by its heading**, because a box that scrolls must be reachable
+          by keyboard to be scrolled at all. axe's `scrollable-region-focusable` caught it on
+          an iPhone SE, where an empty queue's sentence alone overflows. */}
+      <section
+        className="timing-queue-wrap"
+        aria-labelledby="capture-queue-heading"
+        tabIndex={0}
+      >
+        <h2 id="capture-queue-heading">
+          {queue.length === 0
+            ? 'Nothing waiting'
+            : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
+        </h2>
 
-      {queue.length === 0 ? (
-        <p>
-          Every crossing recorded on this phone has been sent to the club. Crossings
-          recorded while there is no signal stay here until it comes back.
-        </p>
-      ) : null}
+        {queue.length === 0 ? (
+          <p>
+            Every crossing recorded on this phone has been sent to the club. Crossings
+            recorded while there is no signal stay here until it comes back.
+          </p>
+        ) : null}
 
-      <ul className="capture-queue">
-        {queue.map((card) => (
-          <CardView
-            key={card.id}
-            card={card}
-            draft={drafts[card.id] ?? ''}
-            format={format}
-            known={known}
-            onPress={press}
-            onBackspace={backspace}
-            onConfirm={confirm}
-            onDiscard={discard}
-            onRetry={() => void drain(card.id)}
-          />
-        ))}
-      </ul>
+        <ul className="timing-queue">
+          {queue.map((card) => (
+            <CardView
+              key={card.id}
+              card={card}
+              draft={drafts[card.id] ?? ''}
+              format={format}
+              known={known}
+              onPress={press}
+              onBackspace={backspace}
+              onConfirm={confirm}
+              onDiscard={discard}
+              onRetry={() => void drain(card.id)}
+            />
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }
@@ -719,28 +730,28 @@ function CardView({
       : null;
 
     return (
-      <li className="capture-card capture-card-open">
-        <p className="capture-time">
-          <span className="capture-time-label">Crossed at</span> {captured}
+      <li className="timing-qcard" data-state="open">
+        <p className="timing-time">
+          <span className="timing-time-label">Crossed at</span> {captured}
         </p>
 
-        <p className="capture-bib" aria-live="polite">
+        <p className="timing-bib-line" aria-live="polite">
           {draft === '' ? 'No bib yet' : `Bib ${draft}`}
         </p>
 
         {anomaly?.flag ? (
-          <p className="notice notice-bad capture-anomaly">
+          <p className="timing-warn">
             {formatAnomalyMessage(anomaly.reason)}. Confirm it anyway if that is what you
             saw — somebody will check it afterwards.
           </p>
         ) : null}
 
-        <div className="capture-keypad">
+        <div className="timing-keypad">
           {KEYS.map((digit) => (
             <button
               key={digit}
               type="button"
-              className="button capture-key"
+              className="timing-key"
               onClick={() => onPress(card.id, digit)}
             >
               {digit}
@@ -748,17 +759,17 @@ function CardView({
           ))}
           <button
             type="button"
-            className="button capture-key capture-key-wide"
+            className="timing-key timing-key-wide"
             onClick={() => onBackspace(card.id)}
           >
             Delete a digit
           </button>
         </div>
 
-        <div className="capture-actions">
+        <div className="timing-qcard-actions">
           <button
             type="button"
-            className="button"
+            className="club-btn club-btn-primary"
             disabled={!validateBib(draft)}
             onClick={() => onConfirm(card)}
           >
@@ -766,7 +777,7 @@ function CardView({
           </button>
           <button
             type="button"
-            className="button button-quiet"
+            className="timing-danger-link"
             onClick={() => onDiscard(card)}
           >
             Discard this tap
@@ -779,15 +790,13 @@ function CardView({
   const capped = card.state === 'failed' && atRetryCap(card);
 
   return (
-    <li className={`capture-card capture-card-${card.state}`}>
-      <p className="capture-time">
-        <span className="capture-time-label">Crossed at</span> {captured}
-        {card.bib === null ? null : (
-          <span className="capture-card-bib">Bib {card.bib}</span>
-        )}
+    <li className="timing-qcard" data-state={card.state}>
+      <p className="timing-time">
+        <span className="timing-time-label">Crossed at</span> {captured}
+        {card.bib === null ? null : <span className="timing-bib">Bib {card.bib}</span>}
       </p>
 
-      <p className="capture-state">
+      <p className="timing-state-line">
         {card.state === 'queued'
           ? 'Waiting to be sent.'
           : card.state === 'syncing'
@@ -796,7 +805,7 @@ function CardView({
       </p>
 
       {card.anomalyFlag && card.anomalyReason !== null ? (
-        <p className="capture-anomaly-note">{card.anomalyReason}</p>
+        <p className="club-small timing-anomaly-note">{card.anomalyReason}</p>
       ) : null}
 
       {card.state === 'failed' ? (
@@ -804,12 +813,12 @@ function CardView({
           {/* ⚠️ The club's own wording, chosen by `lib/sync-outcomes.ts`. Nothing the database
               says is ever rendered here — see that module's header. */}
           <p
-            className={capped ? 'notice notice-bad' : 'capture-state-detail'}
+            className={capped ? 'notice notice-bad' : 'timing-fail'}
             role={capped ? 'alert' : undefined}
           >
             {capped ? SYNC_MANUAL_REVIEW : (card.lastError ?? SYNC_UNAVAILABLE)}
           </p>
-          <button type="button" className="button" onClick={onRetry}>
+          <button type="button" className="club-btn club-btn-secondary" onClick={onRetry}>
             Retry now
           </button>
         </>

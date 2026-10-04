@@ -3170,6 +3170,71 @@ test.describe('the addresses the race console replaced', () => {
  * navigation, no breadcrumbs and no club footer: a timing page is a tool somebody is signed in
  * to, and its navigation is what their roles let them use.
  */
+/**
+ * The two race-day screens as Slice D drew them (brief §11.6–7, D5).
+ *
+ * ⚠️ **Light whatever the phone says.** Both are used outdoors, so `FocusFrame` marks them
+ * `.timing-force-light` and `timing.css` restates the light palette there under a dark setting.
+ * The page colour is asserted rather than a screenshot, because it is the one value every other
+ * colour on these screens is measured against.
+ */
+test.describe('the race-day screens', () => {
+  const LIGHT_PAGE = 'rgb(241, 247, 239)';
+
+  test('the capture screen fits a phone without the page scrolling @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    const tile = page.getByRole('button', { name: 'Crossed now' });
+    await expect(tile).toBeVisible();
+    const box = await tile.boundingBox();
+    // About 290px on a phone (T5): big enough to hit without looking.
+    expect(box?.height ?? 0).toBeGreaterThan(240);
+    expect(box?.height ?? 0).toBeLessThan(320);
+
+    // Only the queue scrolls; the page itself does not.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test('the console stays light on a phone set to dark', async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
+
+    await expect(page.locator('body')).toHaveCSS('background-color', LIGHT_PAGE);
+  });
+
+  test('the capture screen stays light on a phone set to dark', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    await expect(page.locator('body')).toHaveCSS('background-color', LIGHT_PAGE);
+  });
+
+  test('both have no accessibility violations on a phone set to dark @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
+    expect(await axeViolations(page), 'console').toEqual([]);
+
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+    expect(await axeViolations(page), 'capture').toEqual([]);
+  });
+});
+
 test.describe('the app shell every timing page wears', () => {
   const RACE = `/timing/events/${RESULTS_EVENT_SLUG}`;
   const CLUB_BAR = { name: 'Southville Running Club', exact: true } as const;

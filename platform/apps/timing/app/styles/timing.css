@@ -51,9 +51,9 @@
    * redefines for dark, restated for those two screens only. `:has()` because a frame can set a
    * class on its own wrapper but not on `<html>`, which the root layout owns.
    *
-   * ⚠️ **If `club-chrome.css` gains a dark token, it must be added here too**, or that one
-   * colour turns dark on a light screen. `timing-contrast.test.ts` fails if a token the chrome
-   * redefines for dark is missing from this block.
+   * ⚠️ **If `club-chrome.css` or `base.css` gains a dark token, it must be added here too**,
+   * or that one colour turns dark on a light screen. `timing-contrast.test.ts` fails if a token
+   * either file redefines for dark is missing from this block.
    */
   :root:has(.timing-force-light) {
     color-scheme: light;
@@ -71,6 +71,21 @@
     --club-danger: #a3231b;
     --club-focus: #16301f;
     --club-on-danger: #ffffff;
+
+    /* And `base.css`'s palette, which the console's sections not yet restyled are still painted
+       with. Without these, a phone set to dark put `base.css`'s dark-scheme grey on this
+       light page: a `<dt>` at 2.14:1, which axe caught. The light values, as `base.css`'s own
+       `:root` states them. */
+    --colour-background: var(--src-paper);
+    --colour-text: var(--src-ink);
+    --colour-muted: var(--src-slate);
+    --colour-accent: var(--src-green-text);
+    --colour-rule: var(--src-rule);
+    --colour-banner: var(--src-band);
+    --colour-banner-text: var(--src-ink);
+    --colour-banner-link: var(--src-green-text);
+    --colour-error: var(--src-error);
+    --colour-on-accent: #ffffff;
   }
 }
 
@@ -453,6 +468,10 @@ body:has(.timing-ui) {
   white-space: nowrap;
 }
 
+.timing-jump .club-badge {
+  margin: 0;
+}
+
 .timing-jump a[aria-current='true'] {
   border-color: var(--club-text);
 }
@@ -530,11 +549,22 @@ body:has(.timing-ui) {
 .timing-focus-bar .club-focus-title {
   min-width: 0;
   flex-wrap: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one way out never wraps and never shrinks: a long race name gives way first. */
+.timing-focus-bar .club-focus-leave {
+  flex: none;
   white-space: nowrap;
 }
 
 .timing-focus-bar .club-focus-race {
   flex-basis: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timing-focus-bar .club-focus-race::before {
@@ -568,7 +598,6 @@ body:has(.timing-ui) {
   background: var(--club-brand);
   color: var(--club-on-brand);
   text-align: center;
-  animation: timing-fade 0.25s ease;
 }
 
 .timing-go h1 {
@@ -628,10 +657,66 @@ body:has(.timing-ui) {
   gap: 0.5rem 1.25rem;
 }
 
-@keyframes timing-fade {
-  from {
-    opacity: 0;
-  }
+/* The console's race control is the T2 screen as a panel: it sits under the console's own
+   head and jump bar, so it is tall rather than the whole viewport. One state, one action. */
+.timing-go-panel {
+  min-height: min(30rem, 70dvh);
+  margin: 1rem 0 1.5rem;
+  border-radius: var(--club-radius-card);
+}
+
+.timing-go h3 {
+  max-width: 18ch;
+  margin: 0;
+  color: inherit;
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+}
+
+/* The facts under a finished race, ink on the green like the rest of the panel. */
+.timing-go-meta {
+  justify-self: stretch;
+  max-width: 24rem;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.timing-go-meta dt {
+  color: inherit;
+}
+
+/* The console's column: the race control and the sections below it, which were laid out for
+   `base.css`'s measure and are not restyled before the race. */
+.timing-console {
+  max-width: 48rem;
+}
+
+.timing-console-head h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.6rem;
+}
+
+.timing-console-head .club-lede {
+  margin-bottom: 0.75rem;
+}
+
+/* Two figures as badges: the label and its count on one line. */
+.timing-console-counts {
+  margin: 0 0 1rem;
+}
+
+.timing-console-counts > div {
+  display: inline-flex;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.timing-console-counts dt {
+  color: inherit;
+  font-weight: 700;
+}
+
+.timing-console-counts dd {
+  margin: 0;
 }
 
 /* The big clock. Bricolage's subset carries tabular figures: "11:11:11", "00:00:00" and
@@ -657,12 +742,58 @@ body:has(.timing-ui) {
 
 .timing-tool {
   flex: 1;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
   width: 100%;
   min-height: 0;
-  padding-block: 0.9rem 0;
+  padding-block: 0.75rem 0;
+}
+
+/* The race's name and where it has got to, one compact line each above the tile. */
+.timing-tool-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.timing-tool-when {
+  margin: 0;
+}
+
+/* The client screen's root: the tile, its hints, then the queue, which takes what is left. */
+.timing-capture-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.timing-hint {
+  max-width: none;
+  margin: 0;
+}
+
+.timing-queue-wrap {
+  flex: 1;
+  min-height: 0;
+}
+
+.timing-time-label {
+  margin-right: 0.35rem;
+  color: var(--club-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* "No bib yet" or "Bib 214" on the card being typed into: the thing the marshal is checking. */
+.timing-bib-line {
+  font: 800 1.5rem / 1.1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.timing-state-line {
+  font-weight: 700;
 }
 
 /* `--club-on-brand` on `--club-brand`, 5.07:1. */
@@ -896,10 +1027,6 @@ body:has(.timing-ui) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timing-go {
-    animation: none;
-  }
-
   .timing-capture,
   .timing-key {
     transition: none;

@@ -89,10 +89,10 @@ export function RaceClock({
 
   return (
     <>
-      <p className="race-clock" role="timer" aria-live="off">
+      <p className="race-clock timing-clock club-num" role="timer" aria-live="off">
         {formatDuration(magnitude)}
       </p>
-      <p>{caption}</p>
+      <p className="timing-go-caption">{caption}</p>
     </>
   );
 }
