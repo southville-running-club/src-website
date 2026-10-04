@@ -24,7 +24,7 @@ import {
   lifecycleStateFor,
   resultsOutcomeFor,
 } from '../../../../lib/results-outcomes';
-import { ClubFrame, RaceFrame } from '../../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/results/` — what somebody reads **before** they publish.
@@ -273,9 +273,9 @@ export default async function ResultsPage({
 
   if (read.state === 'none') {
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

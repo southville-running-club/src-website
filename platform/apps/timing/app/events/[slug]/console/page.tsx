@@ -8,7 +8,7 @@ import { FinishSection } from './sections/finish';
 import { StatusSection, type StatusTeam } from './sections/status';
 import { AnomaliesSection, type OpenAnomaly } from './sections/anomalies';
 import { CrossingsSection, type LoggedCrossing } from './sections/crossings';
-import { ClubFrame, FocusFrame } from '../../../chrome/frames';
+import { PlainFrame, FocusFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/console` — race night on one screen.
@@ -144,9 +144,9 @@ export default async function ConsolePage({
     // `event_detail()` answers the same `null` for a refusal and for a race that is not there,
     // and `NotFoundBody` is the one wording so this cannot drift from `app/not-found.tsx`.
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

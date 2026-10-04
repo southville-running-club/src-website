@@ -152,6 +152,8 @@ describe.each(SCHEMES)('the timing layer, %s', (_name, scheme) => {
     ['--club-muted', '--club-background'],
     ['--club-text', '--club-surface'],
     ['--club-text', '--club-background'],
+    // The app shell (ADR-054): the footer's links are the link colour on the page.
+    ['--club-link', '--club-background'],
   ])('%s on %s is readable text', (fg, bg) => {
     expect(ratio(fg, bg)).toBeGreaterThanOrEqual(AA_TEXT);
   });
@@ -169,6 +171,8 @@ describe.each(SCHEMES)('the timing layer, %s', (_name, scheme) => {
     ['--club-rule-strong', '--club-surface'],
     ['--club-text', '--club-surface'],
     ['--club-danger', '--club-surface'],
+    // The current area's underline in the app header (ADR-054).
+    ['--club-brand', '--club-background'],
   ])('%s against %s is a visible edge', (fg, bg) => {
     expect(ratio(fg, bg)).toBeGreaterThanOrEqual(AA_NON_TEXT);
   });

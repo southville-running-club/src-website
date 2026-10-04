@@ -3,7 +3,7 @@ import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
-import { ClubFrame, RaceFrame } from '../../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/danger-zone/` — wiping a rehearsal.
@@ -103,9 +103,9 @@ export default async function DangerZonePage({
     // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
     // `event_detail()` answers the same `null` for a refusal and for a missing race.
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

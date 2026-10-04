@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../lib/reads';
 import { NotFoundBody } from '../../not-found-body';
-import { ClubFrame, RaceFrame } from '../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/` — one race, and where it has got to.
@@ -87,9 +87,9 @@ export default async function EventPage({
     // drift from `app/not-found.tsx`'s — `event_detail()` answers the same `null` for a
     // refusal and for a race that does not exist, and the body may not tell them apart either.
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

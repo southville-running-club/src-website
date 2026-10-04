@@ -5,7 +5,7 @@ import type { SortKey } from '@src/shared/timing/results';
 import { readLeaderboard } from '../../../../lib/leaderboard';
 import { LiveBoard } from './live-board';
 import { NotFoundBody } from '../../../not-found-body';
-import { ClubFrame, RaceFrame } from '../../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../../chrome/frames';
 
 /**
  * `/timing/events/<slug>/leaderboard/` — the race as it stands, for the people running it.
@@ -107,9 +107,9 @@ export default async function LeaderboardPage({
 
   if (read.state === 'none') {
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

@@ -100,10 +100,11 @@ for `/timing/events/`. A link to a page that 404s tells somebody it exists, whic
 disclosure the 404 is there to avoid.
 
 ⚠️ **A refused request is rewritten to an address that matches no route**, so Next serves its
-prerendered not-found page: real server-rendered HTML, status 404, with the club header, the
+prerendered not-found page: real server-rendered HTML, status 404, with the club's mark, the
 footer and the privacy notice on it, byte for byte what a genuinely missing address returns.
-⚠️ **It is drawn in `ClubFrame` and nothing that reads**, since ADR-053 — a frame that read the
-session would stop it prerendering, and this is the page every refusal depends on.
+⚠️ **It is drawn in `PlainFrame` and nothing that reads**, since ADR-054 — a frame that read the
+session would stop it prerendering, and this is the page every refusal depends on. It names no
+area either: a refusal must not say what is behind it.
 
 **It does not throw `notFound()`, and that was learned the expensive way.** Thrown during a
 dynamic render — reading cookies makes it dynamic — `notFound()` returns an empty
@@ -226,37 +227,47 @@ component; they are one set of **data** — `club-nav.ts`, `@src/shared/content/
 compares this header with the Astro one in a browser, because each app builds green on its
 own and nothing else would notice a drift.
 
-⚠️ **Every club link is a plain `<a>`, never `<Link>`.** They all leave this app, and Next
-prefixes a `<Link>`'s href with the base path — `/run-with-us/` would become
-`/timing/run-with-us/` and 404. A test asserts no club link starts with `/timing`.
+⚠️ **Every link that leaves this app is a plain `<a>`, never `<Link>`.** Next prefixes a
+`<Link>`'s href with the base path — `/account/` would become `/timing/account/` and 404. A test
+asserts no header or footer link starts with `/timing`.
 
 **The root layout draws the document and nothing else; every page wraps itself in a frame**,
 because the frame depends on what only the page knows — which race, its name, which tab:
 
 | Frame | Pages | What it draws |
 | --- | --- | --- |
-| `TimingFrame` | `/timing`, `/timing/events` | Club header, "Race timing" bar, breadcrumbs, footer |
-| `RaceFrame` | a race's overview, leaderboard, results, entry list, marshals, danger zone | Club header, the race's bar with its tab current, breadcrumbs, footer |
+| `TimingFrame` | `/timing`, `/timing/events` | App header, "Race timing" area bar (none for a marshal), slim footer |
+| `RaceFrame` | a race's overview, leaderboard, results, entry list, marshals, danger zone | App header, the race's area bar with its tab current, slim footer |
 | `FocusFrame` | the race console, the marshal's capture screen | A slim dark header — the screen, the race, one way out — and nothing else |
-| `ClubFrame` | not found (both statuses), `global-error.tsx` | Club header and footer, reading nothing |
+| `PlainFrame` | not found (both statuses), `global-error.tsx` | The club's mark and the slim footer, reading nothing |
+
+**The app header is ADR-054**, which superseded ADR-053's club header here. It offers the areas
+somebody's roles allow — Your account, Race timing, and Club admin for staff — and says who
+they are signed in as. There is no sign-out control: that is a POST with a token only the main
+site issues, so it is on Your account. A bar with one tab is not drawn, which is what gives a
+marshal none.
 
 `lib/chrome.ts` is that table, and **`tests/unit/chrome.test.ts` reads every `page.tsx` under
 `app/` and fails unless it is in the table and uses the frame named for it.** A new page is a
 row there first. Tabs are drawn from `canOpen()` — filtered, never locked — so nobody is shown
-a link to a 404. `app/chrome/club-frame.tsx` is the read-free half, kept apart from
+a link to a 404. `app/chrome/app-shell.tsx` is the read-free half, kept apart from
 `frames.tsx` so the error page (a client component) can import it and the not-found page stays
 prerendered.
 
-Styles: `club-chrome.css`, imported after `base.css` in `app/layout.tsx` — every rule
-`.club-*`-scoped, so the pages' own bodies are `base.css`'s exactly as before. **Never
-`club.css`**, which restyles bare elements.
+Styles: `club-chrome.css`, then `app/styles/club-content.css` and `app/styles/timing.css`, all
+after `base.css` in `app/layout.tsx`, in an order `tests/unit/stylesheet-order.test.ts` holds.
+**Never `club.css`**, which restyles bare elements; `club-content.css` is a class-scoped copy of
+the parts this app uses, held to `club.css` by `tests/unit/club-content-drift.test.ts`. A frame
+puts `.timing-ui` around its page, which is what moves the page onto the club's type and
+colours. Pages not yet restyled sit in `.club-wrap-narrow`, the width they were laid out for.
 
 | | |
 | --- | --- |
-| `app/chrome/club-chrome.tsx` | The club header, Menu and footer |
-| `app/chrome/club-frame.tsx` | `ClubFrame`, the section bar and the breadcrumbs, reading nothing |
-| `app/chrome/frames.tsx` | `TimingFrame`, `RaceFrame`, `FocusFrame` — the ones that read permissions |
-| `lib/chrome.ts` | The route table and the two tab lists |
+| `app/chrome/app-shell.tsx` | The app header, the area bar, the footer and `PlainFrame`, reading nothing |
+| `app/chrome/frames.tsx` | `TimingFrame`, `RaceFrame`, `FocusFrame` — the ones that read the session |
+| `app/chrome/area-bar-scroll.tsx` | Scrolls the current tab into view on a phone; nothing without scripting |
+| `lib/chrome.ts` | The route table, the two tab lists, and which areas somebody is offered |
+| `lib/staff-roles.ts` | A copy of `apps/main`'s staff roles, for "Club admin", held to it by a test |
 | `metadata.icons` in `app/layout.tsx` | The browser-tab icon |
 
 **The favicon is `/favicon.svg`, which this app does not serve.** It is
