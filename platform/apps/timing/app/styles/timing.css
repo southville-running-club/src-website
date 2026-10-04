@@ -329,6 +329,18 @@ body:has(.timing-ui) {
   }
 }
 
+/* A page head inside a page already has the page's own top padding; the club's would double it. */
+.timing-main .club-phead {
+  padding-top: 0;
+}
+
+/* A race's details: labels up to "Results published" on one line, rather than the club's
+   6rem column, which wraps them. */
+.timing-details > div {
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+}
+
 /* A page's own content starts below the bar with the club's breathing room. */
 .timing-main {
   padding-top: 2rem;
@@ -407,6 +419,7 @@ body:has(.timing-ui) {
 /* A launchpad card: title, one line, and an optional count. */
 .timing-link-card {
   display: grid;
+  align-content: start;
   gap: 0.35rem;
   min-height: 100%;
 }
@@ -424,7 +437,14 @@ body:has(.timing-ui) {
   margin: 0;
 }
 
-/* Six facts rather than the home page's five: an even grid instead of its spans. */
+/* Six facts rather than the home page's five: an even grid instead of its spans. Inside the
+   page's wrap, so rounded and padded like a card rather than bled to the edges. */
+.timing-facts {
+  margin: 0 0 0.5rem;
+  padding-inline: 1.25rem;
+  border-radius: var(--club-radius-card);
+}
+
 .timing-facts ul {
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
 }
