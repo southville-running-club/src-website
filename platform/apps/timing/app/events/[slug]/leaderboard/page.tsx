@@ -6,6 +6,9 @@ import { readLeaderboard } from '../../../../lib/leaderboard';
 import { LiveBoard } from './live-board';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Live leaderboard');
 
 /**
  * `/timing/events/<slug>/leaderboard/` — the race as it stands, for the people running it.

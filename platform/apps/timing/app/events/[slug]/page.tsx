@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { formatLondon } from '@src/shared';
-import { readTiming } from '../../../lib/reads';
 import { NotFoundBody } from '../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../chrome/frames';
+import { raceMetadata, readEventDetail } from '../../../lib/titles';
+
+export const generateMetadata = raceMetadata(null);
 
 /**
  * `/timing/events/<slug>/` — one race, and where it has got to.
@@ -66,7 +68,7 @@ export default async function EventPage({
 }) {
   // Next 16: `params` is a Promise and has to be awaited.
   const { slug } = await params;
-  const read = await readTiming<EventDetail>('event_detail', { p_event_slug: slug });
+  const read = await readEventDetail<EventDetail>(slug);
 
   if (read.state === 'unavailable') {
     return (

@@ -11,6 +11,9 @@ import {
   type FindingSummary,
 } from '../../../../lib/registration-outcomes';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Entry list');
 
 /**
  * `/timing/events/<slug>/registration/` — the entry list for one race.

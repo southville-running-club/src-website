@@ -3179,7 +3179,7 @@ test.describe('the app shell every timing page wears', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
   });
 
-  for (const [path, current, _title] of [
+  for (const [path, current, title] of [
     ['/timing', 'Overview', 'Race timing — Southville Running Club'],
     ['/timing/events', 'Races', 'Races — Race timing — Southville Running Club'],
   ] as const) {
@@ -3208,10 +3208,11 @@ test.describe('the app shell every timing page wears', () => {
         'href',
         '/privacy/',
       );
+      await expect(page).toHaveTitle(title);
     });
   }
 
-  for (const [suffix, current, _name] of [
+  for (const [suffix, current, name] of [
     ['', 'Overview', null],
     ['/leaderboard', 'Live leaderboard', 'Live leaderboard'],
     ['/results', 'Results', 'Results'],
@@ -3254,6 +3255,9 @@ test.describe('the app shell every timing page wears', () => {
       }
 
       await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveCount(0);
+      await expect(page).toHaveTitle(
+        `${name === null ? '' : `${name} — `}${RESULTS_EVENT_NAME} — Southville Running Club`,
+      );
     });
   }
 

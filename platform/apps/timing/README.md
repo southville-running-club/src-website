@@ -268,6 +268,7 @@ colours. Pages not yet restyled sit in `.club-wrap-narrow`, the width they were 
 | `app/chrome/area-bar-scroll.tsx` | Scrolls the current tab into view on a phone; nothing without scripting |
 | `lib/chrome.ts` | The route table, the two tab lists, and which areas somebody is offered |
 | `lib/staff-roles.ts` | A copy of `apps/main`'s staff roles, for "Club admin", held to it by a test |
+| `lib/titles.ts` | Each page's `<title>`: "{Page} — {Race}" |
 | `metadata.icons` in `app/layout.tsx` | The browser-tab icon |
 
 **The favicon is `/favicon.svg`, which this app does not serve.** It is

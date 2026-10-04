@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { formatLondon } from '@src/shared';
-import { readTiming } from '../../../../lib/reads';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata, readEventDetail } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Danger zone');
 
 /**
  * `/timing/events/<slug>/danger-zone/` — wiping a rehearsal.
@@ -79,7 +81,7 @@ export default async function DangerZonePage({
     typeof outcomeParam === 'string' ? outcomeParam : undefined,
   );
 
-  const read = await readTiming<EventDetail>('event_detail', { p_event_slug: slug });
+  const read = await readEventDetail<EventDetail>(slug);
 
   if (read.state === 'unavailable') {
     // ⚠️ **Never "Not found" for an outage**, and on this page the third sentence is the one

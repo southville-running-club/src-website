@@ -9,6 +9,9 @@ import { StatusSection, type StatusTeam } from './sections/status';
 import { AnomaliesSection, type OpenAnomaly } from './sections/anomalies';
 import { CrossingsSection, type LoggedCrossing } from './sections/crossings';
 import { PlainFrame, FocusFrame } from '../../../chrome/frames';
+import { raceMetadata, readEventDetail } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Race console');
 
 /**
  * `/timing/events/<slug>/console` — race night on one screen.
@@ -99,7 +102,7 @@ export default async function ConsolePage({
   const mayResolve = permissions.includes(RESOLVE);
 
   const [detail, statusRead, anomaliesRead, logRead] = await Promise.all([
-    readTiming<EventDetail>('event_detail', { p_event_slug: slug }),
+    readEventDetail<EventDetail>(slug),
     mayManage
       ? readTiming<StatusTeam[]>('team_status_list', {
           p_event_slug: slug,

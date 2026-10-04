@@ -25,6 +25,9 @@ import {
   resultsOutcomeFor,
 } from '../../../../lib/results-outcomes';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Results');
 
 /**
  * `/timing/events/<slug>/results/` — what somebody reads **before** they publish.

@@ -4,6 +4,9 @@ import { readTiming } from '../../../../lib/reads';
 import { outcomeFor } from '../../../../lib/marshal-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Marshals');
 
 /**
  * `/timing/events/<slug>/marshals/` — who is standing at the line for one race.
