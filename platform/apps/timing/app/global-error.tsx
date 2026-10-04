@@ -9,7 +9,7 @@ import '@src/shared/styles/base.css';
 import '@src/shared/styles/club-chrome.css';
 import './styles/club-content.css';
 import './styles/timing.css';
-import { ClubFrame } from './chrome/club-frame';
+import { PlainFrame } from './chrome/app-shell';
 
 /**
  * The last-resort error boundary — it replaces the whole document, so it renders its own
@@ -24,9 +24,10 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
   return (
     <html lang="en-GB">
       <body>
-        {/* The club header and footer, ADR-052 — the error page belongs to the site like the
-            not-found page does. `ClubFrame` draws `<main id="main">`. */}
-        <ClubFrame>
+        {/* The plain shell, ADR-054 — the mark and the footer, the not-found page's frame.
+            It reads nothing, because this is a client component and the session reads in
+            `lib/reads.ts` cannot run here. `PlainFrame` draws `<main id="main">`. */}
+        <PlainFrame>
           <h1>Something went wrong</h1>
           <p>
             The page could not be loaded. Nothing captured has been lost — try again, and
@@ -35,7 +36,7 @@ export default function GlobalError({ reset }: { error: Error; reset: () => void
           <button type="button" className="button" onClick={reset}>
             Try again
           </button>
-        </ClubFrame>
+        </PlainFrame>
       </body>
     </html>
   );

@@ -10,7 +10,10 @@ import {
   outcomeFor,
   type FindingSummary,
 } from '../../../../lib/registration-outcomes';
-import { ClubFrame, RaceFrame } from '../../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { raceMetadata } from '../../../../lib/titles';
+
+export const generateMetadata = raceMetadata('Entry list');
 
 /**
  * `/timing/events/<slug>/registration/` — the entry list for one race.
@@ -228,9 +231,9 @@ export default async function RegistrationPage({
     // `NotFoundBody` is the one wording, so this cannot drift from `app/not-found.tsx`'s —
     // `event_roster()` answers the same `null` for a refusal and for a race that is not there.
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

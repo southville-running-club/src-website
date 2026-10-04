@@ -133,22 +133,17 @@ test.describe('the banner that says which site this is', () => {
     await expect(page.getByRole('banner')).toHaveCount(1);
   });
 
-  test("reaches /timing too, in the club website's words since ADR-052", async ({
-    page,
-  }) => {
-    // **The timing app wears the club header now**, not the money pages' banner, so the
-    // sentence it carries is `CLUB_BANNER`'s rather than `SITE_BANNER`'s. Signed out `/timing`
-    // is the timing Worker's not-found page, which carries the header too — the frame it is
-    // drawn in reads nothing, so it still prerenders.
+  test('carries no site banner on /timing since ADR-054', async ({ page }) => {
+    // **The timing app wore the club header from ADR-052 to ADR-054**, and with it the club
+    // website's banner about the old site. ADR-054 replaced it with a signed-in app shell, and
+    // signed out `/timing` is the timing Worker's not-found page in the plain frame: the mark
+    // and the footer, naming nothing. So neither site's banner is on it, and its one banner
+    // landmark is the plain frame's header.
     await page.goto('/timing');
 
-    const banner = page.locator('.club-banner');
-    await expect(banner).toContainText('Some pages are still on the old site');
-    await expect(banner).not.toContainText('We just have Nightingale Nightmare for now');
-    await expect(banner.getByRole('link', { name: 'the old site' })).toHaveAttribute(
-      'href',
-      'https://southvillerunningclub.co.uk',
-    );
+    await expect(page.locator('.club-banner, .site-banner')).toHaveCount(0);
+    await expect(page.getByRole('banner')).toHaveCount(1);
+    await expect(page.getByRole('banner')).toHaveClass(/app-header/);
   });
 });
 
@@ -505,8 +500,8 @@ test.describe('the footer the whole site carries', () => {
     // that moves the money pages across, and delete this comment with it.
     ['the privacy notice', '/privacy/'],
     ['Nightingale Nightmare', '/nn/'],
-    // `/timing` left this list with ADR-052 — it carries the club website's footer, which the
-    // last test in this block compares with the club pages' own.
+    // `/timing` left this list with ADR-052, and since ADR-054 its footer carries no social
+    // profiles at all — the last test in this block says what it carries instead.
   ] as const) {
     test(`${name} offers the club's four profiles`, async ({ page }) => {
       await page.goto(path);
@@ -542,24 +537,27 @@ test.describe('the footer the whole site carries', () => {
     });
   }
 
-  test('the timing app and the club pages say it in the same words, from one list', async ({
+  test('the timing app signs off with its own two links instead, since ADR-054', async ({
     page,
   }) => {
-    // Astro on one side of the hostname and Next on the other, so the club footer is written
-    // twice — three times, with the Worker's — and only `@src/shared/social` keeps them in
-    // step. Nothing but a test that visits both can prove it, because each app builds green
-    // on its own. Signed out, `/timing` is the timing Worker's not-found page, in the club
-    // frame. Since ADR-052; this compared the two *old* footers before.
-    const hrefsOn = async (path: string) => {
-      await page.goto(path);
-      return page
-        .locator('.club-footer-social a')
-        .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
-    };
+    // From ADR-052 to ADR-054 the timing app carried the club website's footer, and this
+    // compared its social links with the club pages'. ADR-054's slim footer carries the privacy
+    // notice and a link back to the club website, and no social profiles: the timing pages are
+    // a tool, and the club's profiles are one link away. Signed out, `/timing` is the timing
+    // Worker's not-found page in the plain frame.
+    await page.goto('/timing');
 
-    const club = await hrefsOn('/');
-    expect(club).toHaveLength(PROFILES.length);
-    expect(await hrefsOn('/timing')).toEqual(club);
+    const footer = page.getByRole('contentinfo');
+    await expect(footer).toHaveClass(/app-footer/);
+    await expect(footer.locator('.club-footer-social a')).toHaveCount(0);
+    await expect(footer.getByRole('link', { name: 'Privacy notice' })).toHaveAttribute(
+      'href',
+      '/privacy/',
+    );
+    await expect(footer.getByRole('link', { name: 'Club website' })).toHaveAttribute(
+      'href',
+      '/',
+    );
   });
 });
 

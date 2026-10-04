@@ -3,6 +3,9 @@ import { formatLondon } from '@src/shared';
 import { readTiming } from '../../lib/reads';
 import { TimingFrame } from '../chrome/frames';
 
+/** ADR-054: every page names itself; the root layout's template adds the club. */
+export const metadata = { title: 'Races — Race timing' };
+
 /**
  * `/timing/events/` — every race this system knows about.
  *

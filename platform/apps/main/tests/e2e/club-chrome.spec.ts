@@ -607,59 +607,38 @@ test.describe('the account pages carry the club chrome', () => {
 });
 
 /**
- * The timing app, which carries the club's header and footer since ADR-052's timing half.
+ * The timing app, which **no longer** carries the club's header and footer — ADR-054.
  *
- * `apps/timing` is Next, so its header is a **third copy** of `ClubHeader.astro` —
- * `apps/timing/app/chrome/club-chrome.tsx`. Signed out, `/timing` is the timing Worker's
- * not-found page, drawn in the club frame because it reads nothing and must stay prerendered;
- * that is what makes the comparison possible here without a session. The race pages, their
- * bars and the focus header are walked in `timing.spec.ts`, which owns the accounts.
+ * ADR-053 put the club header on every `/timing` page, and this block compared it against the
+ * Astro one. ADR-054 superseded that: a signed-in timing page wears an app shell built from the
+ * person's roles, and the pages a signed-out visitor can reach — the not-found page every
+ * refusal is rewritten to — wear the plain frame, which names nothing. So what is asserted here
+ * is the absence, and that the plain frame is still a proper page: one banner, a skip link,
+ * a footer with the privacy notice, no sideways scroll, no accessibility violations. The signed-in
+ * shell is walked in `timing.spec.ts`, which owns the accounts.
  */
-test.describe('the timing app carries the club chrome', () => {
-  async function linksOf(page: Page, name: string): Promise<string[][]> {
-    return page
-      .getByRole('navigation', { name, exact: true })
-      .getByRole('link')
-      .evaluateAll((elements) =>
-        elements.map((a) => [a.textContent?.trim() ?? '', a.getAttribute('href') ?? '']),
-      );
-  }
-
-  test('offers the same bar as the club pages, item for item', async ({ page }) => {
-    await page.setViewportSize(DESKTOP);
-
-    await page.goto('/');
-    const astro = await linksOf(page, 'Southville Running Club');
-
-    await page.goto('/timing');
-    expect(
-      await linksOf(page, 'Southville Running Club'),
-      'the timing header has drifted',
-    ).toEqual(astro);
-    await expect(page.locator('.club-cta')).toHaveAttribute('href', '/run-with-us/');
-  });
-
-  test('marks Races and events, which is where race timing belongs', async ({ page }) => {
+test.describe('the timing app wears its own plain frame to a signed-out visitor', () => {
+  test('carries none of the club website’s navigation', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await page.goto('/timing');
 
-    const nav = page.getByRole('navigation', {
-      name: 'Southville Running Club',
-      exact: true,
-    });
-    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
-    await expect(nav.getByRole('link', { name: 'Races and events' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    await expect(
+      page.getByRole('navigation', { name: 'Southville Running Club', exact: true }),
+    ).toHaveCount(0);
+    await expect(page.locator('.club-header, .club-footer')).toHaveCount(0);
+    // And no area of the signed-in app either: a refusal must not say what is behind it.
+    await expect(
+      page.getByRole('navigation', { name: 'Areas', exact: true }),
+    ).toHaveCount(0);
   });
 
-  test('leaves the club links unprefixed by the base path', async ({ page }) => {
+  test('leaves its links unprefixed by the base path', async ({ page }) => {
     // `<Link>` would have made every one of these `/timing/…`, which 404s.
     await page.goto('/timing');
     const hrefs = await page
-      .locator('.club-header a, .club-footer a')
+      .locator('.app-header a, .app-footer a')
       .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    expect(hrefs.length).toBeGreaterThan(0);
     expect(hrefs.filter((href) => href.startsWith('/timing'))).toEqual([]);
   });
 
@@ -671,21 +650,7 @@ test.describe('the timing app carries the club chrome', () => {
     await expect(page.getByRole('banner')).toHaveCount(1);
     await expect(page.locator('a.club-skip')).toHaveAttribute('href', '#main');
     await expect(page.locator('main#main')).toHaveCount(1);
-  });
-
-  /** No `@requires-js`: the Menu is a `<details>` here too. */
-  test('opens the Menu on a phone with scripting off', async ({ page }) => {
-    await page.setViewportSize(PHONE);
-    await page.goto('/timing');
-
-    await page.locator('.club-menu > summary').click();
-    const panel = page.getByRole('navigation', { name: 'Southville Running Club, menu' });
-    for (const [label, href] of SECTIONS) {
-      await expect(panel.getByRole('link', { name: label, exact: true })).toHaveAttribute(
-        'href',
-        href,
-      );
-    }
+    await expect(page.getByRole('contentinfo')).toHaveClass(/app-footer/);
   });
 
   for (const width of [320, 390, 1280]) {

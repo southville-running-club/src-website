@@ -3,7 +3,10 @@ import type { EventFormat } from '@src/shared/timing/anomaly';
 import { readTiming } from '../../../lib/reads';
 import { MarshalScreen } from './marshal-screen';
 import { NotFoundBody } from '../../not-found-body';
-import { ClubFrame, FocusFrame } from '../../chrome/frames';
+import { PlainFrame, FocusFrame } from '../../chrome/frames';
+
+/** ADR-054: every page names itself; the root layout's template adds the club. */
+export const metadata = { title: 'Recording crossings — Race timing' };
 
 /**
  * `/timing/marshal/<slug>/` — the screen a marshal stands on a course holding.
@@ -92,9 +95,9 @@ export default async function MarshalPage({
 
   if (read.state === 'none') {
     return (
-      <ClubFrame>
+      <PlainFrame>
         <NotFoundBody />
-      </ClubFrame>
+      </PlainFrame>
     );
   }
 

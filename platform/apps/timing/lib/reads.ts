@@ -179,3 +179,74 @@ export const readPermissions = cache(async (): Promise<string[]> => {
     return [];
   }
 });
+
+/**
+ * The caller's roles, for the one question a permission cannot answer: whether `/admin/`'s door
+ * would open, so the app header can offer "Club admin" (ADR-054, `lib/staff-roles.ts`).
+ *
+ * Same shape and failure direction as {@link readPermissions}: cached per request, and a
+ * failed read is an empty list, which draws one link fewer rather than one too many. **Never a
+ * security boundary**: `/admin/` asks for itself.
+ */
+export const readRoles = cache(async (): Promise<string[]> => {
+  const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+
+  if (!accessToken) {
+    return [];
+  }
+
+  try {
+    const asPerson = createUserClient(await config(), accessToken);
+    const { data, error } = await asPerson.rpc('my_roles');
+
+    if (error) {
+      console.error(`timing: my_roles unavailable — ${error.code}: ${error.message}`);
+      return [];
+    }
+
+    return Array.isArray(data) ? (data as string[]) : [];
+  } catch (cause) {
+    console.error(
+      `timing: my_roles threw — ${cause instanceof Error ? cause.message : cause}`,
+    );
+    return [];
+  }
+});
+
+/**
+ * The address somebody is signed in with, for the header's "Signed in as".
+ *
+ * **An address rather than a name, and that is the club's precedent rather than a shortcut.**
+ * `/account/` and `/admin/`'s masthead both say "Signed in as" the address, because
+ * `identity.people` holds no address and most people have no name recorded; naming the address
+ * is what tells somebody which of their accounts this is.
+ *
+ * **`auth.getUser()` rather than a claim decoded out of the token**, for the reason
+ * `apps/main/worker/account.ts` gives: it asks Supabase Auth, where the confirmed address lives.
+ * Cached per request. A failure is `null`, and the header then says nothing rather than
+ * guessing.
+ */
+export const readSignedInAs = cache(async (): Promise<string | null> => {
+  const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    const asPerson = createUserClient(await config(), accessToken);
+    const { data, error } = await asPerson.auth.getUser(accessToken);
+
+    if (error) {
+      console.error(`timing: getUser unavailable — ${error.message}`);
+      return null;
+    }
+
+    return data.user?.email ?? null;
+  } catch (cause) {
+    console.error(
+      `timing: getUser threw — ${cause instanceof Error ? cause.message : cause}`,
+    );
+    return null;
+  }
+});

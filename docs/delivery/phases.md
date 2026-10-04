@@ -543,6 +543,9 @@ accepted 4 October 2026.
   `club-contrast.test.ts` reads the new file.
 - **The rest of the timing restyle:** leaderboard, results, entry list, marshals and danger
   zone (Slice E), and print, PWA and the accessibility pass (Slice F).
+- **Move `STAFF_ROLES` into `packages/shared`** and import it from both apps, deleting
+  `apps/timing/lib/staff-roles.ts` and its drift test (Slice B's copy, for the same reason as
+  the `club.css` one).
 - **The app shell on `/account/*` and `/admin/*`** (ADR-054 §6), with a real sign-out button,
   and the duplicate "Race timing" and "Club admin" links removed from those pages' bars.
 - **Split the race console** (brief D3) — Race control, Timing log, Anomalies — which supersedes

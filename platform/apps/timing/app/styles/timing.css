@@ -167,6 +167,188 @@ body:has(.timing-ui) {
 }
 
 /* -------------------------------------------------------------------------------------
+ * The signed-in app shell (ADR-054)
+ * -------------------------------------------------------------------------------------
+ * `.app-*` and nothing else, painted only with `--club-*` tokens, so `/account/*` and
+ * `/admin/*` can adopt it after the race. Ink on the page: 13.06:1 light, 15.05:1 dark. */
+
+.app-header {
+  position: relative;
+  z-index: 10;
+  border-bottom: 1px solid var(--club-rule);
+  background: var(--club-background);
+  color: var(--club-text);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 64px;
+}
+
+/* `club-chrome.css` pushes everything after the mark to the far end; here the area's name
+   sits beside it instead. */
+.app-header .club-mark {
+  margin-right: 0;
+}
+
+.app-area-name {
+  margin: 0 auto 0 0.25rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--club-rule);
+  font-family: var(--club-font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.app-areas,
+.app-user {
+  display: none;
+}
+
+.app-areas ul {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+.app-areas a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 0.85rem;
+  border-radius: var(--club-radius-button);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-areas a:hover {
+  color: var(--club-link);
+}
+
+/* The club nav's own cue: an underline and `aria-current`. The brand line on the page is
+   3.22:1, over the 3:1 a non-text indicator needs. */
+.app-areas a[aria-current='page'] {
+  box-shadow: inset 0 -3px 0 var(--club-brand);
+}
+
+/* Muted on the page: 6.58:1 light, 8.61:1 dark. An address can be long; it is cut, never
+   wrapped, and the whole of it is in the Menu on a phone. */
+.app-user {
+  max-width: 22rem;
+  margin: 0 0 0 auto;
+  overflow: hidden;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-user strong {
+  color: var(--club-text);
+}
+
+.app-menu-user {
+  margin: 0.75rem 0.75rem 0.25rem;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+/* The area bar scrolls sideways on a phone; the fade at its right edge says there is more. */
+.app-area-bar .club-section-inner {
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+.app-area-bar .club-section-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-area-bar .club-section-name a:hover {
+  color: var(--club-link);
+}
+
+/* Muted on the page, as above. */
+.app-footer {
+  padding: 1.25rem 0 2rem;
+  border-top: 1px solid var(--club-rule);
+  color: var(--club-muted);
+  font-size: 0.875rem;
+}
+
+.app-footer ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  list-style: none;
+}
+
+/* Link on the page: 6.06:1 light, 9.52:1 dark. */
+.app-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--club-link);
+}
+
+/* At the narrowest phones the mark, the area's name and the Menu do not fit on one row: 320px
+   less two gutters is 280px, and the mark alone is 132. The name goes, and the area is still
+   named — and marked current — inside the Menu. */
+@media (max-width: 23.99em) {
+  .app-area-name {
+    display: none;
+  }
+
+  .app-header .club-mark {
+    margin-right: auto;
+  }
+}
+
+/* A page's own content starts below the bar with the club's breathing room. */
+.timing-main {
+  padding-top: 2rem;
+}
+
+/* A page not yet restyled keeps `base.css`'s text metrics, which its spacing was laid out on.
+   The club's 1rem / 1.55 is tighter, and on three pages it pulled a "Back to…" link to 23px
+   from the button above it on Linux fonts: under axe's 24px target spacing, so a WCAG 2.2
+   failure. Passing `wide` to a frame, when its page is restyled, drops this with the narrow
+   column. */
+.timing-legacy {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+@media (min-width: 62em) {
+  .app-area-name {
+    display: none;
+  }
+
+  .app-areas {
+    display: block;
+    margin-right: auto;
+  }
+
+  .app-user {
+    display: block;
+  }
+
+  .app-area-bar .club-section-inner {
+    mask-image: none;
+  }
+}
+
+/* -------------------------------------------------------------------------------------
  * Page furniture
  * ------------------------------------------------------------------------------------- */
 
