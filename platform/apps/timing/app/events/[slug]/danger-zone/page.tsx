@@ -3,6 +3,7 @@ import { formatLondon } from '@src/shared';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { WipeConfirm } from './wipe-confirm';
 import { raceMetadata, readEventDetail } from '../../../../lib/titles';
 
 export const generateMetadata = raceMetadata('Danger zone');
@@ -25,18 +26,13 @@ export const generateMetadata = raceMetadata('Danger zone');
  * a reflex and works with scripting off**, and `reset_event()` checks the phrase itself, so a
  * POST that never saw this page meets exactly the same control.
  *
- * ## What this page deliberately does not show
+ * ## A published race is refused before the press now
  *
- * **Whether the race's results are published.** `reset_event()` refuses a published race with
- * `published` and the wording module says what to do about it — but this page cannot say so
- * *before* the press, because `event_detail()` does not carry `results_published_at` and
- * widening it here would be this change restating a function
- * [#241](https://github.com/southville-running-club/src-website/issues/241) owns. Two branches
- * would then write the same `create or replace` and the one applied second would silently drop
- * the other's keys, which is the merge conflict git cannot see that this repository has already
- * paid for once. So the refusal is rendered after the fact, and the day `event_detail()` grows
- * the key — #241's change or a later one — this page should show it and stop offering the
- * button.
+ * `reset_event()` refuses a published race with `published`. This page used to be unable to
+ * say so beforehand, because `event_detail()` did not carry `results_published_at`, and its
+ * header said that the day it did, the page should show it and stop offering the button. It
+ * does now (#205), so a published race renders the button disabled with the reason beside it.
+ * The refusal in the database is unchanged and still the guard.
  *
  * ## One read, and it is `event_detail()`
  *
@@ -51,6 +47,7 @@ interface EventDetail {
   name: string;
   actually_started_at: string | null;
   finished_at: string | null;
+  results_published_at: string | null;
   counts: {
     teams: number;
     runners: number;
@@ -113,6 +110,12 @@ export default async function DangerZonePage({
 
   const event = read.data;
   const action = `/timing/events/${encodeURIComponent(slug)}/danger-zone/update`;
+  // `reset_event()` refuses a published race with `published`, and since #205 `event_detail()`
+  // carries the column, so the page can say so before the press rather than after it.
+  const publishedReason =
+    event.results_published_at === null
+      ? null
+      : 'This race’s results are published. Take them down on its Results page before wiping it.';
 
   return (
     <RaceFrame slug={slug} name={event.name} current={null} page="Danger zone">
@@ -176,34 +179,7 @@ export default async function DangerZonePage({
         </p>
 
         <form method="post" action={action}>
-          <div className="field">
-            <label className="field-label" htmlFor="confirmation">
-              Type <strong>{event.slug}</strong> to confirm
-            </label>
-            <p className="field-hint" id="confirmation-hint">
-              Exactly as it appears above, in lower case.
-            </p>
-            <input
-              className="field-input"
-              id="confirmation"
-              name="confirmation"
-              type="text"
-              required
-              /* ⚠️ Three attributes rather than taste. A phone keyboard capitalises the first
-               letter of a text field and offers to correct an unfamiliar word, and the
-               function compares the phrase exactly — so without these the control would
-               refuse a volunteer who typed precisely what the page asked for. */
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="off"
-              aria-describedby="confirmation-hint"
-            />
-          </div>
-
-          <button type="submit" className="button button-wide">
-            Wipe this race
-          </button>
+          <WipeConfirm slug={event.slug} blockedBy={publishedReason} />
         </form>
 
         <p>
