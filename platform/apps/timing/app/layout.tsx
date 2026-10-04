@@ -8,10 +8,13 @@ import '@src/shared/styles/base.css';
 // pages' own bodies are drawn by `base.css` exactly as before, where `club.css` would restyle
 // every bare `h1`, `p` and `a` on them.
 import '@src/shared/styles/club-chrome.css';
-// The club website's content components, copied from `club.css` because that file's bare
-// element rules would repaint every page here — ADR-054. Every rule in it is class-scoped, so
-// loading it changes no page until a frame uses the classes.
+// The club website's content components and the timing layer, both opt-in by class — ADR-054
+// and `docs/timing/nn-timing-redesign-brief.md`. **In this order, and after the two above**:
+// `timing.css` scopes its restatements of `club.css`'s bare rules with `:where()`, so they tie
+// with `base.css` on specificity and win only because they load later. Loading them changes no
+// page until a frame puts `.timing-ui` around it.
 import './styles/club-content.css';
+import './styles/timing.css';
 
 export const metadata: Metadata = {
   // **A browser tab is consumer-facing too.** This said "Race timing — deployment skeleton",
