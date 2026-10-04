@@ -221,9 +221,12 @@ run at all.
 been done to it.** The entry list goes with the crossings, so **step 1.5 is re-run after this,
 not before it**.
 
-⚠️ **A published race cannot be wiped**, and the refusal says so: *"This race cannot be wiped,
-because its results are published. A published result is the club's permanent record."* That
-is the rule arriving on time rather than a fault.
+⚠️ **A published race cannot be wiped**, and since 4 October 2026 the page says so before
+anybody presses anything: **Wipe this race** is disabled, and beside it reads *"This race’s
+results are published. Take them down on its Results page before wiping it."* That is the rule
+arriving on time rather than a fault. **Wipe this race** also stays disabled until the box holds
+the race's slug; on a device with JavaScript off it does not wait, and the database refuses a
+wrong phrase instead.
 
 ---
 
@@ -399,12 +402,14 @@ captured it**, which is the whole reason it and publication are two permissions.
 - [ ] **`/nn/` and `/nn/2026/` now carry a Results link.** Both ship it hidden and publication
       is the only thing that reveals it, because a link to a 404 is a claim about a record
 
-**Two refusals, and both are the rule rather than a fault:**
+**Two reasons Publish is blocked, and both are the rule rather than a fault.** Since 4 October
+2026 **Publish these results** is disabled while either holds, and the page says why above it
+before anybody presses:
 
 | The page says | Do |
 | --- | --- |
-| *"This race has not been marked finished, so its results cannot be published yet. Finishing and publishing are two separate decisions."* | [4.1](#41--finish-the-race-) |
-| *"These results were not published, because captures on this race are still to be resolved."* | [4.2](#42--clear-the-triage-list-) — the count on the page is the live one |
+| *"This race has not been marked finished, so its results cannot be published yet. Finishing and publishing are two separate decisions. Finish this race first."* | [4.1](#41--finish-the-race-) |
+| *"There is 1 capture still to be resolved, so these results cannot be published. Resolve them first."* (or *"There are N captures…"*) | [4.2](#42--clear-the-triage-list-) — the count on the page is the live one |
 
 **A published page carries no exact age**, only a name, a category and a time. That is
 withheld by publication rather than by permission, so every reader gets the same answer —
@@ -504,9 +509,14 @@ results page that ends at a CSV. Copying them would document controls that do no
 
 **Pictures at all, for now — and the script that makes them is committed and works.** It was
 run for the first time on 14 September 2026: seven tests green, **nineteen PNGs written**, from
-`01-every-race.png` to `19-published-to-the-public.png`, about 2.3MB in all. **They are not
-committed**, for the reason in the paragraph below rather than because anything went wrong, and
+`01-every-race.png` to `19-published-to-the-public.png`, about 2.3MB in all. ⚠️ **It broke on
+the same day** — ADR-045 folded five pages into the race console, and the script still went to
+their old addresses and headings — and, because no gate runs it, nobody noticed until 4 October
+2026, when it was fixed and ran seven green again. **They are not committed**, for the reason in
+the paragraph below rather than because anything went wrong, and
 `docs/delivery/runbooks/images/timing-race-night/` is where they land when anybody re-runs it.
+⚠️ **Five of them are in the repository anyway** (`01` to `05`, from #320 on 26 September 2026),
+against that rule; whether to delete them or commit the set is the club's call.
 
 ⚠️ **Run it through `./dev e2e` from the repository root, not `npx playwright test`** — a scoped
 Playwright run needs the three Supabase variables `./dev` exports, and without them the fixtures
