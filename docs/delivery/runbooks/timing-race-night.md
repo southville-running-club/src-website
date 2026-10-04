@@ -257,7 +257,11 @@ are let back in.
 - [ ] Open **`/timing/events/nn-2026/console`** on the laptop, **Start** section. It shows a countdown
 - [ ] ⚠️ **A clock reaching zero starts nothing.** Pressing **Start the race** is what records
       the moment, and every time in the race is measured from it
-- [ ] Press it on the gun
+- [ ] Press it just before the gun. ⚠️ **It asks first** (since the timing redesign's Slice D):
+      the button turns into **Confirm the start**, with **Cancel** beside it. **The time is
+      recorded when Confirm is pressed**, so press Confirm on the gun, not the first button.
+      Cancel records nothing. On a device with JavaScript off there is no question, and the
+      first press records the start, as it always did
 - [ ] The screen answers *"The race has started. Every time in it is measured from the moment
       below, and pressing again will not move it."*
 

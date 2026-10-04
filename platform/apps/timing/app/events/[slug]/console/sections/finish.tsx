@@ -89,7 +89,7 @@ export function FinishSection({
         <>
           <form method="post" action={action}>
             <input type="hidden" name="intent" value="finish" />
-            <button type="submit" className="button button-wide">
+            <button type="submit" className="club-btn timing-btn-dark">
               Finish this race
             </button>
           </form>
@@ -112,7 +112,7 @@ export function FinishSection({
 
           <form method="post" action={action}>
             <input type="hidden" name="intent" value="reopen" />
-            <button type="submit" className="button button-quiet">
+            <button type="submit" className="club-btn club-btn-secondary">
               This race is not finished after all
             </button>
           </form>

@@ -117,6 +117,33 @@ describe('the forced-light block (D5)', () => {
     expect(forced.get('--club-on-danger')).toBe(light.get('--club-on-danger'));
   });
 
+  it('restates base.css’s dark tokens too, with base.css’s own light values', () => {
+    // The console's sections not yet restyled are painted with `base.css`'s `--colour-*`
+    // palette. Forcing only the club's left them dark-scheme grey on a light page: a `<dt>` at
+    // 2.14:1, which axe caught on a phone set to dark.
+    const base = strip(read('../../../../packages/shared/styles/base.css'));
+    const declarations = (block: string) =>
+      new Map(
+        [...block.matchAll(/(--colour-[a-z-]+):\s*([^;]+);/gu)].map(
+          ([, name, value]) => [name ?? '', (value ?? '').trim()] as const,
+        ),
+      );
+    const baseLight = declarations(blockAfter(base, /^:root \{/mu, 'base.css :root'));
+    const baseDark = declarations(
+      blockAfter(
+        base,
+        /@media \(prefers-color-scheme: dark\) \{/u,
+        'base.css dark block',
+      ),
+    );
+    const restated = declarations(forcedBlock);
+
+    expect(baseDark.size).toBeGreaterThan(5);
+    for (const [name] of baseDark) {
+      expect(restated.get(name), name).toBe(baseLight.get(name));
+    }
+  });
+
   it('actually differs from dark, so the test above is not vacuous', () => {
     expect(colour(dark, '--club-background')).not.toBe(
       colour(forcedLight, '--club-background'),

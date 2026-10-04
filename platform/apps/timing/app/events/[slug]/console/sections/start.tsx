@@ -1,5 +1,6 @@
 import { formatLondon } from '@src/shared';
 import { startOutcomeFor } from '../../../../../lib/start-outcomes';
+import { ConfirmStart } from './confirm-start';
 import { RaceClock } from './race-clock';
 import type { EventDetail } from '../event-detail';
 
@@ -95,7 +96,7 @@ export function StartSection({
          * showing both after the finish, and #250 names fixing that as in scope from the first
          * version — an inconsistent screen on a start line is believed.
          */
-        <section>
+        <section className="timing-go timing-go-panel">
           <h3>Race finished</h3>
 
           <p>
@@ -103,16 +104,19 @@ export function StartSection({
             that.
           </p>
 
-          <dl>
-            <dt>Started</dt>
-            <dd>{started === null ? '—' : formatLondon(started)}</dd>
-
-            <dt>Finished</dt>
-            <dd>{formatLondon(finished)}</dd>
+          <dl className="club-meta timing-go-meta">
+            <div>
+              <dt>Started</dt>
+              <dd>{started === null ? '—' : formatLondon(started)}</dd>
+            </div>
+            <div>
+              <dt>Finished</dt>
+              <dd>{formatLondon(finished)}</dd>
+            </div>
           </dl>
         </section>
       ) : started !== null ? (
-        <section>
+        <section className="timing-go timing-go-panel">
           <h3>The race is running</h3>
 
           <p>
@@ -142,7 +146,7 @@ export function StartSection({
                 race and wants to be pressed on purpose. The two are never on the page at
                 once, because the states above are exclusive.
               */}
-              <button className="button" type="submit">
+              <button className="club-btn club-btn-secondary" type="submit">
                 Clear the start
               </button>
             </form>
@@ -155,7 +159,7 @@ export function StartSection({
           )}
         </section>
       ) : (
-        <section>
+        <section className="timing-go timing-go-panel">
           <h3>Not started</h3>
 
           <RaceClock mode="countdown" atIso={event.start_at}>
@@ -175,9 +179,8 @@ export function StartSection({
           <form method="post" action={action}>
             <input type="hidden" name="intent" value="start" />
 
-            <button className="button button-wide" type="submit">
-              Start the race
-            </button>
+            {/* D4: asked twice with scripting on, once without — `confirm-start.tsx`. */}
+            <ConfirmStart />
           </form>
 
           <p>

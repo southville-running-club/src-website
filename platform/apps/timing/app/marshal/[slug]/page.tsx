@@ -109,11 +109,12 @@ export default async function MarshalPage({
       name={event.name}
       screen="Recording crossings"
       leaveLabel="Leave this screen"
+      tool
     >
       <>
-        <h1>{event.name}</h1>
+        <h1 className="timing-tool-title">{event.name}</h1>
 
-        <p className="capture-when">
+        <p className="club-small timing-tool-when">
           {event.finished_at !== null
             ? `This race finished at ${formatLondon(event.finished_at)}.`
             : event.actually_started_at !== null

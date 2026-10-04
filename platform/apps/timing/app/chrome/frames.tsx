@@ -176,7 +176,18 @@ export async function RaceFrame({
  * ⚠️ **No app header, no area bar and no footer**, and that is the point of it. These are used
  * on a phone by a marshal at the line or by the race director mid-race, and one stray tap takes
  * them off the race. What is left is which screen this is, which race, and one deliberate way
- * out. Slice D restyles the screens themselves.
+ * out.
+ *
+ * **Always light (D5, 4 October 2026).** Both screens are used outdoors in daylight, so the
+ * wrapper carries `.timing-force-light`, which `timing.css` answers by restating the light
+ * palette under a phone set to dark.
+ *
+ * **One row, at every width.** The header is `.timing-focus-bar`'s fixed height, so the
+ * console's race control can fill exactly what is left of the screen. On a phone the club's
+ * name drops and the race is shortened ("NN 2026"); its full name is in the page's title.
+ *
+ * `tool` is the capture screen: the wrapper becomes a column exactly the height of the viewport
+ * and the screen below the bar takes what is left, so only the queue scrolls (T5).
  *
  * **The way out goes where the reader can actually go.** The race's overview needs
  * `timing.event.manage`; a marshal and somebody who only resolves crossings would get a 404
@@ -187,12 +198,14 @@ export async function FocusFrame({
   slug,
   name,
   leaveLabel,
+  tool = false,
   children,
 }: {
   screen: string;
   slug: string;
   name: string | null;
   leaveLabel: string;
+  tool?: boolean;
   children: ReactNode;
 }) {
   const permissions = await readPermissions();
@@ -200,24 +213,52 @@ export async function FocusFrame({
   const leaveHref = canOpen(permissions, overview)
     ? timingHref(overview)
     : timingHref('/');
+  const short = name === null ? null : shortRaceName(name);
 
   return (
-    <>
+    <div
+      className={
+        tool
+          ? 'timing-ui timing-force-light timing-tool-page'
+          : 'timing-ui timing-force-light'
+      }
+    >
       <SkipLink />
-      <header className="club-focus">
+      <header className="club-focus timing-focus-bar">
         <div className="club-wrap club-focus-inner">
           <p className="club-focus-title">
-            <span className="club-focus-club">Southville RC</span>
-            <span aria-hidden="true"> · </span>
+            <span className="club-focus-club timing-wide">
+              Southville RC<span aria-hidden="true"> · </span>
+            </span>
             <strong>{screen}</strong>
-            {name === null ? null : <span className="club-focus-race">{name}</span>}
+            {name === null ? null : (
+              <span className="club-focus-race">
+                {short === name ? (
+                  name
+                ) : (
+                  <>
+                    <span className="timing-wide">{name}</span>
+                    <span className="timing-narrow">{short}</span>
+                  </>
+                )}
+              </span>
+            )}
           </p>
           <a className="club-focus-leave" href={leaveHref}>
             {leaveLabel}
           </a>
         </div>
       </header>
-      <main id="main">{children}</main>
-    </>
+      <main
+        id="main"
+        className={
+          tool
+            ? 'club-wrap timing-tool'
+            : 'club-wrap timing-main timing-console timing-legacy'
+        }
+      >
+        {children}
+      </main>
+    </div>
   );
 }

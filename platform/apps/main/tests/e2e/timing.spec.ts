@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { axeViolations } from '../axe';
 import {
   anomalyCrossing,
@@ -784,7 +784,46 @@ test.describe('a race that has not started', () => {
   });
 });
 
+/**
+ * Press "Start the race" the way the person on this project would (D4, 4 October 2026).
+ *
+ * With scripting on, the first press asks "Confirm the start" and the second records it; with
+ * scripting off the form submits on the first press, as it always did. **Decided by the project,
+ * never by looking for the Confirm button**: a read that decides what to do next on a page that
+ * may not have hydrated yet is the trap `CLAUDE.md` records against `nn-consolidated.spec.ts`.
+ */
+async function pressStart(page: Page, testInfo: TestInfo): Promise<void> {
+  await page.getByRole('button', { name: 'Start the race' }).click();
+  if (testInfo.project.name !== 'no-javascript') {
+    await page.getByRole('button', { name: 'Confirm the start' }).click();
+  }
+}
+
 test.describe('the gun', () => {
+  test('asks before it starts, and Cancel records nothing @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    const path = startPath(testInfo.project.name, 'pending');
+    await page.goto(path);
+
+    await page.getByRole('button', { name: 'Start the race' }).click();
+
+    // The question replaces the button, and takes focus so a keyboard lands on it.
+    const confirm = page.getByRole('button', { name: 'Confirm the start' });
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toBeFocused();
+    // A `<details>` is a group too, so the question is found by the name it gives its group.
+    await expect(page.getByRole('group', { name: /Start the race now\?/ })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
+
+    // Nothing was recorded: the race is still not started when read back from the server.
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+  });
+
   /**
    * ⚠️ **One test for the whole thing, deliberately** — the roster's argument, and here it is
    * stronger: a race can only be started once, so a second test asserting the second press
@@ -802,7 +841,7 @@ test.describe('the gun', () => {
     const path = startPath(testInfo.project.name, 'press');
     await page.goto(path);
 
-    await page.getByRole('button', { name: 'Start the race' }).click();
+    await pressStart(page, testInfo);
 
     await expect(page.getByText(/The race has started/)).toBeVisible();
     await expect(
@@ -3183,6 +3222,71 @@ test.describe('the addresses the race console replaced', () => {
  * navigation, no breadcrumbs and no club footer: a timing page is a tool somebody is signed in
  * to, and its navigation is what their roles let them use.
  */
+/**
+ * The two race-day screens as Slice D drew them (brief §11.6–7, D5).
+ *
+ * ⚠️ **Light whatever the phone says.** Both are used outdoors, so `FocusFrame` marks them
+ * `.timing-force-light` and `timing.css` restates the light palette there under a dark setting.
+ * The page colour is asserted rather than a screenshot, because it is the one value every other
+ * colour on these screens is measured against.
+ */
+test.describe('the race-day screens', () => {
+  const LIGHT_PAGE = 'rgb(241, 247, 239)';
+
+  test('the capture screen fits a phone without the page scrolling @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    const tile = page.getByRole('button', { name: 'Crossed now' });
+    await expect(tile).toBeVisible();
+    const box = await tile.boundingBox();
+    // About 290px on a phone (T5): big enough to hit without looking.
+    expect(box?.height ?? 0).toBeGreaterThan(240);
+    expect(box?.height ?? 0).toBeLessThan(320);
+
+    // Only the queue scrolls; the page itself does not.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test('the console stays light on a phone set to dark', async ({ page }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
+
+    await expect(page.locator('body')).toHaveCSS('background-color', LIGHT_PAGE);
+  });
+
+  test('the capture screen stays light on a phone set to dark', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    await expect(page.locator('body')).toHaveCSS('background-color', LIGHT_PAGE);
+  });
+
+  test('both have no accessibility violations on a phone set to dark @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
+    expect(await axeViolations(page), 'console').toEqual([]);
+
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+    expect(await axeViolations(page), 'capture').toEqual([]);
+  });
+});
+
 test.describe('the app shell every timing page wears', () => {
   const RACE = `/timing/events/${RESULTS_EVENT_SLUG}`;
   const CLUB_BAR = { name: 'Southville Running Club', exact: true } as const;
