@@ -174,18 +174,66 @@ export default async function ConsolePage({
       leaveLabel="Leave console"
     >
       <>
-        <h1>Race console</h1>
+        <div className="timing-console-head">
+          <h1>Race console</h1>
 
-        <p className="lede">
-          {event.name}, scheduled to start {formatLondon(event.start_at)}.
-        </p>
+          <p className="club-lede">
+            {event.name}, scheduled to start {formatLondon(event.start_at)}.
+          </p>
 
-        <dl>
-          <dt>Crossings recorded</dt>
-          <dd>{event.counts.crossings}</dd>
-          <dt>Anomalies needing a human</dt>
-          <dd>{event.counts.open_anomalies}</dd>
-        </dl>
+          {/* The two figures somebody glances at, as the status row every timing page has. */}
+          <dl className="timing-status timing-console-counts">
+            <div className="club-badge">
+              <dt>Crossings recorded</dt>
+              <dd className="club-num">{event.counts.crossings}</dd>
+            </div>
+            <div className="club-badge">
+              <dt>Anomalies needing a human</dt>
+              <dd className="club-num">{event.counts.open_anomalies}</dd>
+            </div>
+          </dl>
+        </div>
+
+        {/*
+          ⚠️ **One page, five sections, each one tap away** — ADR-045 stands (D3 is deferred
+          until after the race), so this jump bar is navigation inside the console rather than a
+          route change. Each link goes to `?section=` so the section it names is the one open,
+          exactly as the old separate addresses' redirects do. Only the sections this person
+          is drawn are offered.
+        */}
+        <nav className="timing-jump" aria-label="Race console sections">
+          <ul>
+            {(mayManage
+              ? [
+                  ['start', 'Start'],
+                  ['finish', 'Finish'],
+                  ['status', 'Race status'],
+                ]
+              : []
+            )
+              .concat(
+                mayResolve
+                  ? [
+                      ['anomalies', 'Anomalies'],
+                      ['crossings', 'Timing log'],
+                    ]
+                  : [],
+              )
+              .map(([key, label]) => (
+                <li key={key}>
+                  <a
+                    href={`/timing/events/${encodeURIComponent(slug)}/console?section=${key}#${key}`}
+                    aria-current={isOpen(key ?? '') ? 'true' : undefined}
+                  >
+                    {label}
+                    {key === 'anomalies' && event.counts.open_anomalies > 0 ? (
+                      <span className="club-badge">{event.counts.open_anomalies}</span>
+                    ) : null}
+                  </a>
+                </li>
+              ))}
+          </ul>
+        </nav>
 
         {mayManage ? (
           <>

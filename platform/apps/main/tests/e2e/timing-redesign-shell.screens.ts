@@ -2,7 +2,12 @@ import path from 'node:path';
 import { test, type Page } from '@playwright/test';
 import { TIMING_ADMIN_EMAIL, TIMING_MARSHAL_EMAIL } from '../admin-fixtures';
 import { clearTimingStaff, seedTimingStaff } from '../timing-staff-db';
-import { seedTimingFixtures } from '../timing-db';
+import {
+  captureEventSlug,
+  clearCaptureEvent,
+  seedCaptureEvent,
+  seedTimingFixtures,
+} from '../timing-db';
 import { RESULTS_EVENT_SLUG } from '../timing-fixtures';
 import { expectStyledLayout } from '../sideways-scroll';
 import { forgetSessions, signInAs } from './sign-in';
@@ -22,6 +27,8 @@ import { forgetSessions, signInAs } from './sign-in';
 // that at the start of every run, so the next spec would delete these before anybody looked.
 const OUT = path.join('..', '.dev', 'timing-redesign-shell');
 const RACE = `/timing/events/${RESULTS_EVENT_SLUG}`;
+/** The screenshots config's one project, which `timing-db.ts` scopes fixture races by. */
+const PROJECT = 'screens';
 
 const WIDTHS = [
   ['phone', { width: 390, height: 844 }],
@@ -34,6 +41,13 @@ const SHOTS: readonly (readonly [string, string, string | null])[] = [
   ['admin-race-marshals', `${RACE}/marshals`, TIMING_ADMIN_EMAIL],
   ['marshal-timing-home', '/timing', TIMING_MARSHAL_EMAIL],
   ['signed-out-not-found', '/timing', null],
+  // Slice D: the two race-day screens, which wear the focus header rather than the shell.
+  ['admin-race-console', `${RACE}/console`, TIMING_ADMIN_EMAIL],
+  [
+    'marshal-capture',
+    `/timing/marshal/${captureEventSlug(PROJECT)}`,
+    TIMING_MARSHAL_EMAIL,
+  ],
 ];
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -47,10 +61,13 @@ async function shoot(page: Page, name: string): Promise<void> {
 test.beforeAll(async () => {
   await seedTimingStaff();
   await seedTimingFixtures();
+  // ⚠️ After the staff: it rosters the marshal by address.
+  await seedCaptureEvent(PROJECT, TIMING_MARSHAL_EMAIL);
   forgetSessions();
 });
 
 test.afterAll(async () => {
+  await clearCaptureEvent(PROJECT);
   await clearTimingStaff();
   forgetSessions();
 });
