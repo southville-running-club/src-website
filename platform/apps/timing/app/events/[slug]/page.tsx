@@ -1,5 +1,8 @@
+import type { Route } from 'next';
 import Link from 'next/link';
 import { formatLondon } from '@src/shared';
+import { canOpen } from '../../../lib/access';
+import { readPermissions, readTiming } from '../../../lib/reads';
 import { NotFoundBody } from '../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../chrome/frames';
 import { raceMetadata, readEventDetail } from '../../../lib/titles';
@@ -56,6 +59,11 @@ interface EventDetail {
   };
 }
 
+/** One row of `timing.my_marshal_events()`, the caller's own roster. */
+interface MarshalRace {
+  slug: string;
+}
+
 /** Null renders as an em dash, which is `apps/main`'s admin convention for "nothing recorded". */
 function orDash(value: string | null): string {
   return value === null ? '—' : formatLondon(value);
@@ -96,206 +104,330 @@ export default async function EventPage({
   }
 
   const event = read.data;
+  const permissions = await readPermissions();
+  const base = `/events/${event.slug}`;
+  const may = (path: string) => canOpen(permissions, path);
+
+  // Record crossings is offered only to somebody on this race's roster (ADR-054 §3): its door
+  // checks the roster, and `canOpen()` cannot.
+  const rostered = may('/marshal/any') ? await isRostered(event.slug) : false;
+
+  const phase: Phase =
+    event.actually_started_at === null
+      ? 'before'
+      : event.finished_at === null
+        ? 'running'
+        : 'finished';
+
+  const raceDay: Card[] = [
+    {
+      title: 'Race console',
+      href: route(`${base}/console`),
+      text:
+        phase === 'before'
+          ? 'Start the race, and everything after the gun: statuses, captures, finishing.'
+          : phase === 'running'
+            ? 'The race is running. Mark DNS, DNF and DQ, resolve captures, and finish it.'
+            : 'The race is finished. A finish can be undone here, and captures still corrected.',
+      show: may(`${base}/console`),
+    },
+    {
+      title: 'Record crossings',
+      href: route(`/marshal/${event.slug}`),
+      text: 'You are on this race’s roster. Open the capture screen on this phone.',
+      badge: 'You’re rostered',
+      show: rostered,
+    },
+    {
+      title: 'Captures waiting to be resolved',
+      href: route(`${base}/console#anomalies`),
+      text: 'A capture is here because a marshal’s screen flagged it, or its bib matches nobody.',
+      badge:
+        event.counts.open_anomalies === 0
+          ? undefined
+          : `${event.counts.open_anomalies} open`,
+      show: may(`${base}/console`),
+    },
+    {
+      title: 'Live leaderboard',
+      href: route(`${base}/leaderboard`),
+      text: 'The provisional order as crossings arrive, for staff.',
+      show: may(`${base}/leaderboard`),
+    },
+    {
+      title: 'Results',
+      href: route(`${base}/results`),
+      text: 'Check the preview, publish, and run the prize giving.',
+      badge: event.results_published_at === null ? undefined : 'Published',
+      show: may(`${base}/results`),
+    },
+  ];
+
+  const beforeRace: Card[] = [
+    {
+      title: 'Entry list',
+      href: route(`${base}/registration`),
+      text: 'Import the club’s entries, upload a file, take walk-ins and assign bibs.',
+      badge: `${event.counts.teams} ${event.counts.teams === 1 ? 'entry' : 'entries'}`,
+      show: may(`${base}/registration`),
+    },
+    {
+      title: 'Marshals',
+      href: route(`${base}/marshals`),
+      text: 'Who may record crossings on this race.',
+      badge: `${event.counts.marshals} rostered`,
+      show: may(`${base}/marshals`),
+    },
+  ];
+
+  const pills = phasePills(phase, base, may, rostered, event.slug);
 
   return (
-    <RaceFrame slug={slug} name={event.name} current="overview" page="Overview">
+    <RaceFrame slug={slug} name={event.name} current="overview" page="Overview" wide>
       <>
-        <h1>{event.name}</h1>
+        <div className="club-phead">
+          <h1>{event.name}</h1>
+          <p className="club-lede">{stateLine(event, phase)}</p>
+        </div>
 
-        <p className="lede">
-          {event.format === 'relay' ? 'A relay' : 'A solo race'}, starting{' '}
-          {formatLondon(event.start_at)}.
-        </p>
-
-        <dl>
-          <dt>Slug</dt>
-          <dd>{event.slug}</dd>
-
-          <dt>Scheduled start</dt>
-          <dd>{formatLondon(event.start_at)}</dd>
-
-          <dt>Actually started</dt>
-          <dd>{orDash(event.actually_started_at)}</dd>
-
-          <dt>Finished</dt>
-          <dd>{orDash(event.finished_at)}</dd>
-
-          <dt>Results published</dt>
-          <dd>{orDash(event.results_published_at)}</dd>
-
-          <dt>Distance</dt>
-          <dd>{event.distance_m === null ? '—' : `${event.distance_m} m`}</dd>
-
-          <dt>Course notes</dt>
-          <dd>{event.course_notes ?? '—'}</dd>
-        </dl>
-
-        <h2>Where it has got to</h2>
-
-        <dl>
-          <dt>Entries</dt>
-          <dd>{event.counts.teams}</dd>
-
-          <dt>Runners</dt>
-          <dd>{event.counts.runners}</dd>
-
-          <dt>Marshals rostered</dt>
-          <dd>{event.counts.marshals}</dd>
-
-          <dt>Crossings recorded</dt>
-          <dd>{event.counts.crossings}</dd>
-
-          <dt>Anomalies needing a human</dt>
-          <dd>{event.counts.open_anomalies}</dd>
-        </dl>
-
-        {/*
-        ⚠️ **Two links, and the rest are still deliberately absent.** #247 asks this hub to show
-        "the next action and nothing that is not yet possible", and linking to a page that does
-        not exist is precisely the old application's bug: its marshal navigation carried a
-        "Start" tab that 403'd every marshal who tapped it. The roster page exists as of #245,
-        the start screen since #250, the entry list since #202, the two resolution surfaces since
-        #252, finishing and status since #253 and the danger zone since #254, so all eight are
-        linked. Results are #205, which adds its own link here when its page exists.
-
-        The link is unconditional because this address demands `timing.event.manage` and the
-        roster demands `timing.marshal.assign`, and nothing guarantees one implies the other.
-        `canOpen()` in `lib/access.ts` is what a conditional link would have to ask, and it
-        needs the viewer's permissions, which this page does not read — the door does. Showing
-        a link that 404s for somebody holding only one of the two would reintroduce exactly the
-        bug above, so **if the two permissions ever come apart in practice, this is the line
-        that has to learn to ask.** Today `timing-admin` carries all three — the entry list
-        demands `timing.registration.import`, which is a third permission again.
-      */}
-        <h2>Set up</h2>
-
-        <p>
-          <Link href={`/events/${event.slug}/registration`}>
-            Entry list for this race
-          </Link>
-        </p>
-
-        <p>
-          <Link href={`/events/${event.slug}/marshals`}>Marshals for this race</Link>
-        </p>
-
-        {/*
-        ⚠️ **One link where there were five** — [#308](https://github.com/southville-running-club/src-website/issues/308)
-        merged `start`, `finish`, `status`, `anomalies` and `crossings` into the console after a
-        volunteer ran a race end to end and found the navigation the tiring part.
-
-        ⚠️ **Linked in every state, which is what all five said separately before.** The console
-        is where the race is started *and* where a false start is cleared, where a finish is
-        declared *and* undone, where a status is set *and* lifted. None of that may be hidden
-        once the gun has gone: a volunteer looking for any of it after the start must not find
-        the link gone. The console decides what it offers; this is a route to it.
-
-        ⚠️ **The label says what is next without claiming the page is only that.** It reads from
-        `actually_started_at` and `finished_at` because those are the two facts that change what
-        somebody has come here to do.
-
-        The console's door is `timing.event.manage` **or** `timing.crossing.resolve`, so this
-        link is right for everybody this hub already admits — the hub itself demands
-        `timing.event.manage`, which is one of the two.
-      */}
-        <p>
-          <Link href={`/events/${event.slug}/console`}>
-            {event.actually_started_at === null
-              ? 'Race console — start this race'
-              : event.finished_at === null
-                ? 'Race console — the race is running'
-                : 'Race console — this race is finished'}
-          </Link>
-        </p>
-
-        {/*
-        ⚠️ **The count above is a figure and this is the queue it counts** — #252. They are
-        deliberately not one link with a number in it.
-
-        ⚠️ **This note used to say the two disagreed, and since #205 they do not.**
-        `event_detail`'s `open_anomalies` counted only the *flagged* half while the anomalies
-        page also shows orphans, so the hub could read "0" beside a queue with three rows on it
-        — and, worse, beside a publish button refusing for open anomalies. `20260914140000`
-        moved both to `timing.open_anomaly_count()`, which is the one statement of that
-        predicate. A link carrying the number would now be honest; it is still two things
-        because a figure and a queue are two things.
-
-        Both demand `timing.crossing.resolve`, which is a fourth permission again — see the
-        note above about what has to change here if these ever come apart in practice.
-      */}
-        <h2>During and after the race</h2>
-
-        {/*
-        The live leaderboard — [#204](https://github.com/southville-running-club/src-website/issues/204).
-
-        ⚠️ **Linked first in this section, and in every state.** It is the page somebody has open on
-        a laptop for the length of the race, and it is useful before the gun too — a field of
-        pending rows is how a race director checks the entry list reached the start line.
-
-        ⚠️ **Nothing here says "spectators"**, and that is
-        [ADR-038](../../../../../../docs/architecture/decisions/adr-038-the-leaderboard-is-staff-only-in-2026.md):
-        the board is staff-only in 2026, and the only public surface for anything about a race is
-        `/nn/<year>/results/` after publication. A link inviting a volunteer to share this address
-        would be inviting them to share a page the public gets a 404 from.
-      */}
-        <p>
-          <Link href={`/events/${event.slug}/leaderboard`}>Live leaderboard</Link>
-        </p>
-
-        <p>
-          <Link href={`/events/${event.slug}/console#anomalies`}>
-            Captures waiting to be resolved
-          </Link>
-        </p>
-
-        {/*
-        ⚠️ **Linked in every state, like the console above and for the same reason.** The results
-        preview is where somebody checks the times *before* calling the race over, where they
-        publish once it is, and where they take a published table down to correct it — so it is
-        useful at every point on #241's state machine and the link may never be conditional on
-        one of them.
-      */}
-        <p>
-          <Link href={`/events/${event.slug}/results`}>
-            {event.results_published_at === null
-              ? 'Results for this race'
-              : 'Results for this race — published'}
-          </Link>
-        </p>
-
-        {/* ⚠️ Prize giving was its own address and is a section of the results page since
-          #308 — one dataset, one permission, two views of it. */}
-
-        {event.editable ? null : (
-          <p className="notice">
-            This race has started, so its details can no longer be changed.
+        {pills.length === 0 ? null : (
+          <p className="club-btns">
+            {pills.map((pill, index) => (
+              <Link
+                key={pill.href}
+                href={pill.href}
+                className={`club-btn ${index === 0 ? 'club-btn-primary' : 'club-btn-secondary'}`}
+              >
+                {pill.label}
+              </Link>
+            ))}
           </p>
         )}
+      </>
 
-        {/*
-        ⚠️ **Linked from the bottom, in its own section, and with no count beside it** — #254.
+      {/* The club's facts band, as a rounded band inside the page's wrap rather than edge to
+          edge: bleeding out of a wrap needs `100vw`, which counts the scrollbar and scrolls the
+          page sideways. */}
+      <section className="club-facts timing-facts" aria-labelledby="facts">
+        <div>
+          <h2 id="facts" className="club-visually-hidden">
+            Where it has got to
+          </h2>
+          <ul>
+            <li>
+              <b>Starts</b> {formatLondon(event.start_at)}
+            </li>
+            <li>
+              <b>State</b> {PHASE_WORDS[phase]}
+            </li>
+            <li>
+              <b>Entries</b> <span className="club-num">{event.counts.teams}</span> (
+              <span className="club-num">{event.counts.runners}</span> runners)
+            </li>
+            <li>
+              <b>Marshals rostered</b>{' '}
+              <span className="club-num">{event.counts.marshals}</span>
+            </li>
+            <li>
+              <b>Crossings</b> <span className="club-num">{event.counts.crossings}</span>
+            </li>
+            <li>
+              <b>Anomalies needing a human</b>{' '}
+              <span className="club-num">{event.counts.open_anomalies}</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <CardGrid title="Race day" cards={raceDay} />
+      <CardGrid title="Before the race" cards={beforeRace} />
+
+      {event.editable ? null : (
+        <p className="club-notice">
+          This race has started, so its details can no longer be changed.
+        </p>
+      )}
+
+      <h2 className="timing-section-title">Details</h2>
+      <dl className="club-meta timing-details">
+        <div>
+          <dt>Format</dt>
+          <dd>{event.format === 'relay' ? 'A relay' : 'A solo race'}</dd>
+        </div>
+        <div>
+          <dt>Slug</dt>
+          <dd>{event.slug}</dd>
+        </div>
+        <div>
+          <dt>Scheduled start</dt>
+          <dd>{formatLondon(event.start_at)}</dd>
+        </div>
+        <div>
+          <dt>Actually started</dt>
+          <dd>{orDash(event.actually_started_at)}</dd>
+        </div>
+        <div>
+          <dt>Finished</dt>
+          <dd>{orDash(event.finished_at)}</dd>
+        </div>
+        <div>
+          <dt>Results published</dt>
+          <dd>{orDash(event.results_published_at)}</dd>
+        </div>
+        <div>
+          <dt>Distance</dt>
+          <dd>{event.distance_m === null ? '—' : `${event.distance_m} m`}</dd>
+        </div>
+        <div>
+          <dt>Course notes</dt>
+          <dd>{event.course_notes ?? '—'}</dd>
+        </div>
+      </dl>
+
+      {/*
+        ⚠️ **Last, in its own section, styled as danger, and with no count beside it** — #254.
         Every other link on this page is a thing somebody is on their way to do; this one is a
         thing somebody has to go looking for, and the distance is part of the control. The page
-        behind it shows the blast radius and asks for the slug to be typed, so the link itself
-        is not a guard and is not pretending to be one.
-
-        Unconditional, like the six above, and for the same reason: `timing.event.manage` is
-        what both this address and that one demand, so a viewer reading this page can open it.
-        **Not hidden once the race has run**, because wiping a rehearsal is exactly the thing
-        somebody does after one — see #207.
+        behind it shows the blast radius and asks for the slug to be typed, so the link itself is
+        not a guard and is not pretending to be one. **Not hidden once the race has run**, because
+        wiping a rehearsal is exactly the thing somebody does after one — see #207.
       */}
-        <h2>Starting again</h2>
-
-        <p>
-          <Link href={`/events/${event.slug}/danger-zone`}>
-            Wipe this race and start again
-          </Link>
-        </p>
-
-        <p>
-          <Link href="/events">All races</Link>
-        </p>
-      </>
+      {may(`${base}/danger-zone`) ? (
+        <>
+          <h2 className="timing-section-title">Starting again</h2>
+          <p>
+            <Link className="timing-danger-link" href={route(`${base}/danger-zone`)}>
+              Wipe this race and start again
+            </Link>
+          </p>
+          <p className="club-small">
+            Removes every crossing and every entry. Used between rehearsals.
+          </p>
+        </>
+      ) : null}
     </RaceFrame>
   );
+}
+
+type Phase = 'before' | 'running' | 'finished';
+
+const PHASE_WORDS: Readonly<Record<Phase, string>> = {
+  before: 'Not started',
+  running: 'Running',
+  finished: 'Finished',
+};
+
+/** The page's lede: where the race is, in one sentence. */
+function stateLine(event: EventDetail, phase: Phase): string {
+  if (event.results_published_at !== null) {
+    return `Finished. Results published ${formatLondon(event.results_published_at)}.`;
+  }
+  if (phase === 'finished' && event.finished_at !== null) {
+    return `Finished ${formatLondon(event.finished_at)}. Results not yet published.`;
+  }
+  if (phase === 'running' && event.actually_started_at !== null) {
+    return `Running. Started ${formatLondon(event.actually_started_at)}.`;
+  }
+  return `Not started. Starts ${formatLondon(event.start_at)}.`;
+}
+
+interface Pill {
+  label: string;
+  /** A computed address, typed for `typedRoutes`; see {@link route}. */
+  href: Route;
+}
+
+/**
+ * The page's one or two buttons: the job this phase is about, then the next one. The brief's
+ * §8.2, drawn only for what this person may open.
+ */
+function phasePills(
+  phase: Phase,
+  base: string,
+  may: (path: string) => boolean,
+  rostered: boolean,
+  slug: string,
+): Pill[] {
+  const raceConsole = { label: 'Open the race console', href: route(`${base}/console`) };
+  const options: Pill[] =
+    phase === 'before'
+      ? [raceConsole, { label: 'Entry list', href: route(`${base}/registration`) }]
+      : phase === 'running'
+        ? [
+            ...(rostered
+              ? [{ label: 'Record crossings', href: route(`/marshal/${slug}`) }]
+              : []),
+            raceConsole,
+            {
+              label: 'Timing log',
+              href: route(`${base}/console?section=crossings#crossings`),
+            },
+          ]
+        : [
+            { label: 'Results', href: route(`${base}/results`) },
+            { label: 'Live leaderboard', href: route(`${base}/leaderboard`) },
+          ];
+
+  const pathOf = (href: string) => href.split(/[?#]/u)[0] ?? href;
+  return options
+    .filter((pill) =>
+      pill.href.startsWith('/marshal/') ? rostered : may(pathOf(pill.href)),
+    )
+    .slice(0, 2);
+}
+
+interface Card {
+  title: string;
+  /** A computed address, typed for `typedRoutes`; see {@link route}. */
+  href: Route;
+  text: string;
+  badge?: string;
+  show: boolean;
+}
+
+/** A section of job cards — filtered, never locked, like the area bar's tabs. */
+function CardGrid({ title, cards }: { title: string; cards: readonly Card[] }) {
+  const shown = cards.filter((card) => card.show);
+  if (shown.length === 0) return null;
+
+  return (
+    <section aria-labelledby={headingId(title)}>
+      <h2 id={headingId(title)} className="timing-section-title">
+        {title}
+      </h2>
+      <ul className="club-g2">
+        {shown.map((card) => (
+          <li key={card.href}>
+            <Link className="club-card club-link-card timing-link-card" href={card.href}>
+              <h3>{card.title}</h3>
+              <p>{card.text}</p>
+              {card.badge === undefined ? null : (
+                <span className="club-badge">{card.badge}</span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * An address built at runtime, as a `Route`. `typedRoutes` checks a `<Link>`'s href against
+ * the app's routes only for literals; every address here is `/events/<slug>/…` or
+ * `/marshal/<slug>`, both real routes, built from the slug the page read. `next build` is what
+ * catches a wrong one, and `tsc` alone does not until `.next/types` exists (`CLAUDE.md`).
+ */
+function route(path: string): Route {
+  return path as Route;
+}
+
+function headingId(title: string): string {
+  return `section-${title.toLowerCase().replace(/[^a-z]+/gu, '-')}`;
+}
+
+/** Whether the caller is on this race's roster, from their own list. */
+async function isRostered(slug: string): Promise<boolean> {
+  const read = await readTiming<MarshalRace[]>('my_marshal_events');
+  return read.state === 'ok' && read.data.some((race) => race.slug === slug);
 }

@@ -85,6 +85,17 @@ const EVENTS = '/timing/events/';
 const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 
 /**
+ * One job card on a race's overview, found by its heading. The card is the link, so its
+ * accessible name is the whole card (title, sentence and count). Matching the heading is what
+ * survives the sentence being reworded.
+ */
+function raceCard(page: Page, title: string) {
+  return page
+    .locator('a.timing-link-card')
+    .filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+}
+
+/**
  * The roster tests write, so they get a running of their own **per Playwright project** —
  * `timing-db.ts`'s `rosterEventSlug` carries the argument. The short of it: two projects of
  * this file can be in flight at once, and a shared roster would make each occasionally assert
@@ -391,14 +402,15 @@ test.describe('one race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
 
-    await expect(
-      page.getByRole('heading', { name: 'Where it has got to' }),
-    ).toBeVisible();
+    // The facts band, named for a screen reader by a visually hidden heading.
+    const facts = page.getByRole('region', { name: 'Where it has got to' });
+    await expect(facts).toBeVisible();
     // `timing-db.ts`'s fixture running has a field on it, so these are not all zero — a page
-    // of zeroes would render identically whether or not the counts were wired up.
+    // of zeroes would render identically whether or not the counts were wired up. Read off the
+    // counts alone: the band also carries the start date, which begins with a digit too.
     await expect(
-      page
-        .getByRole('definition')
+      facts
+        .locator('.club-num')
         .filter({ hasText: /^[1-9]/ })
         .first(),
     ).toBeVisible();
@@ -536,7 +548,7 @@ test.describe('the marshal roster', () => {
   test("is linked from the race's own page", async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
-    await page.getByRole('link', { name: 'Marshals for this race' }).click();
+    await raceCard(page, 'Marshals').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/marshals`);
@@ -727,7 +739,7 @@ test.describe('a race that has not started', () => {
     const slug = startEventSlug(testInfo.project.name, 'pending');
 
     await page.goto(`/timing/events/${slug}`);
-    await page.getByRole('link', { name: 'Start this race' }).click();
+    await raceCard(page, 'Race console').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
     // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
@@ -1068,7 +1080,7 @@ test.describe('the entry list', () => {
   test("is linked from the race's own page", async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
-    await page.getByRole('link', { name: 'Entry list for this race' }).click();
+    await raceCard(page, 'Entry list').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/registration`);
@@ -2783,7 +2795,7 @@ test.describe('the results preview', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Results for this race' }).click();
+    await raceCard(page, 'Results').click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
   });
 
@@ -3068,8 +3080,9 @@ test.describe('the live leaderboard', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
 
-    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
-    await page.getByRole('main').getByRole('link', { name: 'Live leaderboard' }).click();
+    // The overview's card: the area bar carries a tab of the same name, and a finished race
+    // also offers it as one of the page's two buttons.
+    await raceCard(page, 'Live leaderboard').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
   });

@@ -203,7 +203,7 @@ test.describe('the screens a volunteer meets on race night', () => {
     await shoot(page, '01-every-race');
 
     await page.goto(`/timing/events/${previewEventSlug(slot)}/`);
-    await expect(page.getByRole('heading', { level: 2, name: 'Set up' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Race day' })).toBeVisible();
     await shoot(page, '02-one-race');
 
     await page.goto(`/timing/events/${previewEventSlug(slot)}/registration/`);
