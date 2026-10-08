@@ -246,12 +246,6 @@ export function PrizesSection({
           </button>
         </p>
       </form>
-
-      <p>
-        <Link href={`/events/${slug}/results`}>Results</Link>
-        {' · '}
-        <Link href={`/events/${slug}`}>Back to this race</Link>
-      </p>
     </>
   );
 }
