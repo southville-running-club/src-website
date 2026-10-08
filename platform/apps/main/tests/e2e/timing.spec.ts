@@ -2940,6 +2940,23 @@ test.describe('the prize presenter', () => {
   });
 
   /**
+   * ⚠️ The prize section kept the link row it had as a page of its own when #308 moved it
+   * onto the results page, so the page ended in two rows — one of them a "Results" link to
+   * the page it was on. One row, at the foot of the page.
+   */
+  test('ends the results page with one way back to the race', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(prizePath(testInfo.project.name));
+
+    // Inside `main`: the race's tab bar carries a "Results" link of its own, rightly.
+    const main = page.getByRole('main');
+    await expect(main.getByRole('link', { name: 'Back to this race' })).toHaveCount(1);
+    await expect(main.getByRole('link', { name: 'Results', exact: true })).toHaveCount(0);
+  });
+
+  /**
    * ⚠️ **Passing a team takes them out of *every* prize**, which is what somebody means by it —
    * an exclusion that only skipped one line would leave the same people winning everything
    * else. And the choice is in the URL, so it survives the navigation.
