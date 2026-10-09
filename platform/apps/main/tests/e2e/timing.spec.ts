@@ -1506,7 +1506,7 @@ test.describe('recording a crossing', () => {
 
     // The queue empties once the crossing has landed, which is the screen's own statement that
     // the club has it.
-    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -1538,7 +1538,7 @@ test.describe('recording a crossing', () => {
     await expect(page.getByRole('button', { name: 'Confirm bib' })).toBeEnabled();
     await page.getByRole('button', { name: 'Confirm bib' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
       timeout: 15_000,
     });
 
@@ -1593,7 +1593,7 @@ test.describe('recording a crossing', () => {
     ).toBe(false);
 
     await context.setOffline(false);
-    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
       timeout: 45_000,
     });
 
@@ -1698,7 +1698,7 @@ test.describe('recording a crossing', () => {
     await expect(page.getByText('No bib yet')).toBeVisible();
     await page.getByRole('button', { name: 'Discard this tap' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Nothing waiting' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible();
     expect(await captureCrossings(testInfo.project.name)).toHaveLength(before);
   });
 
@@ -3436,6 +3436,38 @@ test.describe('the app shell every timing page wears', () => {
       '/timing',
     );
     await expect(nav.locator('[aria-current="page"]')).toHaveText('Marshal');
+  });
+
+  /**
+   * Pass the Buck's capture screen (ADR-055): no app header, the nav at the top, then a dark
+   * bar naming the race and the marshal, what is waiting for a bib, and whether the phone has
+   * a network, with a menu for the rest.
+   */
+  test("the capture screen's bar says who, what is waiting, and whether there is signal @requires-js", async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
+
+    await expect(page.getByRole('banner')).toHaveCount(0);
+    const bar = page.locator('.timing-marshal-bar');
+    await expect(bar).toContainText(TIMING_MARSHAL_EMAIL);
+    await expect(bar).toContainText('0 awaiting bib');
+    await expect(bar.locator('.timing-pill')).toHaveText('Online');
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await expect(bar).toContainText('1 awaiting bib');
+
+    await bar.locator('.timing-more > summary').click();
+    await expect(bar.locator('.timing-more-panel')).toContainText(
+      `Signed in as ${TIMING_MARSHAL_EMAIL}`,
+    );
+    await expect(bar.locator('.timing-more-panel')).toContainText(
+      '0 syncing · 0 queued · 0 failed',
+    );
+
+    await page.getByRole('button', { name: 'Discard this tap' }).click();
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible();
   });
 
   test('keeps the current tab in view on a phone @requires-js', async ({ page }) => {

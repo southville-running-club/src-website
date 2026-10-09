@@ -2211,7 +2211,9 @@ page: a searched view is a URL somebody may have sent.
   a keypad, because at the line the scarce resource is the moment rather than the marshal's
   attention. An anomaly **flags and never blocks**, frozen at confirm time and never recomputed.
   The rules are pure and unit-tested in `apps/timing/lib/queue-state.ts` — `RETRY_CAP = 10`, a
-  thirty-second drain, `failed` as a state of its own so an offline tap never looks like an
+  thirty-second drain, ⚠️ **no signal never counting towards the cap** (since 9 October 2026,
+  `syncWaiting()`: a long signal gap used to stop every card sending by itself after about five
+  minutes, and now only the club refusing a crossing counts), `failed` as a state of its own so an offline tap never looks like an
   error, and a reload reconcile that reads the ids back rather than guessing. ⚠️ **Nothing the
   database says is ever rendered on a card**: `lib/sync-outcomes.ts` picks the club's own
   wording, which is what the old application's `[object Object]` came from. The browser never

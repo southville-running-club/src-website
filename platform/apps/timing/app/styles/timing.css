@@ -950,7 +950,8 @@ body:has(.timing-ui) {
 /* -------------------------------------------------------------------------------------
  * T5: Record crossings
  * -------------------------------------------------------------------------------------
- * The screen is exactly the viewport: the bar, then the tool, and only the queue scrolls. The
+ * Pass the Buck's layout (ADR-055): the nav, a dark status bar, the big tile, then the queue
+ * on a band of its own. The screen is exactly the viewport and only the queue scrolls. The
  * wrapper is the flex container because the root layout owns `<body>`. */
 .timing-tool-page {
   display: flex;
@@ -963,29 +964,169 @@ body:has(.timing-ui) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
   width: 100%;
+  /* ⚠️ `base.css` gives a bare `main` the prose measure and a margin — the trap `CLAUDE.md`
+     records against the admin pages. The capture screen is the full width of the phone or the
+     laptop, flush under the nav. */
+  max-width: none;
   min-height: 0;
-  padding-block: 0.75rem 0;
-}
-
-/* The race's name and where it has got to, one compact line each above the tile. */
-.timing-tool-title {
   margin: 0;
-  font-size: 1.25rem;
+  padding: 0;
 }
 
-.timing-tool-when {
-  margin: 0;
-}
-
-/* The client screen's root: the tile, its hints, then the queue, which takes what is left. */
+/* The client screen's root: the bar, the tile, then the queue, which takes what is left. */
 .timing-capture-screen {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
   min-height: 0;
+  /* `base.css`'s `.capture` margin would open a gap between the nav and the bar. */
+  margin: 0;
+}
+
+/* The tile and the line under it, in the page's width. */
+.timing-capture-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  padding-block: 0.75rem;
+}
+
+/* The dark bar: the page's own text colour as a background, and the page's background as text
+   on it — 14.2:1, both ways the club already measures. */
+.timing-marshal-bar {
+  background: var(--club-text);
+  color: var(--club-background);
+}
+
+.timing-marshal-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding-block: 0.5rem;
+}
+
+.timing-marshal-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.timing-marshal-race {
+  display: flex;
+  gap: 0.4em;
+  min-width: 0;
+  font: 600 0.75rem / 1.3 var(--club-font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.timing-marshal-race h1 {
+  flex-shrink: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+/* A long name gives way to the race's. */
+.timing-marshal-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timing-marshal-count {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* Online on the club green, `--club-on-brand` on `--club-brand`, 5.07:1. Offline on the
+   highlight, `--club-on-highlight` on `--club-highlight`, which `club-contrast.test.ts` holds. */
+.timing-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.timing-pill[data-online='no'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-pill-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+/* The ⋯ menu: a `<details>`, so it opens with scripting off. Its target is 44px square. */
+.timing-more {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.timing-more > summary {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+}
+
+.timing-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.timing-more > summary:focus-visible {
+  outline: 2px solid var(--club-background);
+  outline-offset: 2px;
+}
+
+.timing-more-panel {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  z-index: 10;
+  width: min(16rem, calc(100vw - 2rem));
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--club-rule);
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
+}
+
+.timing-more-panel p {
+  margin: 0 0 0.5rem;
+}
+
+.timing-more-panel p:last-child {
+  margin-bottom: 0;
+}
+
+/* An empty queue says so in the middle of its band, as Pass the Buck's does. Two classes on
+   the heading, because `.timing-queue-wrap h2` sets its margin and would otherwise win. */
+.timing-queue-wrap .timing-queue-empty-title,
+.timing-queue-empty {
+  max-width: 30rem;
+  margin-inline: auto;
+  text-align: center;
 }
 
 .timing-hint {
@@ -996,6 +1137,9 @@ body:has(.timing-ui) {
 .timing-queue-wrap {
   flex: 1;
   min-height: 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--club-rule);
+  background: var(--club-surface-alt);
 }
 
 .timing-time-label {
@@ -1236,8 +1380,12 @@ body:has(.timing-ui) {
 }
 
 @media (min-width: 62em) {
-  .timing-tool {
-    max-width: 44rem;
+  /* On a laptop the bar and the queue's band run the full width, as Pass the Buck's do, and
+     what is inside them is a centred column the tile is not stretched across. */
+  .timing-marshal-bar-inner,
+  .timing-capture-body,
+  .timing-queue-wrap > .club-wrap {
+    max-width: 48rem;
   }
 
   .timing-capture {

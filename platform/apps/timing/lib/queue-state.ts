@@ -104,14 +104,16 @@ export interface QueueCard {
 }
 
 /**
- * How many failures before a card stops draining by itself and asks for a human.
+ * How many **refusals** before a card stops draining by itself and asks for a human.
  *
- * ⚠️ **Ten, with the thirty-second drain, is about five minutes** — and whether that is long
- * enough for Ashton Court's signal is an open question the old application recorded against
- * itself and never answered. It is carried into
- * [#207](https://github.com/southville-running-club/src-website/issues/207)'s checklist rather
- * than guessed at here: the simulation is what can answer it, and changing the number on a
- * hunch would be changing the one behaviour that decides whether a crossing is lost quietly.
+ * ⚠️ **No signal never counts towards it — 9 October 2026.** Until then every failed send
+ * counted, so ten of them at the thirty-second drain meant about five minutes without signal
+ * stopped every waiting crossing sending by itself, and a marshal coming back into range had to
+ * press Retry on each one. On a woodland course that is the likeliest way a crossing is left on
+ * a phone. Now a send that never reached the club — no network, or the club's site answering
+ * 5xx — waits with {@link syncWaiting} and keeps draining for as long as it takes; only the club
+ * **refusing** a crossing, which retrying will not change, counts here. The question #207 was
+ * to answer — is five minutes long enough for Ashton Court's signal — no longer arises.
  */
 export const RETRY_CAP = 10;
 
@@ -220,6 +222,16 @@ export function syncFailed(card: QueueCard, wording: string): QueueCard {
     retries: card.retries + 1,
     lastError: wording,
   };
+}
+
+/**
+ * A sync that never reached the club: no network, or the club's site down. The wording goes on
+ * and the card is `failed`, so the marshal can see it has not landed — but **the counter does
+ * not move**, so however long the signal is gone, the card keeps draining by itself and lands
+ * when it comes back. See {@link RETRY_CAP}.
+ */
+export function syncWaiting(card: QueueCard, wording: string): QueueCard {
+  return { ...card, state: 'failed', lastError: wording };
 }
 
 /**

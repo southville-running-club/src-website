@@ -8,6 +8,7 @@ import {
   reconcile,
   sortCards,
   syncFailed,
+  syncWaiting,
   validateBib,
   type QueueCard,
 } from '../../lib/queue-state';
@@ -188,12 +189,41 @@ describe('a sync that does not land', () => {
     expect(retried.retries).toBe(RETRY_CAP + 1);
     expect(atRetryCap(retried)).toBe(true);
   });
+});
 
-  it('is five minutes of the thirty-second drain, which is what #207 has to judge', () => {
-    // Not an assertion about a number so much as a place for the number to be read off. The
-    // old application recorded "is ~5 minutes too short for Ashton Court signal?" against
-    // itself and never answered it; #207's simulation is what can.
-    expect(RETRY_CAP * 30).toBe(300);
+/**
+ * ⚠️ **No signal is waiting, not failing** — 9 October 2026. A send that never reached the club
+ * must not count towards the cap, or a long enough signal gap stops every crossing on the phone
+ * sending by itself.
+ */
+describe('a sync that never reached the club', () => {
+  const queued = () => confirmBib(tap(), '311', 'relay', [])!;
+
+  it('shows it has not landed, without counting against the cap', () => {
+    const card = syncWaiting(beginSync(queued()), 'no signal');
+
+    expect(card.state).toBe('failed');
+    expect(card.lastError).toBe('no signal');
+    expect(card.retries).toBe(0);
+  });
+
+  it('never reaches the cap, however long the signal is gone', () => {
+    let card = queued();
+    // An hour of the thirty-second drain with no signal.
+    for (let n = 0; n < 120; n += 1) card = syncWaiting(beginSync(card), 'no signal');
+
+    expect(atRetryCap(card)).toBe(false);
+    // So the drain still picks it up, and it lands when the signal comes back.
+    expect(beginSync(card).state).toBe('syncing');
+  });
+
+  it('leaves refusals counted, which retrying will not change', () => {
+    let card = queued();
+    for (let n = 0; n < RETRY_CAP; n += 1) card = syncFailed(beginSync(card), 'refused');
+    card = syncWaiting(beginSync(card), 'no signal');
+
+    expect(card.retries).toBe(RETRY_CAP);
+    expect(atRetryCap(card)).toBe(true);
   });
 });
 

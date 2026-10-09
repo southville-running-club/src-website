@@ -1,6 +1,6 @@
 import { formatLondon } from '@src/shared';
 import type { EventFormat } from '@src/shared/timing/anomaly';
-import { readTiming } from '../../../lib/reads';
+import { readSignedInAs, readTiming } from '../../../lib/reads';
 import { MarshalScreen } from './marshal-screen';
 import { NotFoundBody } from '../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../chrome/frames';
@@ -77,13 +77,13 @@ export default async function MarshalPage({
     // carries the whole argument.
     return (
       <RaceFrame slug={slug} current="marshal" tool>
-        <>
+        <div className="club-wrap timing-capture-body">
           <h1>Recording crossings</h1>
           <p className="notice notice-bad">
             The club&rsquo;s database could not be reached, so this race could not be
             read. Nothing has been lost. Try again in a moment.
           </p>
-        </>
+        </div>
       </RaceFrame>
     );
   }
@@ -97,21 +97,24 @@ export default async function MarshalPage({
   }
 
   const event = read.data;
+  const signedInAs = await readSignedInAs();
+  const when =
+    event.finished_at !== null
+      ? `This race finished at ${formatLondon(event.finished_at)}.`
+      : event.actually_started_at !== null
+        ? `Started at ${formatLondon(event.actually_started_at)}.`
+        : `Scheduled to start at ${formatLondon(event.start_at)}. It has not started yet.`;
 
   return (
     <RaceFrame slug={slug} current="marshal" tool>
       <>
-        <h1 className="timing-tool-title">{event.name}</h1>
-
-        <p className="club-small timing-tool-when">
-          {event.finished_at !== null
-            ? `This race finished at ${formatLondon(event.finished_at)}.`
-            : event.actually_started_at !== null
-              ? `Started at ${formatLondon(event.actually_started_at)}.`
-              : `Scheduled to start at ${formatLondon(event.start_at)}. It has not started yet.`}
-        </p>
-
-        <MarshalScreen slug={event.slug} format={event.format}>
+        <MarshalScreen
+          slug={event.slug}
+          format={event.format}
+          raceName={event.name}
+          marshalName={signedInAs}
+          when={when}
+        >
           {/* ⚠️ The server's own markup, and what a phone with no JavaScript is left with. It
             says what to do instead, because "this needs JavaScript" on its own is of no use to
             somebody standing on a course. */}
