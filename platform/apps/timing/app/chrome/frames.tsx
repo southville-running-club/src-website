@@ -50,8 +50,10 @@ async function AppShell({
   nav: ReactNode;
   wide?: boolean;
   /**
-   * The capture screen: the wrapper becomes a column exactly the height of the viewport, the
-   * screen below the nav takes what is left so only the queue scrolls, and there is no footer.
+   * The capture screen, as Pass the Buck draws it (ADR-055): **no app header and no footer**,
+   * the nav at the very top, and the screen below it taking what is left of a column exactly
+   * the height of the viewport, so only the queue scrolls. The screen draws its own status bar
+   * and its own full-width bands, so `<main>` carries no wrap.
    */
   tool?: boolean;
   /**
@@ -78,17 +80,19 @@ async function AppShell({
       }
     >
       <SkipLink />
-      <AppHeader
-        areas={appAreas(permissions, roles)}
-        current="timing"
-        signedInAs={signedInAs}
-      />
+      {tool ? null : (
+        <AppHeader
+          areas={appAreas(permissions, roles)}
+          current="timing"
+          signedInAs={signedInAs}
+        />
+      )}
       {nav}
       <main
         id="main"
         className={
           tool
-            ? 'club-wrap timing-tool'
+            ? 'timing-tool'
             : wide
               ? 'club-wrap timing-main'
               : 'club-wrap club-wrap-narrow timing-main timing-legacy'

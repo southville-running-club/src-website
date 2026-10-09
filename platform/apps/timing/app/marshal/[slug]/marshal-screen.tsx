@@ -16,6 +16,7 @@ import {
   reconcile,
   sortCards,
   syncFailed,
+  syncWaiting,
   validateBib,
   type KnownCrossing,
   type QueueCard,
@@ -103,11 +104,20 @@ type SyncOutcome =
 export function MarshalScreen({
   slug,
   format,
+  raceName,
+  marshalName,
+  when,
   children,
 }: {
   slug: string;
   /** The race's own, from the database. Bibs mean different things on a relay and a solo. */
   format: EventFormat;
+  /** The race's name, for the status bar. */
+  raceName: string;
+  /** Who is signed in, for the status bar and its menu; `null` when it could not be read. */
+  marshalName: string | null;
+  /** Where the race has got to — scheduled, started or finished — in one sentence. */
+  when: string;
   /** What this element is until it has mounted, and with scripting off. Never a placeholder. */
   children: React.ReactNode;
 }) {
@@ -118,6 +128,9 @@ export function MarshalScreen({
   const [doorRefused, setDoorRefused] = useState(false);
   const [storageLost, setStorageLost] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
+  // Assumed online until the browser says otherwise — the server render has no way to know,
+  // and it is replaced on mount by what `navigator.onLine` says.
+  const [online, setOnline] = useState(true);
 
   /**
    * ⚠️ **Refs rather than state for these three, deliberately.** The drain is called from an
@@ -311,12 +324,13 @@ export function MarshalScreen({
           // path into this line carries a machine-readable reason, which is what
           // `lib/sync-outcomes.ts` is a table of — see its header for the `[object Object]`
           // this replaces.
-          const wording =
+          // ⚠️ **No signal is waiting, not failing.** It never counts towards `RETRY_CAP`, so a
+          // long signal gap cannot stop crossings sending by themselves — `lib/queue-state.ts`.
+          return [
             outcome.state === 'unavailable'
-              ? SYNC_UNAVAILABLE
-              : refusalWording(outcome.reason);
-
-          return [syncFailed(card, wording)];
+              ? syncWaiting(card, SYNC_UNAVAILABLE)
+              : syncFailed(card, refusalWording(outcome.reason)),
+          ];
         });
 
         commit(next);
@@ -500,6 +514,22 @@ export function MarshalScreen({
   }, [drain, ready]);
 
   /**
+   * The Online / Offline pill, from the browser's own two events. ⚠️ **It says whether this
+   * phone has a network, not whether the club's site is reachable** — a phone on a captive
+   * portal says "online" — so it is a hint, and the queue's own sync states are the truth.
+   */
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
+
+  /**
    * #244's keep-alive: `/account/keep-alive/` on the club's own Worker, which is the same
    * hostname, every five minutes **while this page is visible and somebody has done something
    * in the last twenty-five**.
@@ -603,89 +633,203 @@ export function MarshalScreen({
   }, []);
 
   if (!ready) {
-    return <>{children}</>;
+    return (
+      <div className="capture timing-capture-screen">
+        <StatusBar raceName={raceName} marshalName={marshalName} when={when} />
+        <div className="club-wrap timing-capture-body">{children}</div>
+      </div>
+    );
   }
 
   const queue = sortCards(cards);
+  const count = (state: QueueCard['state']) =>
+    queue.filter((c) => c.state === state).length;
 
   return (
     <div className="capture timing-capture-screen">
-      {doorRefused ? (
-        <p className="notice notice-bad" role="alert">
-          {SYNC_DOOR_REFUSED}
-        </p>
-      ) : null}
+      <StatusBar
+        raceName={raceName}
+        marshalName={marshalName}
+        when={when}
+        live={{
+          awaiting: count('awaiting-bib'),
+          syncing: count('syncing'),
+          queued: count('queued'),
+          failed: count('failed'),
+          online,
+        }}
+      />
 
-      {storageLost ? (
-        <p className="notice notice-bad" role="alert">
-          This phone will not let the club&rsquo;s site save anything, so the crossings
-          below are held only while this page is open. Do not reload or close this tab —
-          and tell whoever is running the race.
-        </p>
-      ) : null}
+      <div className="club-wrap timing-capture-body">
+        {doorRefused ? (
+          <p className="notice notice-bad" role="alert">
+            {SYNC_DOOR_REFUSED}
+          </p>
+        ) : null}
 
-      <button type="button" className="timing-capture" onClick={capture}>
-        Crossed now
-      </button>
-      <p className="club-small timing-hint">
-        Press the moment a runner crosses. The time is recorded straight away — type the
-        bib afterwards.
-      </p>
+        {storageLost ? (
+          <p className="notice notice-bad" role="alert">
+            This phone will not let the club&rsquo;s site save anything, so the crossings
+            below are held only while this page is open. Do not reload or close this tab —
+            and tell whoever is running the race.
+          </p>
+        ) : null}
 
-      {/* ⚠️ **A fact a marshal wants before they walk away from signal**, rather than test
+        <button type="button" className="timing-capture" onClick={capture}>
+          Crossed now
+        </button>
+
+        {/* ⚠️ **A fact a marshal wants before they walk away from signal**, rather than test
           scaffolding that happens to be visible. Crossings survive being offline either way —
           they are in IndexedDB — but *this page* only survives a reload once the service
           worker has it, and the difference between the two is not something anybody can be
           expected to guess at a start line. */}
-      <p
-        className="club-small timing-hint"
-        data-capture-offline-ready={offlineReady ? 'yes' : 'no'}
-      >
-        {offlineReady
-          ? 'Saved for use without signal — this screen will still open if the page reloads.'
-          : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.'}
-      </p>
+        <p
+          className="club-small timing-hint"
+          data-capture-offline-ready={offlineReady ? 'yes' : 'no'}
+        >
+          {offlineReady
+            ? 'Saved for use without signal — this screen will still open if the page reloads.'
+            : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.'}
+        </p>
 
-      {/* The queue is the one part of this screen that scrolls (T5): the tile and its hints
+        {/* The queue is the one part of this screen that scrolls (T5): the tile and its hints
           stay put above it, so the button is always where the thumb left it. ⚠️ **A region in
           the tab order, named by its heading**, because a box that scrolls must be reachable
           by keyboard to be scrolled at all. axe's `scrollable-region-focusable` caught it on
           an iPhone SE, where an empty queue's sentence alone overflows. */}
+      </div>
+
       <section
         className="timing-queue-wrap"
         aria-labelledby="capture-queue-heading"
         tabIndex={0}
       >
-        <h2 id="capture-queue-heading">
-          {queue.length === 0
-            ? 'Nothing waiting'
-            : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
-        </h2>
+        <div className="club-wrap">
+          <h2
+            id="capture-queue-heading"
+            className={queue.length === 0 ? 'timing-queue-empty-title' : undefined}
+          >
+            {queue.length === 0
+              ? 'Queue’s empty.'
+              : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
+          </h2>
 
-        {queue.length === 0 ? (
-          <p>
-            Every crossing recorded on this phone has been sent to the club. Crossings
-            recorded while there is no signal stay here until it comes back.
-          </p>
-        ) : null}
+          {queue.length === 0 ? (
+            <p className="timing-queue-empty">
+              Tap the green button when a runner crosses the line. The capture lands here
+              and waits for you to type its bib. Everything recorded on this phone has
+              been sent to the club; anything recorded with no signal waits here until it
+              comes back.
+            </p>
+          ) : null}
 
-        <ul className="timing-queue">
-          {queue.map((card) => (
-            <CardView
-              key={card.id}
-              card={card}
-              draft={drafts[card.id] ?? ''}
-              format={format}
-              known={known}
-              onPress={press}
-              onBackspace={backspace}
-              onConfirm={confirm}
-              onDiscard={discard}
-              onRetry={() => void drain(card.id)}
-            />
-          ))}
-        </ul>
+          <ul className="timing-queue">
+            {queue.map((card) => (
+              <CardView
+                key={card.id}
+                card={card}
+                draft={drafts[card.id] ?? ''}
+                format={format}
+                known={known}
+                onPress={press}
+                onBackspace={backspace}
+                onConfirm={confirm}
+                onDiscard={discard}
+                onRetry={() => void drain(card.id)}
+              />
+            ))}
+          </ul>
+        </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * The dark bar across the top of the capture screen — Pass the Buck's, ADR-055: the race and
+ * who is marshalling it, how many crossings are waiting for a bib, whether the phone has a
+ * network, and a menu with the rest.
+ *
+ * Drawn by the server too, without `live`, so the bar is there with scripting off and before
+ * the screen has mounted — naming the race and the marshal, and nothing it cannot know.
+ *
+ * ⚠️ **The menu is a `<details>`**, so it opens with or without scripting and needs no focus
+ * management of its own. It carries no Sign out: signing out is a POST with a token only the
+ * club's own site issues (HALT 2), so the honest control is a link to Your account, where the
+ * button is.
+ */
+function StatusBar({
+  raceName,
+  marshalName,
+  when,
+  live,
+}: {
+  raceName: string;
+  marshalName: string | null;
+  when: string;
+  live?: {
+    awaiting: number;
+    syncing: number;
+    queued: number;
+    failed: number;
+    online: boolean;
+  };
+}) {
+  return (
+    <div className="timing-marshal-bar">
+      <div className="club-wrap timing-marshal-bar-inner">
+        <div className="timing-marshal-bar-text">
+          {/* The heading names the race and nothing else: the marshal is who is holding the
+              phone, not what the page is. */}
+          <div className="timing-marshal-race">
+            <h1>{raceName}</h1>
+            {marshalName === null ? null : (
+              <span className="timing-marshal-who">
+                <span aria-hidden="true">· </span>
+                {marshalName}
+              </span>
+            )}
+          </div>
+          {live === undefined ? (
+            <p className="timing-marshal-count">{when}</p>
+          ) : (
+            <p className="timing-marshal-count" aria-live="polite">
+              <span className="timing-mono">{live.awaiting}</span> awaiting bib
+            </p>
+          )}
+        </div>
+
+        {live === undefined ? null : (
+          <p className="timing-pill" data-online={live.online ? 'yes' : 'no'}>
+            <span aria-hidden="true" className="timing-pill-dot" />
+            {live.online ? 'Online' : 'Offline'}
+          </p>
+        )}
+
+        <details className="timing-more">
+          <summary aria-label="More about this screen">
+            <span aria-hidden="true">⋯</span>
+          </summary>
+          <div className="timing-more-panel">
+            {marshalName === null ? null : (
+              <p>
+                Signed in as <strong>{marshalName}</strong>
+              </p>
+            )}
+            {/* Before the screen has mounted, `when` is the bar's own second line already. */}
+            {live === undefined ? null : <p className="club-small">{when}</p>}
+            {live === undefined ? null : (
+              <p className="club-small timing-mono">
+                {live.syncing} syncing · {live.queued} queued · {live.failed} failed
+              </p>
+            )}
+            <p>
+              <a href="/account/">Your account</a>
+            </p>
+          </div>
+        </details>
+      </div>
     </div>
   );
 }

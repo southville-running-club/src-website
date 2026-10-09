@@ -295,6 +295,12 @@ time is measured from the start and clearing it would silently re-time all of th
 instant it is pressed; the bib is typed on the keypad afterwards and **Confirm bib** queues it.
 At the line the scarce thing is the moment, not the marshal's attention.
 
+**The dark bar along the top** says which race and who is signed in, how many crossings are
+**awaiting bib**, and **Online** or **Offline**. The **⋯** beside it shows how many are syncing,
+queued or failed. ⚠️ **Online means the phone has a network, not that the club's site
+answered**, so the cards' own states are what to trust. An empty queue reads **"Queue's
+empty."**
+
 **An anomaly flags and never blocks.** If the bib looks wrong — a duplicate, a number nobody
 is wearing — the screen says so *before* the marshal commits, and then lets them commit
 anyway: *"Confirm it anyway if that is what you saw — somebody will check it afterwards."*
@@ -310,7 +316,7 @@ last one is anybody's problem.
 | **"Waiting to be sent."** | **Nothing.** It is on the phone and the queue drains itself every thirty seconds and whenever signal returns. On a course with no signal every card reads this and every one of them is safe | Nothing. Keep capturing |
 | **"Sending…"** | It is in flight right now | Nothing |
 | **"Not sent."** | It did not land this time. Underneath it is the club's own wording for why — usually *"This crossing could not be sent just now — usually no signal. It is saved on this phone and will be sent again automatically."* | Nothing, unless the sentence below it says otherwise |
-| **"Not sent."** with ⚠️ **"This crossing has failed too many times to keep trying on its own."** | **Something.** Ten failures. The message says *"Write the bib and the time down, tell whoever is running the race, and press **Retry** if you want to try again"* | **Write it on the paper**, tell race control, press **Retry now** if there is signal |
+| **"Not sent."** with ⚠️ **"This crossing has failed too many times to keep trying on its own."** | **Something.** The club refused it ten times. ⚠️ **No signal never counts**: a crossing waiting for signal keeps trying by itself for as long as it takes, however long the gap The message says *"Write the bib and the time down, tell whoever is running the race, and press **Retry** if you want to try again"* | **Write it on the paper**, tell race control, press **Retry now** if there is signal |
 
 **Two messages name a fixable cause and are worth recognising:**
 

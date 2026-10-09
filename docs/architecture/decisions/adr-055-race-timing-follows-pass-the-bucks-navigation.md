@@ -129,3 +129,22 @@ Pass the Buck's own login, `/forbidden` page and staff account creation are **no
   ADR-045's latent defect carried over unchanged. No role holds resolve without manage today.
 - **Twelve tabs do not fit on a phone**, so the nav scrolls sideways there. That is the cost of
   Pass the Buck's flat list over grouped menus, and it is the list volunteers already know.
+
+## Amendment, 9 October 2026: the capture screen is Pass the Buck's too
+
+§3 put the capture screen under the app header and the nav. The club then asked for the
+**screen itself** to match Pass the Buck's, and Pass the Buck's has no site header at all. So
+the capture screen now has:
+- the nav at the very top, with no app header and no footer;
+- **a dark status bar**: the race and the marshal's name, how many crossings are waiting for a
+  bib, an Online/Offline pill, and a ⋯ menu;
+- the big **Crossed now** tile;
+- the queue on a band of its own, with "Queue's empty." when nothing is waiting.
+
+The ⋯ menu carries who is signed in, the syncing, queued and failed counts, and a link to Your
+account. It has no Sign out, because signing out needs a token only the club's own site issues.
+
+**Nothing about capture changed**: tap first, bib after, the offline queue, the retry cap and
+the anomaly rules are exactly as they were. The Online pill reads the browser's own network
+events, so it says whether the phone has a network, not whether the club's site answers. The
+queue's sync states remain the truth.
