@@ -1,22 +1,21 @@
 import Link from 'next/link';
-import { statusOutcomeFor } from '../../../../../lib/status-outcomes';
+import { statusOutcomeFor } from '../../../../lib/status-outcomes';
 
 /**
- * The **Race status** section of `/timing/events/<slug>/console` — DNS, DNF and DQ, and lifting
- * any of them.
+ * DNS, DNF and DQ, and lifting any of them, on `/timing/events/<slug>/roster`.
  *
- * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). ⚠️ **Its own
- * address until [#308](https://github.com/southville-running-club/src-website/issues/308)**.
- * `timing.event.manage` is now this *section's* requirement rather than the address's; the form
- * still posts to `status/update`, which still carries it.
+ * Issue [#253](https://github.com/southville-running-club/src-website/issues/253).
  *
- * ## ⚠️ Its search parameter is `status_q` and was `q`
+ * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
+ * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
+ * The form still posts where it always did, carrying the same permission at the door and in
+ * the database.
  *
- * The timing log below it searches too, and on one page two controls named `q` are one control
- * wearing two hats: searching for a bib in the log would silently filter this list as well, and
- * the "Show everyone" link would clear both. They are `status_q` and `log_q` now, and
- * `status/update/route.ts` carries the renamed field back so that marking somebody from a
- * filtered list still returns to that list.
+ * ## Its search parameter is `status_q`
+ *
+ * Named while it shared a page with the timing log's search (`log_q`), and kept:
+ * `status/update/route.ts` carries it back, so marking somebody from a filtered list still
+ * returns to that list.
  *
  * ## ⚠️ A label on top of crossings, and never a change to one
  *
@@ -79,7 +78,7 @@ export function StatusSection({
   slug: string;
   teams: StatusTeam[];
   search: string;
-  /** `?outcome=`, but only when `?section=status` says this section owns it. */
+  /** `?outcome=`, from `status/update`'s redirect back to the roster. */
   outcomeCode: string | undefined;
 }) {
   const outcome = statusOutcomeFor(outcomeCode);
@@ -98,12 +97,6 @@ export function StatusSection({
       </p>
 
       <form method="get" className="log-search">
-        {/* ⚠️ **A GET form submits its own fields and nothing else, so `?section=` is lost on
-            submit — and the section this search belongs to collapses under the person using it.**
-            #308. The hidden field puts it back. Searching is the one action on the console that
-            navigates without a route handler in between, which is why this is the only place
-            that needs it. */}
-        <input type="hidden" name="section" value="status" />
         <div className="field">
           <label className="field-label" htmlFor="status_q">
             Search by bib, team number or name
@@ -120,7 +113,7 @@ export function StatusSection({
           Search
         </button>
         {search === '' ? null : (
-          <Link className="button button-quiet" href={`/events/${slug}/console#status`}>
+          <Link className="button button-quiet" href={`/events/${slug}/roster`}>
             Show everyone
           </Link>
         )}

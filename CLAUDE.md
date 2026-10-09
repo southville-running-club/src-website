@@ -1290,11 +1290,13 @@ not now**: ADR-054 replaced the club header on `/timing` with a signed-in app sh
 go looking for it there.
 
 ⚠️ **Every page under `/timing` wraps itself in a frame, and the root layout draws none.**
-`apps/timing/lib/chrome.ts` is the route table — `TimingFrame`, `RaceFrame`, `FocusFrame` or
-`PlainFrame` — and `tests/unit/chrome.test.ts` fails on a `page.tsx` that is not in it or does
-not use its frame. **A new timing page is a row in that table first.** The race console and the
-marshal's capture screen are `FocusFrame` and must carry no app header or area bar — one stray
-tap mid-race. ⚠️ **The not-found page and `PlainFrame` must read nothing**: the not-found page is
+`apps/timing/lib/chrome.ts` is the route table — `TimingFrame`, `RaceFrame` or `PlainFrame` —
+and `tests/unit/chrome.test.ts` fails on a `page.tsx` that is not in it or does not use its
+frame. **A new timing page is a row in that table first, and a tab in `raceNav()` if it is one
+of Pass the Buck's** — ADR-055: one `<nav aria-label="Race timing">` on every race page, the
+capture screen included, in Pass the Buck's order, each tab drawn only when `canOpen()` would
+open it (and Marshal only for somebody on that race's roster). ⚠️ **There is no `FocusFrame`
+any more** — ADR-055 replaced ADR-054's nav-less console and capture screen. ⚠️ **The not-found page and `PlainFrame` must read nothing**: the not-found page is
 what every refusal at the door is rewritten to (ADR-044) and a session read would stop it
 prerendering — `app-shell.tsx` is kept apart from `frames.tsx` for exactly that. ⚠️ **Links that
 leave `apps/timing` are plain `<a>`, never `<Link>`**, which would prefix them with `/timing`.
@@ -2150,27 +2152,28 @@ over from the old platform, and a granted marshal who is not on a race's roster 
 to not break; what belongs there is the order somebody presses things in, and the two go stale at
 different rates.
 
-### ⚠️ Twelve addresses became six on 14 September 2026
+### ⚠️ The console became five pages again on 9 October 2026
 
-[ADR-045](docs/architecture/decisions/adr-045-race-night-is-one-console.md),
-[#308](https://github.com/southville-running-club/src-website/issues/308). **`start`, `finish`,
-`status`, `anomalies` and `crossings` are sections of `/timing/events/<slug>/console`**, and
-`prizes` is a section of `/timing/events/<slug>/results`. The old addresses redirect from
-`next.config.ts`, before middleware, so nothing published is broken. **The list below still
-describes each surface's reasoning, which is unchanged — only where it is rendered moved.**
+[ADR-055](docs/architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md)
+supersedes [ADR-045](docs/architecture/decisions/adr-045-race-night-is-one-console.md): the
+navigation is Pass the Buck's, tabs and order alike — Home · Start · Anomalies · Timing log ·
+Results · Prizes · Marshal · Live · Staff · Registrations · Roster · Danger. **The console's
+sections are pages again**: Start (`…/start`, the race control and finishing), Anomalies
+(`…/anomalies`), Timing log (`…/crossings`) and Roster (`…/roster`, DNS / DNF / DQ); Prizes
+(`…/prizes`) left the results page. The section components live in
+`app/events/[slug]/sections/`. **The console, `finish` and `status` redirect** from
+`next.config.ts`, before middleware, including a `?section=` link to the page that section
+became. **The list below still describes each surface's reasoning, which is unchanged — only
+where it is rendered moved, twice.**
 
-⚠️ **The console is the one address here whose door is wider than any section behind it** —
-`timing.event.manage` **or** `timing.crossing.resolve` — and that is a departure from ADR-036's
-one-address-one-permission shape, taken deliberately and fenced three ways: sections are drawn
-per permission, **no write moved** (every form still posts to its original address carrying its
-original permission), and every `timing` function re-checks `identity.has_permission()` anyway.
-**So the conditional render is navigation and never protection**, and a section whose safety
-depended on it would be wrong. `apps/timing/tests/unit/access.test.ts` asserts that the console
-admits each permission alone and admits neither `timing-marshal` nor `nn-admin` nor a signed-in
-account holding nothing.
+**Each page's door is the one permission its own forms post with**, so the console's
+two-permission door — `timing.event.manage` **or** `timing.crossing.resolve` — is gone, and the
+leaderboard is again the only address with two. **No write moved.** Every standard page opens
+with `app/chrome/page-head.tsx`: eyebrow, a heading ending in a full stop, an intro, a status row
+with a Refresh link.
 
-⚠️ **Two searches were renamed** because one page cannot have two controls called `q`:
-`status_q` and `log_q`.
+⚠️ **Two searches keep their #308 names**, `status_q` and `log_q`, though they no longer share a
+page: a searched view is a URL somebody may have sent.
 
 ### The surfaces, and what each of them decided
 
@@ -2191,7 +2194,7 @@ account holding nothing.
   plain `<form method="post">` answered by a route handler and a 303 — not a Server Action —
   because every spec here runs in a `no-javascript` project; `EVENT_SECTION_ACTIONS` in that
   same file is what gates the address a form posts to;
-- **`/timing/events/<slug>/console#start`** — the countdown, the one full-width button and the clock
+- **`/timing/events/<slug>/start`** — the countdown, the one full-width button and the clock
   after it (#250), behind `timing.event.manage`. ⚠️ **`timing.start_event()` is idempotent by
   its own `where actually_started_at is null`**, not by anything a caller does: the second of
   two presses is answered `already_started` **carrying the winning time**, so the losing device
@@ -2215,7 +2218,7 @@ account holding nothing.
   holds an access token — it posts to `…/sync` on the timing Worker, which calls
   `record_crossing()` with the cookie session (#244) — and `public/sw.js` caches the screen so a
   reload with no signal does not strand somebody on a course;
-- **`/timing/events/<slug>/console#anomalies` and `#crossings`** — the two surfaces where a human
+- **`/timing/events/<slug>/anomalies` and `/crossings`** — the two surfaces where a human
   turns a flagged capture into a fact (#252), both behind `timing.crossing.resolve`, which had
   existed since `20260911100000` and gated nothing until then. ⚠️ **The triage list is a union
   of two populations and the second is the one a flag-only query hides**: a _flagged_ capture,
@@ -2229,7 +2232,7 @@ account holding nothing.
   bib that still matches nothing legitimately stays an orphan**, which the page says out loud.
   A discard is reversible and `buildResults()` already excludes one, falling through to the next
   undiscarded capture for that bib;
-- **`/timing/events/<slug>/console#status` and `#finish`** — DNS, DNF and DQ, and calling a race
+- **`/timing/events/<slug>/roster` and `/start#finish`** — DNS, DNF and DQ, and calling a race
   finished (#253), both behind `timing.event.manage`. ⚠️ **A status is a label on top of
   crossings and never a change to one**: DNS suppresses every derived time, and **DNF and DQ keep
   leg A**, because a captured fact stays captured. ⚠️ **`set_race_status()` audits the reversal
@@ -2287,7 +2290,7 @@ account holding nothing.
   because `anon` still holds no grant on any `timing` **table**; `timing.test.ts` pins both.
   **A correction after publication is _unpublish, fix, publish_**, and the page goes back to 404
   in between rather than serving a table somebody is editing;
-- **`/timing/events/<slug>/results/` and its `#prizes` section** — the preview
+- **`/timing/events/<slug>/results/` and `/prizes`** — the preview
   somebody reads before pressing publish, the two buttons that call the functions above, the
   prize presenter and four exports (#205), all behind `timing.result.publish`.
   ⚠️ **They read `timing.results_preview()` and not `results_for_event()`, and that is not
@@ -2390,18 +2393,15 @@ headings and a 40rem `main`, which no visual test would catch.
 `tests/unit/club-content-drift.test.ts`; never edit a rule in the copy, and delete both when
 `club.css` is split after the race (`docs/delivery/phases.md`). ADR-054, Slice A.
 
-⚠️ **The race console admits `timing.crossing.resolve` alone and then refuses it, and it is
-latent, not fixed.** The door's row is `timing.event.manage` **or** `timing.crossing.resolve`
-(`lib/access.ts`; `access.test.ts` asserts a resolve-only caller is admitted), but
-`console/page.tsx` always calls `timing.event_detail()` for the race's identity, and that
-function requires `timing.event.manage`
-(`20260914140000_timing_results_preview.sql`). So a resolve-only caller gets past the door and
-is shown "Not found" before the Anomalies and Timing log sections — the two they hold the
-permission for — are ever drawn. **Nobody meets it today**: only `timing-admin` and
-`src-admin` hold `crossing.resolve`, and both hold `event.manage` too. **It is the first thing
-to fix when the console is split** (the timing redesign's D3, deferred until after the race),
-because a standalone Anomalies or Timing log page reading `event_detail()` would 404 the same
-way. Found in the redesign's Phase 1 inventory, 3 October 2026.
+⚠️ **The Anomalies and Timing log pages admit `timing.crossing.resolve` alone and then refuse
+it, and it is latent, not fixed.** Their door is `timing.crossing.resolve` (`lib/access.ts`),
+but both call `timing.event_detail()` for the race's name, and that function requires
+`timing.event.manage` (`20260914140000_timing_results_preview.sql`). So a resolve-only caller
+gets past the door and is shown "Not found". **Nobody meets it today**: only `timing-admin` and
+`src-admin` hold `crossing.resolve`, and both hold `event.manage` too. It was the race console's
+defect until ADR-055 split the console, and the split carried it over unchanged rather than
+adding a grant; fixing it means a read a resolve-only caller may make. Found in the redesign's
+Phase 1 inventory, 3 October 2026.
 
 ⚠️ **`reopen_event()` is refused while results are published, and that guard arrived with #241
 rather than with the function.** #253 asked for it; `20260913240000` declined it because

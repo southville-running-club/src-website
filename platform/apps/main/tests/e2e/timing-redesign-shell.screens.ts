@@ -46,8 +46,12 @@ const SHOTS: readonly (readonly [string, string, string | null])[] = [
   ['admin-race-leaderboard', `${RACE}/leaderboard`, TIMING_ADMIN_EMAIL],
   ['marshal-timing-home', '/timing', TIMING_MARSHAL_EMAIL],
   ['signed-out-not-found', '/timing', null],
-  // Slice D: the two race-day screens, which wear the focus header rather than the shell.
-  ['admin-race-console', `${RACE}/console`, TIMING_ADMIN_EMAIL],
+  // ADR-055: the pages the race console became, and the capture screen, all with the nav.
+  ['admin-race-start', `${RACE}/start`, TIMING_ADMIN_EMAIL],
+  ['admin-race-anomalies', `${RACE}/anomalies`, TIMING_ADMIN_EMAIL],
+  ['admin-race-crossings', `${RACE}/crossings`, TIMING_ADMIN_EMAIL],
+  ['admin-race-prizes', `${RACE}/prizes`, TIMING_ADMIN_EMAIL],
+  ['admin-race-roster', `${RACE}/roster`, TIMING_ADMIN_EMAIL],
   [
     'marshal-capture',
     `/timing/marshal/${captureEventSlug(PROJECT)}`,

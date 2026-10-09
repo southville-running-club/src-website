@@ -85,7 +85,7 @@ export default async function DangerZonePage({
     // that matters: somebody who cannot tell an outage from a refusal presses again, and this
     // is the one button on the platform where pressing again is not free.
     return (
-      <RaceFrame slug={slug} name={null} current={null} page="Danger zone">
+      <RaceFrame slug={slug} name={null} current="danger" page="Danger zone">
         <>
           <h1>Danger zone</h1>
           <p className="notice notice-bad">
@@ -118,7 +118,7 @@ export default async function DangerZonePage({
       : 'This race’s results are published. Take them down on its Results page before wiping it.';
 
   return (
-    <RaceFrame slug={slug} name={event.name} current={null} page="Danger zone" wide>
+    <RaceFrame slug={slug} name={event.name} current="danger" page="Danger zone" wide>
       <div className="club-wrap-narrow">
         <div className="club-phead">
           <h1>Danger zone</h1>

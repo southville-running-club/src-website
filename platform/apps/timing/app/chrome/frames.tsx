@@ -1,22 +1,26 @@
 import type { ReactNode } from 'react';
 import {
-  RACE_TABS,
-  TIMING_TABS,
   appAreas,
-  openableTabs,
+  appNav,
+  raceNav,
   showsBar,
   timingHref,
-  type RaceTab,
+  type NavKey,
+  type NavTab,
 } from '../../lib/chrome';
-import { canOpen } from '../../lib/access';
-import { readPermissions, readRoles, readSignedInAs } from '../../lib/reads';
-import { AppFooter, AppHeader, AreaBar, SkipLink, type AreaTab } from './app-shell';
+import {
+  readPermissions,
+  readRoles,
+  readRosteredSlugs,
+  readSignedInAs,
+} from '../../lib/reads';
+import { AppFooter, AppHeader, SkipLink, TimingNav } from './app-shell';
 import { AreaBarScroll } from './area-bar-scroll';
 
 export { PlainFrame } from './app-shell';
 
 /**
- * The four frames every page under `/timing` is drawn in. `lib/chrome.ts`'s route table says
+ * The three frames every page under `/timing` is drawn in. `lib/chrome.ts`'s route table says
  * which, and `tests/unit/chrome.test.ts` holds every page to it. ADR-054.
  *
  * The root layout draws none of this, only the document around it, because the frame a page
@@ -35,14 +39,26 @@ export { PlainFrame } from './app-shell';
  * restyled in a later slice passes `wide` and leaves both behind.
  */
 
-/** What every app-shell page shares: the header, the bar if there is one, and the footer. */
+/** What every app-shell page shares: the header, the nav if there is one, and the footer. */
 async function AppShell({
-  bar,
+  nav,
   wide = false,
+  tool = false,
+  light = false,
   children,
 }: {
-  bar: ReactNode;
+  nav: ReactNode;
   wide?: boolean;
+  /**
+   * The capture screen: the wrapper becomes a column exactly the height of the viewport, the
+   * screen below the nav takes what is left so only the queue scrolls, and there is no footer.
+   */
+  tool?: boolean;
+  /**
+   * Light under a phone set to dark (D5, 4 October 2026): the race-control and capture screens
+   * are used outdoors in daylight. The capture screen is always light.
+   */
+  light?: boolean;
   children: ReactNode;
 }) {
   const [permissions, roles, signedInAs] = await Promise.all([
@@ -52,213 +68,115 @@ async function AppShell({
   ]);
 
   return (
-    <div className="timing-ui">
+    <div
+      className={
+        tool
+          ? 'timing-ui timing-force-light timing-tool-page'
+          : light
+            ? 'timing-ui timing-force-light'
+            : 'timing-ui'
+      }
+    >
       <SkipLink />
       <AppHeader
         areas={appAreas(permissions, roles)}
         current="timing"
         signedInAs={signedInAs}
       />
-      {bar}
+      {nav}
       <main
         id="main"
         className={
-          wide
-            ? 'club-wrap timing-main'
-            : 'club-wrap club-wrap-narrow timing-main timing-legacy'
+          tool
+            ? 'club-wrap timing-tool'
+            : wide
+              ? 'club-wrap timing-main'
+              : 'club-wrap club-wrap-narrow timing-main timing-legacy'
         }
       >
         {children}
       </main>
-      <AppFooter />
+      {tool ? null : <AppFooter />}
     </div>
   );
 }
 
-function barOrNothing(name: string, tabs: AreaTab[], shortName?: string): ReactNode {
+/** The nav, or nothing when it would hold one tab. */
+function navOrNothing(tabs: readonly NavTab[], current: NavKey | null): ReactNode {
   if (!showsBar(tabs)) return null;
   return (
     <>
-      <AreaBar name={name} shortName={shortName} tabs={tabs} />
+      <TimingNav
+        tabs={tabs.map((tab) => ({
+          href: timingHref(tab.path),
+          label: tab.label,
+          current: tab.key === current,
+        }))}
+      />
       <AreaBarScroll />
     </>
   );
 }
 
-/** The landing page and the races list: the app header, and the "Race timing" area bar. */
+/** The landing page and the races list: the app header, and the app-level nav. */
 export async function TimingFrame({
   current,
   wide,
   children,
 }: {
-  current: '/' | '/events';
+  current: 'home' | 'races';
   wide?: boolean;
   children: ReactNode;
 }) {
   const permissions = await readPermissions();
-  const tabs = openableTabs(TIMING_TABS, permissions).map((tab) => ({
-    href: timingHref(tab.path),
-    label: tab.label,
-    current: tab.path === current,
-  }));
 
   return (
-    <AppShell bar={barOrNothing('Race timing', tabs)} wide={wide}>
+    <AppShell nav={navOrNothing(appNav(permissions), current)} wide={wide}>
       {children}
     </AppShell>
   );
 }
 
 /**
- * A short form of a race's name for a phone's area bar: "Nightingale Nightmare 2026" becomes
- * "NN 2026". The initials of every word but a trailing year, which the year keeps. A name that
- * is already short, or has no year, is left alone.
- */
-export function shortRaceName(name: string): string {
-  const words = name.trim().split(/\s+/u);
-  const year = words.at(-1);
-  if (words.length < 3 || year === undefined || !/^\d{4}$/u.test(year)) return name;
-  const initials = words
-    .slice(0, -1)
-    .map((word) => word[0]?.toUpperCase() ?? '')
-    .join('');
-  return `${initials} ${year}`;
-}
-
-/**
- * One race's pages: the app header, and that race's area bar with `current` marked.
+ * One race's pages: the app header, and that race's nav with `current` marked — ADR-055.
  *
  * `name` is the race's name as the page read it, or `null` when the page could not read one —
  * the database unavailable. A race that does not exist (or that the reader may not see, which
  * the reads deliberately do not tell apart) is not this frame's business: the page renders
  * `PlainFrame` around `NotFoundBody`, so the body is the not-found page's exactly (ADR-044).
  *
- * `current` is `null` on the danger zone, which has no tab of its own.
+ * `current` is the tab this page is; `null` for a page that is no tab of its own.
  */
 export async function RaceFrame({
   slug,
-  name,
   current,
   wide,
+  tool,
+  light,
   children,
 }: {
   slug: string;
-  name: string | null;
-  current: RaceTab | null;
+  /** Kept so callers need not change: the race's name is the page's eyebrow, not the nav's. */
+  name?: string | null;
+  current: NavKey | null;
   /** Kept so callers need not change; the breadcrumbs that used it are gone (ADR-054). */
   page?: string;
   wide?: boolean;
+  /** The capture screen. See {@link AppShell}. */
+  tool?: boolean;
+  /** Light under a phone set to dark — the Start page. See {@link AppShell}. */
+  light?: boolean;
   children: ReactNode;
 }) {
-  const permissions = await readPermissions();
-  const base = `/events/${slug}`;
-  const tabs = openableTabs(RACE_TABS, permissions, base).map((tab) => ({
-    href: timingHref(`${base}${tab.path}`),
-    label: tab.label,
-    current: tab.key === current,
-  }));
-
-  const raceLabel = name ?? 'This race';
+  const [permissions, rosteredSlugs] = await Promise.all([
+    readPermissions(),
+    readRosteredSlugs(),
+  ]);
+  const tabs = raceNav(permissions, slug, rosteredSlugs.includes(slug));
 
   return (
-    <AppShell
-      bar={barOrNothing(raceLabel, tabs, name === null ? undefined : shortRaceName(name))}
-      wide={wide}
-    >
+    <AppShell nav={navOrNothing(tabs, current)} wide={wide} tool={tool} light={light}>
       {children}
     </AppShell>
-  );
-}
-
-/**
- * The race-day screens: a slim dark header and nothing else.
- *
- * ⚠️ **No app header, no area bar and no footer**, and that is the point of it. These are used
- * on a phone by a marshal at the line or by the race director mid-race, and one stray tap takes
- * them off the race. What is left is which screen this is, which race, and one deliberate way
- * out.
- *
- * **Always light (D5, 4 October 2026).** Both screens are used outdoors in daylight, so the
- * wrapper carries `.timing-force-light`, which `timing.css` answers by restating the light
- * palette under a phone set to dark.
- *
- * **One row, at every width.** The header is `.timing-focus-bar`'s fixed height, so the
- * console's race control can fill exactly what is left of the screen. On a phone the club's
- * name drops and the race is shortened ("NN 2026"); its full name is in the page's title.
- *
- * `tool` is the capture screen: the wrapper becomes a column exactly the height of the viewport
- * and the screen below the bar takes what is left, so only the queue scrolls (T5).
- *
- * **The way out goes where the reader can actually go.** The race's overview needs
- * `timing.event.manage`; a marshal and somebody who only resolves crossings would get a 404
- * there, so for them it is `/timing`, which lists what they may open.
- */
-export async function FocusFrame({
-  screen,
-  slug,
-  name,
-  leaveLabel,
-  tool = false,
-  children,
-}: {
-  screen: string;
-  slug: string;
-  name: string | null;
-  leaveLabel: string;
-  tool?: boolean;
-  children: ReactNode;
-}) {
-  const permissions = await readPermissions();
-  const overview = `/events/${slug}`;
-  const leaveHref = canOpen(permissions, overview)
-    ? timingHref(overview)
-    : timingHref('/');
-  const short = name === null ? null : shortRaceName(name);
-
-  return (
-    <div
-      className={
-        tool
-          ? 'timing-ui timing-force-light timing-tool-page'
-          : 'timing-ui timing-force-light'
-      }
-    >
-      <SkipLink />
-      <header className="club-focus timing-focus-bar">
-        <div className="club-wrap club-focus-inner">
-          <p className="club-focus-title">
-            <span className="club-focus-club timing-wide">
-              Southville RC<span aria-hidden="true"> · </span>
-            </span>
-            <strong>{screen}</strong>
-            {name === null ? null : (
-              <span className="club-focus-race">
-                {short === name ? (
-                  name
-                ) : (
-                  <>
-                    <span className="timing-wide">{name}</span>
-                    <span className="timing-narrow">{short}</span>
-                  </>
-                )}
-              </span>
-            )}
-          </p>
-          <a className="club-focus-leave" href={leaveHref}>
-            {leaveLabel}
-          </a>
-        </div>
-      </header>
-      <main
-        id="main"
-        className={
-          tool
-            ? 'club-wrap timing-tool'
-            : 'club-wrap timing-main timing-console timing-legacy'
-        }
-      >
-        {children}
-      </main>
-    </div>
   );
 }

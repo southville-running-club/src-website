@@ -223,20 +223,16 @@ test.describe('the screens a volunteer meets on race night', () => {
 
     // The countdown, with the button that has not been pressed. `pending` is the state the
     // start screen is opened in on race morning.
-    await page.goto(
-      `/timing/events/${startEventSlug(slot, 'pending')}/console?section=start#start`,
-    );
+    await page.goto(`/timing/events/${startEventSlug(slot, 'pending')}/start`);
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
     await shoot(page, '05-before-the-gun');
 
     // Started, with the elapsed clock and no way to clear it — `clearable` is the other half,
     // and the pair is what makes "pressing again does not move it" legible in a picture.
-    await page.goto(
-      `/timing/events/${startEventSlug(slot, 'running')}/console?section=start#start`,
-    );
-    // A state inside the console's Start section, so an h3 under the section's h2.
+    await page.goto(`/timing/events/${startEventSlug(slot, 'running')}/start`);
+    // A state of the Start page's race control, an h2 under the page's h1 (ADR-055).
     await expect(
-      page.getByRole('heading', { level: 3, name: 'The race is running' }),
+      page.getByRole('heading', { level: 2, name: 'The race is running' }),
     ).toBeVisible();
     await shoot(page, '06-after-the-gun');
   });
@@ -283,17 +279,13 @@ test.describe('the screens a volunteer meets on race night', () => {
 
     await signInAs(page, TIMING_ADMIN_EMAIL);
 
-    await page.goto(
-      `/timing/events/${anomalyEventSlug(slot)}/console?section=anomalies#anomalies`,
-    );
+    await page.goto(`/timing/events/${anomalyEventSlug(slot)}/anomalies`);
     await expect(
       page.getByRole('heading', { level: 2, name: 'Anomalies' }),
     ).toBeVisible();
     await shoot(page, '10-the-triage-list');
 
-    await page.goto(
-      `/timing/events/${anomalyEventSlug(slot)}/console?section=crossings#crossings`,
-    );
+    await page.goto(`/timing/events/${anomalyEventSlug(slot)}/crossings`);
     await expect(
       page.getByRole('heading', { level: 2, name: 'Timing log' }),
     ).toBeVisible();
@@ -309,15 +301,11 @@ test.describe('the screens a volunteer meets on race night', () => {
 
     // `running` rather than `finished`, because the picture wanted is the one with the button
     // and the sentence under it — "finishing is a label, not a cut-off".
-    await page.goto(
-      `/timing/events/${startEventSlug(slot, 'running')}/console?section=finish#finish`,
-    );
+    await page.goto(`/timing/events/${startEventSlug(slot, 'running')}/start#finish`);
     await expect(page.getByRole('button', { name: 'Finish this race' })).toBeVisible();
     await shoot(page, '12-finishing-is-a-label');
 
-    await page.goto(
-      `/timing/events/${statusEventSlug(slot)}/console?section=status#status`,
-    );
+    await page.goto(`/timing/events/${statusEventSlug(slot)}/roster`);
     await expect(
       page.getByRole('heading', { level: 2, name: 'Race status' }),
     ).toBeVisible();

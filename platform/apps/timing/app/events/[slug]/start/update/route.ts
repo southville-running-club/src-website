@@ -48,12 +48,8 @@ const INTENTS = {
 } as const;
 
 function backTo(request: Request, slug: string, outcome: string): NextResponse {
-  // ⚠️ **Back to the console, not to this handler's own old page** —
-  // [#308](https://github.com/southville-running-club/src-website/issues/308) merged five pages
-  // into one. `?section=` says which section owns `?outcome=`, because five outcome vocabularies
-  // now share one address and a bare `?outcome=` would be ambiguous between them; the fragment
-  // opens that section and scrolls to it, so the message about what just happened is not hidden
-  // inside a collapsed block.
+  // Back to the Start page — ADR-055. `?section=` says which of the page's two blocks owns
+  // `?outcome=`, because the start and the finish each have their own outcome vocabulary.
   //
   // **This address did not move** — only where it sends somebody afterwards. `lib/access.ts`
   // still carries this section's own permission for it.
@@ -65,7 +61,7 @@ function backTo(request: Request, slug: string, outcome: string): NextResponse {
   // `startOutcomeFor()` then answers `null` for anything it has no wording for, so an unknown
   // reason is silent rather than mangled — see `lib/start-outcomes.ts`.
   const target = new URL(
-    `/timing/events/${encodeURIComponent(slug)}/console?section=start&outcome=${encodeURIComponent(outcome)}#start`,
+    `/timing/events/${encodeURIComponent(slug)}/start?section=start&outcome=${encodeURIComponent(outcome)}`,
     request.url,
   );
 

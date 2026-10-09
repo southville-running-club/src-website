@@ -1,19 +1,17 @@
 import { formatLondon } from '@src/shared';
-import { statusOutcomeFor } from '../../../../../lib/status-outcomes';
-import type { EventDetail } from '../event-detail';
+import { statusOutcomeFor } from '../../../../lib/status-outcomes';
+import type { EventDetail } from './event-detail';
 
 /**
- * The **Finish** section of `/timing/events/<slug>/console` — the race director calls it, and
- * can take it back.
+ * Finishing a race, on `/timing/events/<slug>/start` — the race director calls it, and can take
+ * it back.
  *
- * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). ⚠️ **Its own
- * address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
- * which merged five pages into the console after a volunteer ran a race end to end and found the
- * navigation the tiring part. Behind `timing.event.manage`, which is now the *section's*
- * requirement rather than the address's: the console's door is that permission **or**
- * `timing.crossing.resolve`, and `console/page.tsx` renders this only for somebody holding this
- * one. **The form still posts to `finish/update`**, which still carries `timing.event.manage` in
- * `lib/access.ts`, so nothing here is protected by the conditional render.
+ * Issue [#253](https://github.com/southville-running-club/src-website/issues/253).
+ *
+ * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
+ * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
+ * The form still posts where it always did, carrying the same permission at the door and in
+ * the database.
  *
  * ## ⚠️ Finishing is reversible, a label, and never a gate
  *
@@ -37,15 +35,15 @@ import type { EventDetail } from '../event-detail';
  * It already carries `finished_at` and `actually_started_at`, which is every fact this screen
  * needs. A `finish_state()` would be a second statement of the same query.
  */
-// ⚠️ No `export const dynamic` — a section is not a route. `console/page.tsx` carries it for
-// all five, and a stray copy here would be silently ignored rather than fail, which is the
-// kind of dead declaration somebody later reads as load-bearing.
+// ⚠️ No `export const dynamic` — a section is not a route. The page that draws it carries it,
+// and a stray copy here would be silently ignored rather than fail, which is the kind of dead
+// declaration somebody later reads as load-bearing.
 
 /**
  * ⚠️ **The read moved out and the outage wording went with it.** This used to answer
  * *"the club's database could not be reached … the race has not been finished"* for its own
- * failed read. `console/page.tsx` does the one `event_detail()` read for every section that
- * needs it and renders that message once, so a single outage says one thing rather than five.
+ * failed read. The start page does the one `event_detail()` read for both blocks that need
+ * it and renders that message once, so a single outage says one thing rather than five.
  * The second sentence — *nothing has been changed* — still matters for exactly this section's
  * reason and is kept there.
  */
@@ -56,7 +54,7 @@ export function FinishSection({
 }: {
   slug: string;
   event: EventDetail;
-  /** `?outcome=` only when `?section=finish` says this section owns it. */
+  /** `?outcome=`, only when `?section=finish` says this block owns it. */
   outcomeCode: string | undefined;
 }) {
   const outcome = statusOutcomeFor(outcomeCode);
@@ -118,11 +116,6 @@ export function FinishSection({
           </form>
         </>
       )}
-
-      {/* ⚠️ Two links removed by #308 rather than lost. "Mark somebody DNS, DNF or DQ" pointed
-          at `status`, which is now the section directly below this one, and "Back to this race"
-          is the console's own nav. A link to a sibling section on the same page is how a merged
-          screen quietly becomes as tiring to use as the five it replaced. */}
     </>
   );
 }

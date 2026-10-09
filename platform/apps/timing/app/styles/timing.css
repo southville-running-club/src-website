@@ -46,9 +46,9 @@
   }
 
   /*
-   * The race console and the capture screen are always light (D5, 4 October 2026): they are
-   * used outdoors in daylight. These are the light values of every token `club-chrome.css`
-   * redefines for dark, restated for those two screens only. `:has()` because a frame can set a
+   * The Start and capture screens are always light (D5, 4 October 2026): they are used
+   * outdoors in daylight. These are the light values of every token `club-chrome.css` redefines
+   * for dark, restated for those two screens only. `:has()` because a frame can set a
    * class on its own wrapper but not on `<html>`, which the root layout owns.
    *
    * ⚠️ **If `club-chrome.css` or `base.css` gains a dark token, it must be added here too**,
@@ -72,7 +72,7 @@
     --club-focus: #16301f;
     --club-on-danger: #ffffff;
 
-    /* And `base.css`'s palette, which the console's sections not yet restyled are still painted
+    /* And `base.css`'s palette, which the sections not yet restyled are still painted
        with. Without these, a phone set to dark put `base.css`'s dark-scheme grey on this
        light page: a `<dt>` at 2.14:1, which axe caught. The light values, as `base.css`'s own
        `:root` states them. */
@@ -98,7 +98,9 @@ body:has(.timing-ui) {
 }
 
 .timing-ui {
-  --timing-focus-bar-h: 3.25rem;
+  /* Every time, bib, entry number and count — ADR-055. The system's own monospace, so nothing
+     is downloaded for it. */
+  --timing-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
   background: var(--club-background);
   color: var(--club-text);
@@ -276,18 +278,94 @@ body:has(.timing-ui) {
   overflow-wrap: anywhere;
 }
 
-/* The area bar scrolls sideways on a phone; the fade at its right edge says there is more. */
-.app-area-bar .club-section-inner {
+/* -------------------------------------------------------------------------------------
+ * The race-timing nav — ADR-055, Pass the Buck's strip in the club's colours
+ * -------------------------------------------------------------------------------------
+ * A full-width strip under the header on the page's own background, ruled off below. On a phone
+ * the list scrolls sideways: tabs never shrink or wrap, and the fade at the right edge says there
+ * is more. The focus ring is drawn inside the tab (`outline-offset: -4px`) because the list is a
+ * scroller and an outline outside it would be clipped. The inactive colour is the text colour at 70%, mixed over the background it sits on
+ * rather than made transparent, so `timing-contrast.test.ts` can measure it. */
+.timing-nav {
+  border-bottom: 1px solid color-mix(in srgb, var(--club-text) 10%, transparent);
+  background: var(--club-background);
+}
+
+.timing-nav ul {
+  display: flex;
+  max-width: var(--club-wrap);
+  margin: 0 auto;
+  /* The first tab's label lines up with the club's mark above it: the header's gutter, less the
+     tab's own padding. */
+  padding: 0 calc(var(--club-gutter) - 0.75rem);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+/* The fade only when the list really does scroll, which `area-bar-scroll.tsx` marks — so on a
+   screen wide enough for every tab nothing is faded, and with scripting off nothing is. */
+.timing-nav ul[data-scrolls] {
   mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
 }
 
-.app-area-bar .club-section-name a {
-  color: inherit;
-  text-decoration: none;
+.timing-nav li {
+  flex-shrink: 0;
+  margin: 0;
 }
 
-.app-area-bar .club-section-name a:hover {
-  color: var(--club-link);
+.timing-nav a {
+  display: block;
+  padding: 1rem 0.75rem;
+  border-bottom: 3px solid transparent;
+  color: color-mix(in srgb, var(--club-text) 70%, var(--club-background));
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.timing-nav a:hover {
+  color: var(--club-text);
+}
+
+.timing-nav a[aria-current='page'] {
+  border-bottom-color: var(--club-brand);
+  color: var(--club-text);
+  font-weight: 600;
+}
+
+.timing-nav a:focus-visible {
+  outline: 2px solid var(--club-focus);
+  outline-offset: -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timing-nav a {
+    transition: none;
+  }
+}
+
+@media (min-width: 40em) {
+  .timing-nav ul {
+    padding: 0 calc(var(--club-gutter) - 1rem);
+  }
+
+  .timing-nav a {
+    padding-inline: 1rem;
+  }
+}
+
+/* A page's column starts where the header and the nav do, rather than centred inside them —
+   so the eye runs straight down one edge from the club's mark to the page's heading. The
+   column keeps its reading width; only where it sits moved. */
+.timing-main.club-wrap-narrow {
+  max-width: var(--club-wrap);
+}
+
+.timing-main.club-wrap-narrow > * {
+  max-width: 44rem;
 }
 
 /* Muted on the page, as above. */
@@ -329,6 +407,61 @@ body:has(.timing-ui) {
   }
 }
 
+/* -------------------------------------------------------------------------------------
+ * The page head every standard timing page shares — ADR-055, `app/chrome/page-head.tsx`
+ * ------------------------------------------------------------------------------------- */
+.timing-phead {
+  margin-bottom: 1.75rem;
+}
+
+.timing-eyebrow {
+  margin: 0 0 0.5rem;
+  color: var(--club-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timing-phead h1 {
+  margin: 0 0 0.75rem;
+}
+
+.timing-intro {
+  max-width: var(--club-measure);
+}
+
+.timing-intro > :last-child {
+  margin-bottom: 0;
+}
+
+.timing-statusrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--club-rule);
+}
+
+.timing-statusrow-text {
+  margin: 0;
+  font-family: var(--timing-mono);
+  font-size: 0.9375rem;
+}
+
+.timing-statusrow-when {
+  color: var(--club-muted);
+}
+
+/* Every time, bib, entry number and count. */
+.timing-mono {
+  font-family: var(--timing-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* A page head inside a page already has the page's own top padding; the club's would double it. */
 .timing-main .club-phead {
   padding-top: 0;
@@ -368,10 +501,6 @@ body:has(.timing-ui) {
 
   .app-user {
     display: block;
-  }
-
-  .app-area-bar .club-section-inner {
-    mask-image: none;
   }
 }
 
@@ -453,50 +582,7 @@ body:has(.timing-ui) {
   grid-column: auto;
 }
 
-/* The console's sections, one tap away inside the one page (D3 is deferred). */
-.timing-jump {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--club-rule);
-  background: var(--club-background);
-}
-
-.timing-jump ul {
-  display: flex;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  max-width: none;
-  overflow-x: auto;
-  list-style: none;
-}
-
-.timing-jump a {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 44px;
-  padding: 0 0.95rem;
-  border: 1px solid var(--club-rule);
-  border-radius: var(--club-radius-button);
-  background: var(--club-surface);
-  color: var(--club-text);
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.timing-jump .club-badge {
-  margin: 0;
-}
-
-.timing-jump a[aria-current='true'] {
-  border-color: var(--club-text);
-}
-
-/* A section jumped to lands below the sticky jump bar rather than under it. */
+/* A section linked to by its id lands with a little room above it. */
 .timing-ui section[id]:not(.timing-go) {
   scroll-margin-top: 4.5rem;
 }
@@ -692,10 +778,9 @@ body:has(.timing-ui) {
   margin: 0 0 0.75rem;
 }
 
-/* The console's anomalies and timing log keep their markup until the console is split after the
-   race (D3); here their capture cards take the club's card shape, so the console reads as one
-   design. `.triage-card` is base.css's, and the tests find captures by it, so it is restyled
-   rather than renamed. Ink on the card, 14.2:1. */
+/* The anomalies and timing log pages keep the markup they had as console sections; their
+   capture cards take the club's card shape. `.triage-card` is base.css's, and the tests find
+   captures by it, so it is restyled rather than renamed. Ink on the card, 14.2:1. */
 .timing-console .triage-card {
   border: 0;
   border-radius: var(--club-radius-card);
@@ -730,55 +815,7 @@ body:has(.timing-ui) {
 }
 
 /* -------------------------------------------------------------------------------------
- * The focus header, one row (the race console and the capture screen)
- * -------------------------------------------------------------------------------------
- * A modifier on `club-chrome.css`'s `.club-focus`, so ADR-053's focus header is untouched until
- * a frame asks for this one. On a phone the club's name drops and the race is shortened; its
- * full name stays in the page title. */
-.timing-focus-bar .club-focus-inner {
-  flex-wrap: nowrap;
-  min-height: var(--timing-focus-bar-h);
-}
-
-.timing-focus-bar .club-focus-title {
-  min-width: 0;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The one way out never wraps and never shrinks: a long race name gives way first. */
-.timing-focus-bar .club-focus-leave {
-  flex: none;
-  white-space: nowrap;
-}
-
-.timing-focus-bar .club-focus-race {
-  flex-basis: auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.timing-focus-bar .club-focus-race::before {
-  content: '·';
-  margin: 0 0.35rem 0 0.1rem;
-}
-
-/* The capture screen's bar adds what is waiting and whether there is signal. */
-.timing-focus-extra {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-/* -------------------------------------------------------------------------------------
- * T2: the race control, where the whole screen goes green
+ * The race control on Start, where the panel goes green
  * ------------------------------------------------------------------------------------- */
 
 /* `--club-on-brand` on `--club-brand`, 5.07:1. Never white on this green. */
@@ -787,7 +824,6 @@ body:has(.timing-ui) {
   place-content: center;
   justify-items: center;
   gap: 0.9rem;
-  min-height: calc(100dvh - var(--timing-focus-bar-h));
   padding: 2rem var(--club-gutter);
   background: var(--club-brand);
   color: var(--club-on-brand);
@@ -851,15 +887,15 @@ body:has(.timing-ui) {
   gap: 0.5rem 1.25rem;
 }
 
-/* The console's race control is the T2 screen as a panel: it sits under the console's own
-   head and jump bar, so it is tall rather than the whole viewport. One state, one action. */
+/* The race control is a panel under the Start page's own head, so it is tall rather than the
+   whole viewport. One state, one action. */
 .timing-go-panel {
   min-height: min(30rem, 70dvh);
   margin: 1rem 0 1.5rem;
   border-radius: var(--club-radius-card);
 }
 
-.timing-go h3 {
+.timing-go :is(h2, h3) {
   max-width: 18ch;
   margin: 0;
   color: inherit;
@@ -894,40 +930,13 @@ body:has(.timing-ui) {
   font-weight: 700;
 }
 
-/* The console's column: the race control and the sections below it, which were laid out for
-   `base.css`'s measure and are not restyled before the race. */
+/* The column the console's pages share: the race control and the sections, which were laid
+   out for `base.css`'s measure and are restyled page by page. */
 .timing-console {
   max-width: 48rem;
 }
 
-.timing-console-head h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.6rem;
-}
-
-.timing-console-head .club-lede {
-  margin-bottom: 0.75rem;
-}
-
 /* Two figures as badges: the label and its count on one line. */
-.timing-console-counts {
-  margin: 0 0 1rem;
-}
-
-.timing-console-counts > div {
-  display: inline-flex;
-  gap: 0.35rem;
-  font-size: 0.875rem;
-}
-
-.timing-console-counts dt {
-  color: inherit;
-  font-weight: 700;
-}
-
-.timing-console-counts dd {
-  margin: 0;
-}
 
 /* The big clock. Bricolage's subset carries tabular figures: "11:11:11", "00:00:00" and
    "88:88:88" measure identically, so the digits do not jitter as it ticks (HALT 2). */

@@ -12,8 +12,6 @@ import {
 import { isGuide, resultCategoryLabel } from '@src/shared/timing/result-category';
 import type { TimingEvent, TimingRunner } from '@src/shared/timing/rows';
 import { NotFoundBody } from '../../../not-found-body';
-import { PrizesSection } from './prizes-section';
-import { prizeChoicesFrom } from '../../../../lib/prizes';
 import {
   readResultsPreview,
   type PreviewTeam,
@@ -283,11 +281,6 @@ export default async function ResultsPage({
   }
 
   const payload = read.data;
-  // ⚠️ **The same `searchParams` the outcome came from, and they cannot collide** — #308. This
-  // view reads `?outcome=` and nothing else; the presenter reads `?pass=` and its draw
-  // parameters, which is why merging the two pages needed no renaming, unlike the console's two
-  // searches.
-  const prizeChoices = prizeChoicesFrom(query);
   const state = lifecycleStateFor(payload.event);
   const words = LIFECYCLE_WORDS[state];
   const action = `/timing/events/${encodeURIComponent(slug)}/results/update`;
@@ -415,7 +408,7 @@ export default async function ResultsPage({
                 <p className="club-notice timing-notice-bad" id="publish-not-finished">
                   This race has not been marked finished, so its results cannot be
                   published yet. Finishing and publishing are two separate decisions.{' '}
-                  <Link href={`/events/${slug}/console#finish`}>Finish this race</Link>{' '}
+                  <Link href={`/events/${slug}/start#finish`}>Finish this race</Link>{' '}
                   first.
                 </p>
               ) : null}
@@ -426,8 +419,7 @@ export default async function ResultsPage({
                     ? 'There is 1 capture still to be resolved'
                     : `There are ${open} captures still to be resolved`}
                   , so these results cannot be published.{' '}
-                  <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link>{' '}
-                  first.
+                  <Link href={`/events/${slug}/anomalies`}>Resolve them</Link> first.
                 </p>
               ) : null}
 
@@ -461,20 +453,6 @@ export default async function ResultsPage({
             </>
           )}
         </section>
-
-        <h2 id="prizes" className="timing-section-title">
-          Prize giving
-        </h2>
-
-        <PrizesSection slug={slug} payload={payload} choices={prizeChoices} />
-
-        <p>
-          {/* ⚠️ "Prize giving" was a link to its own page and is the section above now — #308.
-            "Open captures" moved with the triage list onto the console. */}
-          <Link href={`/events/${slug}/console#anomalies`}>Open captures</Link>
-          {' · '}
-          <Link href={`/events/${slug}`}>Back to this race</Link>
-        </p>
       </div>
     </RaceFrame>
   );

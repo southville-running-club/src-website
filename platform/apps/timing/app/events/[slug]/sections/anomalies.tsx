@@ -1,17 +1,13 @@
-import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
-import { anomalyOutcomeFor } from '../../../../../lib/anomaly-outcomes';
+import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
 
 /**
- * The **Anomalies** section of `/timing/events/<slug>/console` — the triage list, where a
- * flagged capture becomes a fact.
+ * The triage list on `/timing/events/<slug>/anomalies`, where a flagged capture becomes a fact.
  *
- * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
- * which merged it onto the console beside the timing log it used to link to. Behind
- * `timing.crossing.resolve`, which is now this *section's* requirement rather than the
- * address's — the console's door is `timing.event.manage` **or** this one, and somebody holding
- * only `event.manage` sees no triage list. **The form still posts to `anomalies/update`**,
- * carrying `timing.crossing.resolve` as it always did.
+ * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
+ * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
+ * The form still posts where it always did, carrying the same permission at the door and in
+ * the database.
  *
  * Issue [#252](https://github.com/southville-running-club/src-website/issues/252), under
  * [ADR-034](../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
@@ -60,7 +56,7 @@ export function AnomaliesSection({
 }: {
   slug: string;
   anomalies: OpenAnomaly[];
-  /** `?outcome=`, but only when `?section=anomalies` says this section owns it. */
+  /** `?outcome=`, from `anomalies/update`'s redirect back to this list. */
   outcomeCode: string | undefined;
 }) {
   const outcome = anomalyOutcomeFor(outcomeCode);
@@ -71,22 +67,6 @@ export function AnomaliesSection({
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
-
-      <p>
-        A capture is here because a marshal&rsquo;s screen flagged it, or because its bib
-        matches no team on this race. <strong>Nothing here is wrong by itself</strong> —
-        an anomaly is a question, and resolving one records what somebody decided about
-        it.
-      </p>
-
-      <p>
-        {/* The manual refresh. A plain link to this page's own address, so it works with
-            scripting off and cannot move the list under somebody mid-decision. */}
-        <Link href={`/events/${slug}/console#anomalies`}>Look again</Link>
-        {/* ⚠️ "Every capture on this race" removed by #308 — it is the section directly below
-            this one now, and a link from a section to its own neighbour is how a merged screen
-            grows back the navigation it was merged to remove. */}
-      </p>
 
       {anomalies.length === 0 ? (
         <p className="notice notice-ok">

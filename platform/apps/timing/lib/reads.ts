@@ -250,3 +250,18 @@ export const readSignedInAs = cache(async (): Promise<string | null> => {
     return null;
   }
 });
+
+/**
+ * The slugs of the races this person is on the marshal roster for, from
+ * `timing.my_marshal_events()` — their own list, so it needs no permission beyond a session.
+ *
+ * **`cache()`, so a page and its frame ask once.** The frame needs it to decide whether to draw
+ * the Marshal tab (ADR-055: the door checks the roster as well as the permission, and
+ * `canOpen()` deliberately answers the permission half only); the race hub needs it for its own
+ * Marshal button. An unreadable list is an empty one: the tab is then left out, which is the
+ * safe direction — a missing link costs a tap through Home, a link to a 404 costs trust.
+ */
+export const readRosteredSlugs = cache(async (): Promise<string[]> => {
+  const read = await readTiming<{ slug: string }[]>('my_marshal_events');
+  return read.state === 'ok' ? read.data.map((race) => race.slug) : [];
+});

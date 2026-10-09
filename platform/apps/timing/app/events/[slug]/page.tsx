@@ -80,7 +80,7 @@ export default async function EventPage({
 
   if (read.state === 'unavailable') {
     return (
-      <RaceFrame slug={slug} name={null} current="overview" page="Overview">
+      <RaceFrame slug={slug} name={null} current="home" page="Overview">
         <>
           <h1>Race</h1>
           <p className="notice notice-bad">
@@ -121,15 +121,15 @@ export default async function EventPage({
 
   const raceDay: Card[] = [
     {
-      title: 'Race console',
-      href: route(`${base}/console`),
+      title: 'Start',
+      href: route(`${base}/start`),
       text:
         phase === 'before'
-          ? 'Start the race, and everything after the gun: statuses, captures, finishing.'
+          ? 'Start the race when the gun goes, and finish it when the last runner is in.'
           : phase === 'running'
-            ? 'The race is running. Mark DNS, DNF and DQ, resolve captures, and finish it.'
-            : 'The race is finished. A finish can be undone here, and captures still corrected.',
-      show: may(`${base}/console`),
+            ? 'The race is running. The clock is here, and finishing it.'
+            : 'The race is finished. A finish can be undone here.',
+      show: may(`${base}/start`),
     },
     {
       title: 'Record crossings',
@@ -140,13 +140,13 @@ export default async function EventPage({
     },
     {
       title: 'Captures waiting to be resolved',
-      href: route(`${base}/console#anomalies`),
+      href: route(`${base}/anomalies`),
       text: 'A capture is here because a marshal’s screen flagged it, or its bib matches nobody.',
       badge:
         event.counts.open_anomalies === 0
           ? undefined
           : `${event.counts.open_anomalies} open`,
-      show: may(`${base}/console`),
+      show: may(`${base}/anomalies`),
     },
     {
       title: 'Live leaderboard',
@@ -183,7 +183,7 @@ export default async function EventPage({
   const pills = phasePills(phase, base, may, rostered, event.slug);
 
   return (
-    <RaceFrame slug={slug} name={event.name} current="overview" page="Overview" wide>
+    <RaceFrame slug={slug} name={event.name} current="home" page="Overview" wide>
       <>
         <div className="club-phead">
           <h1>{event.name}</h1>
@@ -348,7 +348,7 @@ function phasePills(
   rostered: boolean,
   slug: string,
 ): Pill[] {
-  const raceConsole = { label: 'Open the race console', href: route(`${base}/console`) };
+  const raceConsole = { label: 'Start screen', href: route(`${base}/start`) };
   const options: Pill[] =
     phase === 'before'
       ? [raceConsole, { label: 'Entry list', href: route(`${base}/registration`) }]
@@ -360,7 +360,7 @@ function phasePills(
             raceConsole,
             {
               label: 'Timing log',
-              href: route(`${base}/console?section=crossings#crossings`),
+              href: route(`${base}/crossings`),
             },
           ]
         : [

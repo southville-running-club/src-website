@@ -5,23 +5,20 @@ import { describe, expect, it } from 'vitest';
 import {
   FRAME_FOR,
   PAGE_TREATMENTS,
-  RACE_TABS,
-  TIMING_TABS,
   appAreas,
-  openableTabs,
+  appNav,
+  raceNav,
   showsBar,
   timingHref,
 } from '../../lib/chrome';
-import { shortRaceName } from '../../app/chrome/frames';
 
 /**
  * The route table in `lib/chrome.ts`, held against the pages that actually exist.
  *
- * ⚠️ **This is what stops a page shipping with no header, or with the club's navigation on a
- * race-day screen.** The root layout draws no chrome — each page wraps itself in its frame — so
- * a page that forgets would render bare, and a console that took `RaceFrame` by habit would put
- * "News" one tap from the start button. Both fail here: every `page.tsx` under `app/` must be in
- * the table, and must import the frame the table names for it.
+ * ⚠️ **This is what stops a page shipping with no header or no nav.** The root layout draws no
+ * chrome — each page wraps itself in its frame — so a page that forgets would render bare. It
+ * fails here: every `page.tsx` under `app/` must be in the table, and must import the frame the
+ * table names for it.
  */
 
 const APP = fileURLToPath(new URL('../../app/', import.meta.url));
@@ -66,9 +63,12 @@ describe('every page under /timing wears the header the table says', () => {
     },
   );
 
-  it('keeps the app header and area bar off the two race-day screens', () => {
-    expect(PAGE_TREATMENTS['events/[slug]/console/page.tsx']).toBe('focus');
-    expect(PAGE_TREATMENTS['marshal/[slug]/page.tsx']).toBe('focus');
+  it('draws every race page, the capture screen included, in the race frame (ADR-055)', () => {
+    // Pass the Buck keeps its nav on every page, the capture screen too; the console that used
+    // to drop it is five pages of its own now.
+    for (const [page, treatment] of Object.entries(PAGE_TREATMENTS)) {
+      if (page.includes('[slug]')) expect(treatment, page).toBe('race');
+    }
   });
 
   it('draws the not-found and error pages in the plain frame, which reads nothing', () => {
@@ -82,47 +82,88 @@ describe('every page under /timing wears the header the table says', () => {
   });
 });
 
-describe('the area bars draw only what the reader may open', () => {
-  const RACE = '/events/nn-2026';
+describe("the race-timing nav draws only what the reader may open, in Pass the Buck's order", () => {
+  const SLUG = 'nn-2026';
+  const ADMIN = [
+    'timing.event.manage',
+    'timing.crossing.record',
+    'timing.crossing.resolve',
+    'timing.result.publish',
+    'timing.registration.import',
+    'timing.marshal.assign',
+  ];
+  const labels = (tabs: readonly { label: string }[]) => tabs.map((tab) => tab.label);
 
-  it('gives a timing-admin every race tab', () => {
-    const all = [
-      'timing.event.manage',
-      'timing.crossing.resolve',
-      'timing.result.publish',
-      'timing.registration.import',
-      'timing.marshal.assign',
-    ];
-    // Race-day order (D1, 4 October 2026).
-    expect(openableTabs(RACE_TABS, all, RACE).map((t) => t.label)).toEqual([
-      'Overview',
-      'Race console',
-      'Live leaderboard',
+  it('gives an admin on the roster all twelve tabs, in order', () => {
+    expect(labels(raceNav(ADMIN, SLUG, true))).toEqual([
+      'Home',
+      'Start',
+      'Anomalies',
+      'Timing log',
       'Results',
-      'Entry list',
-      'Marshals',
+      'Prizes',
+      'Marshal',
+      'Live',
+      'Staff',
+      'Registrations',
+      'Roster',
+      'Danger',
     ]);
   });
 
-  it('gives somebody who only resolves crossings the leaderboard and the console', () => {
-    expect(
-      openableTabs(RACE_TABS, ['timing.crossing.resolve'], RACE).map((t) => t.label),
-    ).toEqual(['Race console', 'Live leaderboard']);
+  it("leaves Marshal out for an admin who is not on this race's roster", () => {
+    // The door checks the roster too (ADR-036), so the tab would be a link to a 404.
+    expect(labels(raceNav(ADMIN, SLUG, false))).not.toContain('Marshal');
   });
 
-  it('gives a marshal no race tab at all, because every one of them would 404', () => {
-    expect(openableTabs(RACE_TABS, ['timing.crossing.record'], RACE)).toEqual([]);
+  it('points every tab at the page it names, under this race', () => {
+    const paths = Object.fromEntries(
+      raceNav(ADMIN, SLUG, true).map((tab) => [tab.key, tab.path]),
+    );
+    expect(paths).toEqual({
+      home: '/events/nn-2026',
+      start: '/events/nn-2026/start',
+      anomalies: '/events/nn-2026/anomalies',
+      crossings: '/events/nn-2026/crossings',
+      results: '/events/nn-2026/results',
+      prizes: '/events/nn-2026/prizes',
+      marshal: '/marshal/nn-2026',
+      live: '/events/nn-2026/leaderboard',
+      staff: '/events/nn-2026/marshals',
+      registrations: '/events/nn-2026/registration',
+      roster: '/events/nn-2026/roster',
+      danger: '/events/nn-2026/danger-zone',
+    });
   });
 
-  it('gives a marshal the landing page and not the races list', () => {
-    expect(
-      openableTabs(TIMING_TABS, ['timing.crossing.record']).map((t) => t.label),
-    ).toEqual(['Overview']);
+  it('gives a rostered marshal Home and Marshal, with Home at their list of races', () => {
+    const tabs = raceNav(['timing.crossing.record'], SLUG, true);
+    expect(labels(tabs)).toEqual(['Home', 'Marshal']);
+    // They cannot open the race's hub, which needs `timing.event.manage`.
+    expect(tabs[0]?.path).toBe('/');
+  });
+
+  it('gives a marshal who is not rostered here nothing but Home, so no nav at all', () => {
+    expect(showsBar(raceNav(['timing.crossing.record'], SLUG, false))).toBe(false);
+  });
+
+  it('gives somebody who only resolves crossings the two capture pages and Live', () => {
+    expect(labels(raceNav(['timing.crossing.resolve'], SLUG, false))).toEqual([
+      'Home',
+      'Anomalies',
+      'Timing log',
+      'Live',
+    ]);
   });
 
   it('gives nobody anything for no permission', () => {
-    expect(openableTabs(TIMING_TABS, [])).toEqual([]);
-    expect(openableTabs(RACE_TABS, [], RACE)).toEqual([]);
+    expect(showsBar(raceNav([], SLUG, false))).toBe(false);
+    expect(showsBar(appNav([]))).toBe(false);
+  });
+
+  it('gives an admin Home and Races away from a race, and a marshal no nav there', () => {
+    expect(labels(appNav(['timing.event.manage']))).toEqual(['Home', 'Races']);
+    expect(showsBar(appNav(['timing.crossing.record']))).toBe(false);
   });
 
   it('writes addresses a browser can follow, with the base path', () => {
@@ -131,14 +172,7 @@ describe('the area bars draw only what the reader may open', () => {
   });
 });
 
-describe('which bars and areas the app shell draws (ADR-054)', () => {
-  it('draws no bar with a single tab, which is what gives a marshal none', () => {
-    const marshal = openableTabs(TIMING_TABS, ['timing.crossing.record']);
-    expect(showsBar(marshal)).toBe(false);
-    expect(showsBar(openableTabs(TIMING_TABS, ['timing.event.manage']))).toBe(true);
-    expect(showsBar([])).toBe(false);
-  });
-
+describe('which areas the app header offers (ADR-054)', () => {
   it('offers a timing-admin Your account and Race timing, and not Club admin', () => {
     expect(
       appAreas(['timing.event.manage'], ['registered', 'timing-admin']).map(
@@ -168,17 +202,5 @@ describe('which bars and areas the app shell draws (ADR-054)', () => {
     expect(appAreas(['nn.entry.before_open'], ['nn-tester']).map((a) => a.key)).toEqual([
       'account',
     ]);
-  });
-});
-
-describe('the short form of a race name on a phone', () => {
-  it('keeps the year and initials the rest', () => {
-    expect(shortRaceName('Nightingale Nightmare 2026')).toBe('NN 2026');
-    expect(shortRaceName('Pass the Buck 2027')).toBe('PTB 2027');
-  });
-
-  it('leaves a name it cannot shorten sensibly alone', () => {
-    expect(shortRaceName('Pass the Buck')).toBe('Pass the Buck');
-    expect(shortRaceName('NN 2026')).toBe('NN 2026');
   });
 });

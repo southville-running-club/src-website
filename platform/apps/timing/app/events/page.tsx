@@ -57,7 +57,7 @@ export default async function EventsPage() {
 
   if (read.state === 'unavailable') {
     return (
-      <TimingFrame current={'/events'}>
+      <TimingFrame current="races">
         <>
           <h1>Races</h1>
           <p className="notice notice-bad">
@@ -74,7 +74,7 @@ export default async function EventsPage() {
   const events = read.state === 'ok' ? read.data : [];
 
   return (
-    <TimingFrame current={'/events'}>
+    <TimingFrame current="races">
       <>
         <h1>Races</h1>
 

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { effectiveBib, type EventFormat, type Leg } from '@src/shared/timing/bib';
 import { normaliseTimingGender } from '@src/shared/timing/gender';
 import { DROPPED_COLUMNS } from '@src/shared/timing/registration/parser';
@@ -214,7 +213,7 @@ export default async function RegistrationPage({
 
   if (roster.state === 'unavailable') {
     return (
-      <RaceFrame slug={slug} name={null} current="registration" page="Entry list">
+      <RaceFrame slug={slug} name={null} current="registrations" page="Entry list">
         <>
           <h1>Entry list</h1>
           <p className="notice notice-bad">
@@ -250,7 +249,7 @@ export default async function RegistrationPage({
     <RaceFrame
       slug={slug}
       name={event.name}
-      current="registration"
+      current="registrations"
       page="Entry list"
       wide
     >
@@ -566,10 +565,6 @@ export default async function RegistrationPage({
             </p>
           </form>
         </section>
-
-        <p>
-          <Link href={`/events/${slug}`}>Back to {event.name}</Link>
-        </p>
       </div>
     </RaceFrame>
   );

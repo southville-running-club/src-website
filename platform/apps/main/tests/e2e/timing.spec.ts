@@ -700,11 +700,7 @@ test.describe('a race that has not started', () => {
     const response = await page.goto(startPath(testInfo.project.name, 'pending'));
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
     await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
 
@@ -739,16 +735,11 @@ test.describe('a race that has not started', () => {
     const slug = startEventSlug(testInfo.project.name, 'pending');
 
     await page.goto(`/timing/events/${slug}`);
-    await raceCard(page, 'Race console').click();
+    await raceCard(page, 'Start').click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(page.getByRole('heading', { level: 2, name: 'Start' })).toBeVisible();
-    // ⚠️ #308: the start screen is a console section, so the address it lands on is the
-    // console's. The redirect from the old address is asserted separately below.
-    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/console`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
+    // ADR-055: Start is its own page again.
+    expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/start`);
   });
 
   /**
@@ -1843,13 +1834,7 @@ test.describe('the triage list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(anomaliesPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Anomalies' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies.');
     await expect(
       page.getByRole('heading', { name: '2 captures are waiting' }),
     ).toBeVisible();
@@ -1887,13 +1872,7 @@ test.describe('the triage list', () => {
     await page.goto(`/timing/events/${anomalyEventSlug(testInfo.project.name)}`);
 
     await page.getByRole('link', { name: 'Captures waiting to be resolved' }).click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Anomalies' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies.');
   });
 
   test('marks a capture valid, and it leaves the queue', async ({ page }, testInfo) => {
@@ -2109,11 +2088,12 @@ test.describe('the timing log', () => {
  * The audit rules live in `packages/db/tests/timing.test.ts`, where a committed write can be
  * read back. What is here is the door, and the round trip a volunteer performs.
  */
+// ADR-055: race status is on Roster, and finishing is on Start.
 const statusPath = (project: string): string =>
-  `/timing/events/${statusEventSlug(project)}/status`;
+  `/timing/events/${statusEventSlug(project)}/roster`;
 
 const finishPath = (project: string): string =>
-  `/timing/events/${statusEventSlug(project)}/finish`;
+  `/timing/events/${statusEventSlug(project)}/start`;
 
 test.describe('who may mark a runner or finish a race', () => {
   /**
@@ -2180,13 +2160,7 @@ test.describe('marking a runner', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Race status' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
 
     const card = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
     await card.getByRole('button', { name: 'Did not finish' }).click();
@@ -2254,24 +2228,12 @@ test.describe('marking a runner', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
 
-    // ⚠️ **One console link where there were five** — #308. The hub no longer carries a link
-    // per screen, so what this asserts is unchanged in intent and different in route: the
-    // function is still reachable from the race's own page, via the console.
-    //
-    // A regex because the label reports the race's state — "start this race", "the race is
-    // running", "this race is finished" — and this fixture's state is not this test's subject.
-    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
+    // ADR-055: Roster is a tab of the race's nav, as it is in Pass the Buck.
     await page
-      .getByRole('main')
-      .getByRole('link', { name: /^Race console/ })
+      .getByRole('navigation', { name: 'Race timing', exact: true })
+      .getByRole('link', { name: 'Roster' })
       .click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Race status' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -2346,21 +2308,9 @@ test.describe('finishing a race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
 
-    // ⚠️ **One console link where there were five** — #308. The hub no longer carries a link
-    // per screen, so what this asserts is unchanged in intent and different in route: the
-    // function is still reachable from the race's own page, via the console.
-    //
-    // A regex because the label reports the race's state — "start this race", "the race is
-    // running", "this race is finished" — and this fixture's state is not this test's subject.
-    // In `<main>`: the section bar carries a tab of the same name since ADR-052.
-    await page
-      .getByRole('main')
-      .getByRole('link', { name: /^Race console/ })
-      .click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race console');
-    // ⚠️ #308: the section's own heading is what identifies it now, and it is an h2 in a
-    // `<summary>`. Asserting it is what proves the right section was opened rather than
-    // merely that the console rendered.
+    // ADR-055: finishing is on Start, which the race's own page links to.
+    await raceCard(page, 'Start').click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
     await expect(page.getByRole('heading', { level: 2, name: 'Finish' })).toBeVisible();
   });
 
@@ -2930,30 +2880,31 @@ test.describe('the prize presenter', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(prizePath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
-    // ⚠️ #308 merged the presenter onto the results page; it is an h2 there now.
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Prize giving' }),
-    ).toBeVisible();
+    // ADR-055: Prizes is its own page again, as it is in Pass the Buck.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Prizes.');
     await expect(page.getByText('1st Place Overall')).toBeVisible();
     await expect(page.getByText('Grace Hopper').first()).toBeVisible();
   });
 
   /**
-   * ⚠️ The prize section kept the link row it had as a page of its own when #308 moved it
-   * onto the results page, so the page ended in two rows — one of them a "Results" link to
-   * the page it was on. One row, at the foot of the page.
+   * ⚠️ **No link rows at the foot of a page.** The prize section and the results page each
+   * ended in their own row of "Back to this race" links, which is the clutter ADR-055 replaces
+   * with one nav: the way back to the race is the nav's Home tab.
    */
-  test('ends the results page with one way back to the race', async ({
+  test('ends with no link rows of its own, the nav being the way around', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(prizePath(testInfo.project.name));
 
-    // Inside `main`: the race's tab bar carries a "Results" link of its own, rightly.
     const main = page.getByRole('main');
-    await expect(main.getByRole('link', { name: 'Back to this race' })).toHaveCount(1);
+    await expect(main.getByRole('link', { name: 'Back to this race' })).toHaveCount(0);
     await expect(main.getByRole('link', { name: 'Results', exact: true })).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Race timing', exact: true })
+        .getByRole('link', { name: 'Home' }),
+    ).toBeVisible();
   });
 
   /**
@@ -3204,16 +3155,16 @@ test.describe('the live leaderboard', () => {
   });
 });
 
-test.describe('the addresses the race console replaced', () => {
+test.describe('the addresses that moved', () => {
   /**
-   * [#308](https://github.com/southville-running-club/src-website/issues/308) merged five pages
-   * into `/console` and the prize presenter into `/results`.
+   * [ADR-055](../../../../../docs/architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md)
+   * gave the race console's sections pages of their own again, as Pass the Buck has them. The
+   * console, and the two old addresses #308 had merged into it without a page of their own, are
+   * the redirects now.
    *
-   * ⚠️ **These redirects are not a courtesy, and this is what stops them being deleted as
-   * dead weight.** The race-night runbook addresses every one of these by URL, and a volunteer
-   * bookmarked them during the 14 September rehearsal — the rehearsal whose finding *caused*
-   * this merge. Sending that person to a 404 would be a poor answer to "there are too many
-   * pages".
+   * ⚠️ **These redirects are not a courtesy.** A volunteer may have the console bookmarked from
+   * a rehearsal, and every form used to come back to it with `?section=` naming the block —
+   * which is why a `?section=` link goes to the page that block became.
    *
    * They are declared in `next.config.ts` rather than as routes, so they run **before**
    * `middleware.ts` and an old address never meets the access table at all.
@@ -3222,22 +3173,36 @@ test.describe('the addresses the race console replaced', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
   });
 
-  const MERGED: ReadonlyArray<readonly [string, string]> = [
-    ['start', 'console'],
-    ['finish', 'console'],
-    ['status', 'console'],
-    ['anomalies', 'console'],
-    ['crossings', 'console'],
-    ['prizes', 'results'],
+  const MOVED: ReadonlyArray<readonly [string, string]> = [
+    ['console', 'start'],
+    ['console?section=start', 'start'],
+    ['console?section=finish', 'start'],
+    ['console?section=status', 'roster'],
+    ['console?section=anomalies', 'anomalies'],
+    ['console?section=crossings', 'crossings'],
+    ['finish', 'start'],
+    ['status', 'roster'],
   ];
 
-  for (const [from, to] of MERGED) {
+  for (const [from, to] of MOVED) {
     test(`/${from} redirects to /${to}`, async ({ page }, testInfo) => {
       const slug = previewEventSlug(testInfo.project.name);
 
       await page.goto(`/timing/events/${slug}/${from}`);
 
       expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/${to}`);
+    });
+  }
+
+  for (const own of ['start', 'anomalies', 'crossings', 'roster', 'prizes']) {
+    test(`/${own} is a page of its own, not a redirect`, async ({ page }, testInfo) => {
+      const slug = previewEventSlug(testInfo.project.name);
+
+      const response = await page.request.get(`/timing/events/${slug}/${own}`, {
+        maxRedirects: 0,
+      });
+
+      expect(response.status()).toBe(200);
     });
   }
 
@@ -3277,9 +3242,9 @@ test.describe('the addresses the race console replaced', () => {
  * to, and its navigation is what their roles let them use.
  */
 /**
- * The two race-day screens as Slice D drew them (brief §11.6–7, D5).
+ * The two race-day screens: Start and the capture screen (brief §11.6–7, D5).
  *
- * ⚠️ **Light whatever the phone says.** Both are used outdoors, so `FocusFrame` marks them
+ * ⚠️ **Light whatever the phone says.** Both are used outdoors, so their frame marks them
  * `.timing-force-light` and `timing.css` restates the light palette there under a dark setting.
  * The page colour is asserted rather than a screenshot, because it is the one value every other
  * colour on these screens is measured against.
@@ -3308,10 +3273,10 @@ test.describe('the race-day screens', () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test('the console stays light on a phone set to dark', async ({ page }) => {
+  test('Start stays light on a phone set to dark', async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/start`);
 
     await expect(page.locator('body')).toHaveCSS('background-color', LIGHT_PAGE);
   });
@@ -3332,8 +3297,8 @@ test.describe('the race-day screens', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
 
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/console`);
-    expect(await axeViolations(page), 'console').toEqual([]);
+    await page.goto(`/timing/events/${RESULTS_EVENT_SLUG}/start`);
+    expect(await axeViolations(page), 'start').toEqual([]);
 
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     await page.goto(`/timing/marshal/${captureEventSlug(testInfo.project.name)}`);
@@ -3345,18 +3310,34 @@ test.describe('the app shell every timing page wears', () => {
   const RACE = `/timing/events/${RESULTS_EVENT_SLUG}`;
   const CLUB_BAR = { name: 'Southville Running Club', exact: true } as const;
   const AREAS = { name: 'Areas', exact: true } as const;
+  const NAV = { name: 'Race timing', exact: true } as const;
+  /**
+   * Pass the Buck's tabs, in its order (ADR-055). Marshal is left out because this admin is
+   * not on the results race's roster, and the door would refuse them the capture screen.
+   */
+  const RACE_TABS = [
+    'Home',
+    'Start',
+    'Anomalies',
+    'Timing log',
+    'Results',
+    'Prizes',
+    'Live',
+    'Staff',
+    'Registrations',
+    'Roster',
+    'Danger',
+  ];
 
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
   });
 
   for (const [path, current, title] of [
-    ['/timing', 'Overview', 'Race timing — Southville Running Club'],
+    ['/timing', 'Home', 'Race timing — Southville Running Club'],
     ['/timing/events', 'Races', 'Races — Race timing — Southville Running Club'],
   ] as const) {
-    test(`${path} wears the app header and the Race timing area bar`, async ({
-      page,
-    }) => {
+    test(`${path} wears the app header and the race-timing nav`, async ({ page }) => {
       await signInAs(page, TIMING_ADMIN_EMAIL);
       await page.goto(path);
 
@@ -3369,8 +3350,9 @@ test.describe('the app shell every timing page wears', () => {
         `Signed in as ${TIMING_ADMIN_EMAIL}`,
       );
 
-      const bar = page.getByRole('navigation', { name: 'Race timing', exact: true });
-      await expect(bar.locator('[aria-current="page"]')).toHaveText(current);
+      const nav = page.getByRole('navigation', NAV);
+      await expect(nav.getByRole('listitem')).toHaveText(['Home', 'Races']);
+      await expect(nav.locator('[aria-current="page"]')).toHaveText(current);
       await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveCount(0);
 
       const footer = page.getByRole('contentinfo');
@@ -3384,46 +3366,30 @@ test.describe('the app shell every timing page wears', () => {
   }
 
   for (const [suffix, current, name] of [
-    ['', 'Overview', null],
-    ['/leaderboard', 'Live leaderboard', 'Live leaderboard'],
+    ['', 'Home', null],
+    ['/start', 'Start', 'Start'],
+    ['/anomalies', 'Anomalies', 'Anomalies'],
+    ['/crossings', 'Timing log', 'Timing log'],
     ['/results', 'Results', 'Results'],
-    ['/registration', 'Entry list', 'Entry list'],
-    ['/marshals', 'Marshals', 'Marshals'],
-    ['/danger-zone', null, 'Danger zone'],
+    ['/prizes', 'Prizes', 'Prizes'],
+    ['/leaderboard', 'Live', 'Live leaderboard'],
+    ['/marshals', 'Staff', 'Marshals'],
+    ['/registration', 'Registrations', 'Entry list'],
+    ['/roster', 'Roster', 'Roster'],
+    ['/danger-zone', 'Danger', 'Danger zone'],
   ] as const) {
-    test(`${RACE}${suffix} wears the app header and the race's area bar`, async ({
-      page,
-    }) => {
+    test(`${RACE}${suffix} wears the app header and the race's nav`, async ({ page }) => {
       await signInAs(page, TIMING_ADMIN_EMAIL);
       await page.goto(`${RACE}${suffix}`);
 
       await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
       await expect(page.getByRole('navigation', AREAS)).toBeVisible();
 
-      const bar = page.getByRole('navigation', { name: RESULTS_EVENT_NAME, exact: true });
-      await expect(bar).toBeVisible();
-      // A timing-admin holds every permission a race tab asks for, so the bar is whole, in
-      // race-day order (D1). Record crossings is never a tab (ADR-054 §3).
-      await expect(bar.getByRole('listitem')).toHaveText([
-        'Overview',
-        'Race console',
-        'Live leaderboard',
-        'Results',
-        'Entry list',
-        'Marshals',
-      ]);
-      // The bar's name goes back to the landing page.
-      await expect(bar.getByRole('link', { name: RESULTS_EVENT_NAME })).toHaveAttribute(
-        'href',
-        '/timing',
-      );
-      // The danger zone has no tab of its own, so nothing on the bar is current there.
-      await expect(bar.locator('[aria-current="page"]')).toHaveCount(
-        current === null ? 0 : 1,
-      );
-      if (current !== null) {
-        await expect(bar.locator('[aria-current="page"]')).toHaveText(current);
-      }
+      const nav = page.getByRole('navigation', NAV);
+      await expect(nav.getByRole('listitem')).toHaveText(RACE_TABS);
+      // Exactly one tab is current, and it is this page's.
+      await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+      await expect(nav.locator('[aria-current="page"]')).toHaveText(current);
 
       await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveCount(0);
       await expect(page).toHaveTitle(
@@ -3432,34 +3398,28 @@ test.describe('the app shell every timing page wears', () => {
     });
   }
 
-  test('the race console wears the focus header, and no club navigation', async ({
+  test('starts every standard page with an eyebrow, a heading and an intro', async ({
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(`${RACE}/console`);
-
-    // ⚠️ **The absence is the point**: one stray tap mid-race must not leave the race.
-    await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
-    await expect(
-      page.getByRole('navigation', { name: 'Southville Running Club, menu' }),
-    ).toHaveCount(0);
-    await expect(page.getByRole('navigation', { name: RESULTS_EVENT_NAME })).toHaveCount(
-      0,
-    );
-    await expect(page.getByRole('contentinfo')).toHaveCount(0);
-    await expect(page.getByRole('navigation', AREAS)).toHaveCount(0);
-
-    const header = page.getByRole('banner');
-    await expect(header).toContainText('Race console');
-    await expect(header).toContainText(RESULTS_EVENT_NAME);
-    // A timing-admin may open the race's overview, so that is where the way out goes.
-    await expect(header.getByRole('link', { name: 'Leave console' })).toHaveAttribute(
-      'href',
-      RACE,
-    );
+    for (const [suffix, title] of [
+      ['/start', 'Start.'],
+      ['/anomalies', 'Anomalies.'],
+      ['/crossings', 'Timing log.'],
+      ['/prizes', 'Prizes.'],
+      ['/roster', 'Roster.'],
+    ] as const) {
+      await page.goto(`${RACE}${suffix}`);
+      const head = page.locator('.timing-phead');
+      await expect(head.locator('.timing-eyebrow'), suffix).toHaveText(
+        `Admin · ${RESULTS_EVENT_NAME}`,
+      );
+      await expect(head.getByRole('heading', { level: 1 }), suffix).toHaveText(title);
+      await expect(head.locator('.timing-intro'), suffix).not.toBeEmpty();
+    }
   });
 
-  test("the marshal's capture screen wears it too, and leaves to where they may go", async ({
+  test("the marshal's capture screen carries their nav, and no footer", async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
@@ -3467,31 +3427,31 @@ test.describe('the app shell every timing page wears', () => {
 
     await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
     await expect(page.getByRole('contentinfo')).toHaveCount(0);
-    const header = page.getByRole('banner');
-    await expect(header).toContainText('Recording crossings');
-    // A marshal would get a 404 at the race's overview, so the way out is `/timing`, which
-    // lists what they may open.
-    await expect(header.getByRole('link', { name: 'Leave this screen' })).toHaveAttribute(
+    // A marshal's tabs are Home — `/timing`, their list of races, since the race's own page
+    // would 404 them — and the capture screen they are on.
+    const nav = page.getByRole('navigation', NAV);
+    await expect(nav.getByRole('listitem')).toHaveText(['Home', 'Marshal']);
+    await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute(
       'href',
       '/timing',
     );
+    await expect(nav.locator('[aria-current="page"]')).toHaveText('Marshal');
   });
 
   test('keeps the current tab in view on a phone @requires-js', async ({ page }) => {
-    // Marshals is the last tab, so at 390px it starts off the right edge of the bar. Brief §6.2
-    // #1: today's bar showed only "Overview" on a phone.
+    // Danger is the last tab, so at 390px it starts off the right edge of the nav.
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${RACE}/marshals`);
+    await page.goto(`${RACE}/danger-zone`);
 
-    const bar = page.getByRole('navigation', { name: RESULTS_EVENT_NAME, exact: true });
-    const current = bar.locator('[aria-current="page"]');
-    await expect(current).toHaveText('Marshals');
+    const nav = page.getByRole('navigation', NAV);
+    const current = nav.locator('[aria-current="page"]');
+    await expect(current).toHaveText('Danger');
     await expect
       .poll(async () => {
         const [tab, scroller] = await Promise.all([
           current.boundingBox(),
-          bar.locator('.club-section-inner').boundingBox(),
+          nav.locator('ul').boundingBox(),
         ]);
         if (tab === null || scroller === null) return false;
         return tab.x >= scroller.x && tab.x + tab.width <= scroller.x + scroller.width;
@@ -3514,40 +3474,52 @@ test.describe('the app shell every timing page wears', () => {
     await expect(menu).toContainText(`Signed in as ${TIMING_ADMIN_EMAIL}`);
   });
 
-  test('gives a marshal no area bar, and the two areas they may use', async ({
+  test('gives a marshal no nav on /timing, and the two areas they may use', async ({
     page,
   }) => {
-    // The only tab a marshal may open on `/timing` is Overview, and a bar of one tab is not a
-    // bar (ADR-054): Races would 404 them, so it is not offered either.
+    // The only tab a marshal may open on `/timing` is Home, and a nav of one tab is not a nav:
+    // Races would 404 them, so it is not offered either.
     await signInAs(page, TIMING_MARSHAL_EMAIL);
     await page.goto('/timing');
 
-    await expect(
-      page.getByRole('navigation', { name: 'Race timing', exact: true }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('navigation', NAV)).toHaveCount(0);
     await expect(page.getByRole('navigation', AREAS).getByRole('link')).toHaveText([
       'Your account',
       'Race timing',
     ]);
   });
 
-  test('has no accessibility violations on a race page or the console @requires-js', async ({
+  test('has no accessibility violations on the race pages @requires-js', async ({
     page,
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    for (const path of ['/timing', RACE, `${RACE}/results`, `${RACE}/console`]) {
+    for (const path of [
+      '/timing',
+      RACE,
+      `${RACE}/start`,
+      `${RACE}/anomalies`,
+      `${RACE}/crossings`,
+      `${RACE}/results`,
+      `${RACE}/prizes`,
+      `${RACE}/roster`,
+    ]) {
       await page.goto(path);
       expect(await axeViolations(page), path).toEqual([]);
     }
   });
 
   for (const width of [320, 390]) {
-    test(`a race page and the console do not scroll sideways at ${width}px`, async ({
-      page,
-    }) => {
+    test(`the race pages do not scroll sideways at ${width}px`, async ({ page }) => {
       await signInAs(page, TIMING_ADMIN_EMAIL);
       await page.setViewportSize({ width, height: 800 });
-      for (const path of ['/timing', RACE, `${RACE}/console`]) {
+      for (const path of [
+        '/timing',
+        RACE,
+        `${RACE}/start`,
+        `${RACE}/anomalies`,
+        `${RACE}/crossings`,
+        `${RACE}/roster`,
+      ]) {
         await page.goto(path);
         await expectNoSidewaysScroll(page, `${path} at ${width}px`);
       }

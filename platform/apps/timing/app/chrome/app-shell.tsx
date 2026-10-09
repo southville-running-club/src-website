@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { BASE_PATH, type Area, type AreaKey } from '../../lib/chrome';
+import type { Area, AreaKey } from '../../lib/chrome';
 import { ClubLogo } from '../club-logo';
 
 /**
- * The signed-in app shell's read-free parts: the header, the area bar, the footer, and
+ * The signed-in app shell's read-free parts: the header, the race-timing nav, the footer, and
  * `PlainFrame`. ADR-054, which superseded ADR-053 §1.
  *
  * **Everything here renders from props alone.** `app/global-error.tsx` is a client component
@@ -98,56 +98,38 @@ export function AppHeader({
   );
 }
 
-export interface AreaTab {
+export interface NavLink {
   href: string;
   label: string;
   current: boolean;
 }
 
 /**
- * The bar under the header: the pages of the current area that this person may open.
+ * The race-timing nav: a full-width strip under the header, one tab per page this person may
+ * open, in Pass the Buck's order — ADR-055.
  *
- * Its name links back to the races list's landing page, `/timing`. A race's long name is
- * shortened on a phone (`shortName`), so the bar's tabs, not its title, get the width; the
- * long form is `display: none` there, which also takes it out of the accessibility tree, so
- * the link is always named by what is on screen. On a phone the bar scrolls sideways with an
- * edge fade, and the current tab is the one that matters, so it is scrolled into view by
- * `area-bar-scroll.tsx`, a few lines of script that change nothing when scripting is off.
+ * - **Labelled "Race timing"**, not Pass the Buck's "Primary": this is the club website, whose
+ *   header already carries a nav of its own ("Areas"), and two navs need two names.
+ * - **No hamburger.** On a phone the list scrolls sideways and the tabs never shrink or wrap;
+ *   the edge fade says there is more, and `area-bar-scroll.tsx` brings the current tab into view.
+ * - **The current tab** carries `aria-current="page"`, and is drawn at full strength, semibold
+ *   and underlined — an underline as well as weight and colour, so it is not told apart by
+ *   colour alone (WCAG 1.4.1).
+ *
+ * Every `href` is already a full `/timing/…` address, built by `timingHref()` in the frame.
  */
-export function AreaBar({
-  name,
-  shortName,
-  tabs,
-}: {
-  name: string;
-  shortName?: string;
-  tabs: readonly AreaTab[];
-}) {
+export function TimingNav({ tabs }: { tabs: readonly NavLink[] }) {
   return (
-    <nav className="club-section app-area-bar" aria-label={name}>
-      <div className="club-wrap club-section-inner">
-        <p className="club-section-name">
-          <a href={BASE_PATH}>
-            {shortName === undefined || shortName === name ? (
-              name
-            ) : (
-              <>
-                <span className="timing-wide">{name}</span>
-                <span className="timing-narrow">{shortName}</span>
-              </>
-            )}
-          </a>
-        </p>
-        <ul>
-          {tabs.map((tab) => (
-            <li key={tab.href}>
-              <a href={tab.href} aria-current={tab.current ? 'page' : undefined}>
-                {tab.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <nav className="timing-nav" aria-label="Race timing">
+      <ul>
+        {tabs.map((tab) => (
+          <li key={tab.href}>
+            <a href={tab.href} aria-current={tab.current ? 'page' : undefined}>
+              {tab.label}
+            </a>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
