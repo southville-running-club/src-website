@@ -1,28 +1,26 @@
 import { formatLondon } from '@src/shared';
-import { startOutcomeFor } from '../../../../../lib/start-outcomes';
+import { startOutcomeFor } from '../../../../lib/start-outcomes';
 import { ConfirmStart } from './confirm-start';
 import { RaceClock } from './race-clock';
-import type { EventDetail } from '../event-detail';
+import type { EventDetail } from './event-detail';
 
 /**
- * The **Start** section of `/timing/events/<slug>/console` — the countdown, the button, and the
- * clock after it.
+ * Race control on `/timing/events/<slug>/start` — the countdown, the button, and the clock
+ * after it.
  *
- * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
- * which merged five pages into one console. Behind `timing.event.manage`, which is now this
- * *section's* requirement rather than the address's — the console's door is that permission or
- * `timing.crossing.resolve`. **The forms still post to `start/update`**, carrying the permission
- * they always did, so the conditional render is navigation rather than protection.
+ * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
+ * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
+ * The form still posts where it always did, carrying the same permission at the door and in
+ * the database.
  *
- * ⚠️ **Its three state headings are `h3` and were `h2`.** The console puts an `h2` in each
- * section's `<summary>`, so an `h2` here would sit as a sibling of the section title rather than
- * beneath it. Heading order is an axe rule and the bar in this repository is zero violations,
- * not few.
+ * ⚠️ **Its three state headings are `h2` again**, as they were before the console: on a page of
+ * its own they sit directly under the page's `h1`. Heading order is an axe rule and the bar in
+ * this repository is zero violations, not few.
  *
  * Issue [#250](https://github.com/southville-running-club/src-website/issues/250), under
  * [ADR-034](../../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
  * ⚠️ **Nothing here gates itself** — see `app/page.tsx`'s header for the measurement that
- * settled that, and `console/page.tsx` for the one read that decides which sections are drawn.
+ * settled that.
  *
  * ## ⚠️ The three states are exclusive, and the order they are tested in is the point
  *
@@ -54,8 +52,8 @@ import type { EventDetail } from '../event-detail';
  * this page are `lib/elapsed.ts`, which is deliberately not a timezone question at all — its
  * header carries the argument.
  */
-// ⚠️ No `export const dynamic` — a section is not a route, and `console/page.tsx` carries it
-// for all five. A stray copy here is ignored rather than refused, which is exactly the kind of
+// ⚠️ No `export const dynamic` — a section is not a route, and the page that draws it carries
+// it. A stray copy here is ignored rather than refused, which is exactly the kind of
 // dead declaration a later reader mistakes for something load-bearing.
 
 export function StartSection({
@@ -75,8 +73,6 @@ export function StartSection({
 
   return (
     <>
-      {/* ⚠️ The race's name and scheduled start were this page's `lede` and are the console's
-          own header now — one statement of them above every section, rather than five. */}
       {outcome === null ? null : (
         <p
           className={outcome.tone === 'ok' ? 'notice notice-ok' : 'notice notice-bad'}
@@ -97,7 +93,7 @@ export function StartSection({
          * version — an inconsistent screen on a start line is believed.
          */
         <section className="timing-go timing-go-panel">
-          <h3>Race finished</h3>
+          <h2>Race finished</h2>
 
           <p>
             This race finished {formatLondon(finished)}. Nothing on this screen can change
@@ -117,7 +113,7 @@ export function StartSection({
         </section>
       ) : started !== null ? (
         <section className="timing-go timing-go-panel">
-          <h3>The race is running</h3>
+          <h2>The race is running</h2>
 
           <p>
             It started {formatLondon(started)}. Every time in this race is measured from
@@ -160,7 +156,7 @@ export function StartSection({
         </section>
       ) : (
         <section className="timing-go timing-go-panel">
-          <h3>Not started</h3>
+          <h2>Not started</h2>
 
           <RaceClock mode="countdown" atIso={event.start_at}>
             The countdown needs JavaScript. The scheduled start is{' '}
@@ -190,9 +186,6 @@ export function StartSection({
           </p>
         </section>
       )}
-
-      {/* ⚠️ "Back to <race>" removed by #308 — the console has one nav, and a link out of a
-          section into the page it already sits on is how a merged screen regrows its own maze. */}
     </>
   );
 }

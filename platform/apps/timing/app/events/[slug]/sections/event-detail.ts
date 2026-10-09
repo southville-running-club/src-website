@@ -1,5 +1,5 @@
 /**
- * What `timing.event_detail()` answers, as the console's sections read it.
+ * What `timing.event_detail()` answers, as the race pages read it.
  *
  * ⚠️ **One declaration, because three sections used to carry their own.** `start`, `finish` and
  * the hub each declared this shape independently while they were separate pages, which was

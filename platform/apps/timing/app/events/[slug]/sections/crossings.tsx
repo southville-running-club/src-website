@@ -1,20 +1,20 @@
 import Link from 'next/link';
 import { formatLondonClock } from '@src/shared';
-import { anomalyOutcomeFor } from '../../../../../lib/anomaly-outcomes';
+import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
 
 /**
- * The **Timing log** section of `/timing/events/<slug>/console` — every capture on a race,
- * searchable, with inline correction.
+ * The timing log on `/timing/events/<slug>/crossings` — every capture on a race, searchable,
+ * with inline correction.
  *
- * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**.
- * Behind `timing.crossing.resolve`, now this *section's* requirement rather than the address's.
- * **The form still posts to `crossings/update`**, carrying the same permission it always did.
+ * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
+ * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
+ * The form still posts where it always did, carrying the same permission at the door and in
+ * the database.
  *
- * ## ⚠️ Its search parameter is `log_q` and was `q`
+ * ## Its search parameter is `log_q`
  *
- * The race status section above it searches too. Two controls named `q` on one page are one
- * control wearing two hats — searching a bib here would silently filter that list as well, and
- * either "Show everyone" would clear both. See `status.tsx`'s header for the other half.
+ * Named while it shared a page with the roster's search (`status_q`), and kept: the route
+ * handler carries it back, and a searched view is a URL somebody may already have sent.
  *
  * Issue [#252](https://github.com/southville-running-club/src-website/issues/252). Behind
  * `timing.crossing.resolve`, like the triage list beside it, and gated by `middleware.ts`
@@ -95,7 +95,7 @@ export function CrossingsSection({
   slug: string;
   crossings: LoggedCrossing[];
   search: string;
-  /** `?outcome=`, but only when `?section=crossings` says this section owns it. */
+  /** `?outcome=`, from `crossings/update`'s redirect back to the log. */
   outcomeCode: string | undefined;
 }) {
   const outcome = anomalyOutcomeFor(outcomeCode);
@@ -115,18 +115,9 @@ export function CrossingsSection({
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
 
-      {/* ⚠️ "Captures waiting to be resolved" removed by #308 — the triage list is the
-          section directly above this one now. */}
-
       {/* A GET form, so a searched view is a URL somebody can send to the other volunteer —
           the same property `/admin/nn/`'s filters have, and for the same reason. */}
       <form method="get" className="log-search">
-        {/* ⚠️ **A GET form submits its own fields and nothing else, so `?section=` is lost on
-            submit — and the section this search belongs to collapses under the person using it.**
-            #308. The hidden field puts it back. Searching is the one action on the console that
-            navigates without a route handler in between, which is why this is the only place
-            that needs it. */}
-        <input type="hidden" name="section" value="crossings" />
         <div className="field">
           <label className="field-label" htmlFor="log_q">
             Search by bib or team number
@@ -144,10 +135,7 @@ export function CrossingsSection({
           Search
         </button>
         {search === '' ? null : (
-          <Link
-            className="button button-quiet"
-            href={`/events/${slug}/console#crossings`}
-          >
+          <Link className="button button-quiet" href={`/events/${slug}/crossings`}>
             Show everything
           </Link>
         )}

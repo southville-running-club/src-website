@@ -83,7 +83,7 @@ export default async function Page() {
     mayCapture && (!mayManage || rostered.length > 0 || races.state === 'unavailable');
 
   return (
-    <TimingFrame current={'/'}>
+    <TimingFrame current="home">
       <>
         <h1>Race timing</h1>
 

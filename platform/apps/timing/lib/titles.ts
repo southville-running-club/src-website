@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { cache } from 'react';
-import type { EventDetail } from '../app/events/[slug]/console/event-detail';
+import type { EventDetail } from '../app/events/[slug]/sections/event-detail';
 import { readTiming, type TimingRead } from './reads';
 
 /**

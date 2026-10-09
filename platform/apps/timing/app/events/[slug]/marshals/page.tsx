@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
 import { outcomeFor } from '../../../../lib/marshal-outcomes';
@@ -93,7 +92,7 @@ export default async function MarshalsPage({
 
   if (roster.state === 'unavailable') {
     return (
-      <RaceFrame slug={slug} name={null} current="marshals" page="Marshals">
+      <RaceFrame slug={slug} name={null} current="staff" page="Marshals">
         <>
           <h1>Marshals</h1>
           <p className="notice notice-bad">
@@ -131,7 +130,7 @@ export default async function MarshalsPage({
   const action = `/timing/events/${encodeURIComponent(slug)}/marshals/update`;
 
   return (
-    <RaceFrame slug={slug} name={event.name} current="marshals" page="Marshals" wide>
+    <RaceFrame slug={slug} name={event.name} current="staff" page="Marshals" wide>
       <div className="club-wrap-narrow">
         <div className="club-phead">
           <h1>Marshals</h1>
@@ -255,10 +254,6 @@ export default async function MarshalsPage({
             </p>
           </form>
         )}
-
-        <p>
-          <Link href={`/events/${slug}`}>Back to {event.name}</Link>
-        </p>
       </div>
     </RaceFrame>
   );

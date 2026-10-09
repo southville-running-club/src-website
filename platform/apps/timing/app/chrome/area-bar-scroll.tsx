@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 /**
- * On a phone the area bar scrolls sideways, and the tab somebody is on can start off-screen —
+ * On a phone the race-timing nav scrolls sideways, and the tab somebody is on can start off-screen —
  * the problem the brief found on today's bar, where only "Overview" was visible (§6.2 #1). This
  * scrolls the bar itself, never the page, so the current tab is in view on load.
  *
@@ -13,12 +13,14 @@ import { useEffect } from 'react';
  */
 export function AreaBarScroll() {
   useEffect(() => {
-    const scroller = document.querySelector<HTMLElement>(
-      '.app-area-bar .club-section-inner',
-    );
-    const current = scroller?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!scroller || !current) return;
+    const scroller = document.querySelector<HTMLElement>('.timing-nav ul');
+    if (!scroller) return;
     if (scroller.scrollWidth <= scroller.clientWidth) return;
+    // Says the list scrolls, which is what draws the edge fade — see `.timing-nav` in timing.css.
+    scroller.setAttribute('data-scrolls', '');
+
+    const current = scroller.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!current) return;
 
     const left = current.offsetLeft - (scroller.clientWidth - current.offsetWidth) / 2;
     scroller.scrollLeft = Math.max(0, left);

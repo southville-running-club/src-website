@@ -521,7 +521,11 @@ club's own database.
 [`docs/timing/nn-timing-redesign-brief.md`](../timing/nn-timing-redesign-brief.md): PTB's page
 structure in the club website's design, and a signed-in app shell in place of ADR-053's club
 header — [ADR-054](../architecture/decisions/adr-054-the-signed-in-area-is-an-app-shell.md),
-accepted 4 October 2026.
+accepted 4 October 2026. ⚠️ **On 9 October 2026 the club asked for Pass the Buck's navigation
+as well as its page structure** — one nav, its twelve tabs in its order, the console split into
+pages and the focus frame gone —
+[ADR-055](../architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md),
+and set the race-window dates aside for it.
 
 - **Last merge Friday 23 October 2026.** Slice A (only what B and D need), the shell (B), the
   race overview, the race console and the capture screen (D, including a client-side confirm
@@ -550,9 +554,11 @@ accepted 4 October 2026.
   the `club.css` one).
 - **The app shell on `/account/*` and `/admin/*`** (ADR-054 §6), with a real sign-out button,
   and the duplicate "Race timing" and "Club admin" links removed from those pages' bars.
-- **Split the race console** (brief D3) — Race control, Timing log, Anomalies — which supersedes
-  [ADR-045](../architecture/decisions/adr-045-race-night-is-one-console.md) and has to fix the
-  `crossing.resolve` "Not found" defect first (`CLAUDE.md`).
+- ~~**Split the race console** (brief D3).~~ **Done before the race, on 9 October 2026**, as
+  part of adopting Pass the Buck's navigation —
+  [ADR-055](../architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md),
+  which supersedes ADR-045. The `crossing.resolve` "Not found" defect was carried over
+  unchanged rather than fixed: it is still latent and nobody meets it (`CLAUDE.md`).
 - **The PTB behaviours NN lacks** (brief D4), each its own slice: Undo after discard, a
   sync-count connection pill, prize-giving mode, and a printable start list with
   "Collected ✓". The confirm before "Start the race" is **not** on this list: it lands before

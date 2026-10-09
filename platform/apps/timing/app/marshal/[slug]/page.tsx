@@ -3,7 +3,7 @@ import type { EventFormat } from '@src/shared/timing/anomaly';
 import { readTiming } from '../../../lib/reads';
 import { MarshalScreen } from './marshal-screen';
 import { NotFoundBody } from '../../not-found-body';
-import { PlainFrame, FocusFrame } from '../../chrome/frames';
+import { PlainFrame, RaceFrame } from '../../chrome/frames';
 
 /** ADR-054: every page names itself; the root layout's template adds the club. */
 export const metadata = { title: 'Recording crossings — Race timing' };
@@ -76,12 +76,7 @@ export default async function MarshalPage({
     // hour before it starts, has no way to tell that from the truth. `lib/reads.ts`'s header
     // carries the whole argument.
     return (
-      <FocusFrame
-        slug={slug}
-        name={null}
-        screen="Recording crossings"
-        leaveLabel="Leave this screen"
-      >
+      <RaceFrame slug={slug} current="marshal" tool>
         <>
           <h1>Recording crossings</h1>
           <p className="notice notice-bad">
@@ -89,7 +84,7 @@ export default async function MarshalPage({
             read. Nothing has been lost. Try again in a moment.
           </p>
         </>
-      </FocusFrame>
+      </RaceFrame>
     );
   }
 
@@ -104,13 +99,7 @@ export default async function MarshalPage({
   const event = read.data;
 
   return (
-    <FocusFrame
-      slug={slug}
-      name={event.name}
-      screen="Recording crossings"
-      leaveLabel="Leave this screen"
-      tool
-    >
+    <RaceFrame slug={slug} current="marshal" tool>
       <>
         <h1 className="timing-tool-title">{event.name}</h1>
 
@@ -134,6 +123,6 @@ export default async function MarshalPage({
           </p>
         </MarshalScreen>
       </>
-    </FocusFrame>
+    </RaceFrame>
   );
 }

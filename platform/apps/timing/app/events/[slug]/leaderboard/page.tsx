@@ -96,7 +96,7 @@ export default async function LeaderboardPage({
     // ⚠️ **Never "Not found" for an outage** — `lib/reads.ts`' header. On a race night the cost of
     // getting this wrong is a volunteer concluding the race they set up has been deleted.
     return (
-      <RaceFrame slug={slug} name={null} current="leaderboard" page="Live leaderboard">
+      <RaceFrame slug={slug} name={null} current="live" page="Live leaderboard">
         <>
           <h1>Leaderboard</h1>
           <p className="notice notice-bad">
@@ -121,13 +121,7 @@ export default async function LeaderboardPage({
   const relay = event.format === 'relay';
 
   return (
-    <RaceFrame
-      slug={slug}
-      name={event.name}
-      current="leaderboard"
-      page="Live leaderboard"
-      wide
-    >
+    <RaceFrame slug={slug} name={event.name} current="live" page="Live leaderboard" wide>
       <div>
         <div className="club-phead">
           <h1>Leaderboard</h1>
@@ -184,7 +178,7 @@ export default async function LeaderboardPage({
 
         {payload.open_anomalies > 0 ? (
           <p>
-            <Link href={`/events/${slug}/console?section=anomalies#anomalies`}>
+            <Link href={`/events/${slug}/anomalies`}>
               {payload.open_anomalies === 1
                 ? '1 capture is waiting to be resolved'
                 : `${payload.open_anomalies} captures are waiting to be resolved`}
@@ -192,16 +186,6 @@ export default async function LeaderboardPage({
             . A race cannot be published while any of them is open.
           </p>
         ) : null}
-
-        <p>
-          <Link href={`/events/${slug}/results`}>Results and publishing</Link>
-          {' · '}
-          <Link href={`/events/${slug}/console?section=crossings#crossings`}>
-            Timing log
-          </Link>
-          {' · '}
-          <Link href={`/events/${slug}`}>Back to this race</Link>
-        </p>
       </div>
     </RaceFrame>
   );

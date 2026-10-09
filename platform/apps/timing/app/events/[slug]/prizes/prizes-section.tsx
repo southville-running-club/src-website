@@ -2,9 +2,6 @@ import Link from 'next/link';
 import type { TimingRunner } from '@src/shared/timing/rows';
 import type { PrizeAward } from '@src/shared/timing/prize-export';
 import type { ResultsPreview } from '../../../../lib/results-preview';
-// `prizeChoicesFrom` is `results/page.tsx`'s now — the page parses the query string once and
-// hands the result to both views, so the presenter cannot read a different set of pass-overs
-// than the page it is rendered inside.
 import {
   drawablePool,
   resolvePrizeAwards,
@@ -44,7 +41,6 @@ import {
  * presenter was a client component; this one works on a phone with a bad signal and a browser
  * that has given up on scripts, which is the state a phone is in at the end of a race.
  */
-export const dynamic = 'force-dynamic';
 
 function nameOf(runner: TimingRunner): string {
   return `${runner.firstname} ${runner.lastname}`.trim();
@@ -72,7 +68,7 @@ function withParam(
   slug: string,
   choices: PrizeChoices,
   extra: { pass?: string; draw?: { kind: string; team: string } },
-): { pathname: `/events/${string}/results`; query: Record<string, string | string[]> } {
+): { pathname: `/events/${string}/prizes`; query: Record<string, string | string[]> } {
   const passed = [...choices.passed];
   if (extra.pass !== undefined) passed.push(extra.pass);
 
@@ -82,14 +78,12 @@ function withParam(
   for (const [kind, id] of choices.draws) query[kind] = id;
   if (extra.draw !== undefined) query[extra.draw.kind] = extra.draw.team;
 
-  // ⚠️ **`/results`, not `/prizes`, and this is load-bearing rather than tidying.** #308 made
-  // the presenter a section of the results page and left `/prizes` as a redirect. A link built
-  // to the old address would still *work* — and would lose every pass-over on the way, because
-  // the redirect's destination carries a fragment and the query does not survive it. The
-  // presenter's whole reason for keeping its state in the URL is that the old application lost
-  // it mid-ceremony on a refresh; routing these links through a redirect would reintroduce
-  // exactly that, one prize at a time.
-  return { pathname: `/events/${slug}/results`, query };
+  // ⚠️ **The page's own address, never one that redirects.** A redirect whose destination
+  // carries a fragment drops the query on the way, and the presenter's whole reason for keeping
+  // its state in the URL is that the old application lost it mid-ceremony on a refresh. This
+  // was `/results` while the presenter was a section of that page (#308); it is `/prizes`
+  // again since ADR-055.
+  return { pathname: `/events/${slug}/prizes`, query };
 }
 
 function Prize({
@@ -162,21 +156,13 @@ function Prize({
 }
 
 /**
- * The **Prize giving** section of `/timing/events/<slug>/results`.
+ * The prize list on `/timing/events/<slug>/prizes`.
  *
- * ⚠️ **Its own address until [#308](https://github.com/southville-running-club/src-website/issues/308)**,
- * which merged it onto the results page. `lib/access.ts`'s row for `prizes` said the argument
- * for the merge before the merge existed: the prize list is *"the published results read a
- * second way"*, one dataset and one permission. **`prizes/export` did not move** and still
- * carries `timing.result.publish` of its own.
- *
- * ## ⚠️ The read moved out and the choices did not
- *
- * `results/page.tsx` does the one `readResultsPreview()` for both views, so the two cannot
- * disagree about a time. **The pass-overs and spot draws still live in the URL** — `?pass=` and
- * the draw parameters, parsed by `prizeChoicesFrom()` — because the old application held them in
- * component state and a refresh lost them mid-ceremony. They share a query string with the
- * results view now and collide with nothing in it: that view reads `?outcome=` and nothing else.
+ * ⚠️ **A section of the results page after #308, and a page of its own again since ADR-055** —
+ * Pass the Buck's Prizes tab. It reads the same `results_preview()` the results page does, so
+ * the two cannot disagree about a time. **The pass-overs and spot draws still live in the URL**
+ * — `?pass=` and the draw parameters, parsed by `prizeChoicesFrom()` — because the old
+ * application held them in component state and a refresh lost them mid-ceremony.
  */
 export function PrizesSection({
   slug,
@@ -197,15 +183,15 @@ export function PrizesSection({
           {choices.passed.size === 1
             ? '1 team has been passed over and is out of every prize below.'
             : `${choices.passed.size} teams have been passed over and are out of every prize below.`}{' '}
-          <Link href={`/events/${slug}/results`}>Start again</Link> puts them all back.
+          <Link href={`/events/${slug}/prizes`}>Start again</Link> puts them all back.
         </p>
       ) : null}
 
       {payload.open_anomalies > 0 ? (
         <p className="club-notice timing-notice-bad">
           Some captures on this race are still to be resolved, so a time below may change.{' '}
-          <Link href={`/events/${slug}/console#anomalies`}>Resolve them</Link> before
-          reading these out.
+          <Link href={`/events/${slug}/anomalies`}>Resolve them</Link> before reading
+          these out.
         </p>
       ) : null}
 
@@ -215,7 +201,7 @@ export function PrizesSection({
         ))}
       </ul>
 
-      <h3>Files</h3>
+      <h2>Files</h2>
 
       {/* ⚠️ **The exclusions and the draws travel with the file.** Every choice made above is a
           hidden field here, so the export resolves the same awards this page is showing — which
