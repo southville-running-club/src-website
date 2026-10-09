@@ -321,7 +321,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-five functions, and anon exactly two of them', async () => {
+  it('grants exactly these thirty-six functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -329,7 +329,7 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-five functions and thirty-seven rows: `results_for_event` and
+    // Thirty-six functions and thirty-eight rows: `results_for_event` and
     // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
@@ -339,6 +339,13 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'clear_start', grantee: 'authenticated' },
       { routine_name: 'create_event', grantee: 'authenticated' },
       { routine_name: 'crossing_log', grantee: 'authenticated' },
+      /**
+       * ⚠️ **The thirty-sixth, ADR-056, and the first a marshal may call that returns names.**
+       * Behind `timing.roster.read`, which `timing-marshal` holds, and scoped to a race the
+       * caller marshals unless they hold `timing.event.manage`. It carries no email, no club,
+       * and an age only for an admin — see the describe block at the foot of this file.
+       */
+      { routine_name: 'desk_roster', grantee: 'authenticated' },
       { routine_name: 'edit_crossing', grantee: 'authenticated' },
       { routine_name: 'event_detail', grantee: 'authenticated' },
       { routine_name: 'event_roster', grantee: 'authenticated' },
@@ -5817,5 +5824,183 @@ describe('the live leaderboard, for somebody running the race', () => {
    */
   it('opens to somebody holding both of ADR-038 permissions', async () => {
     await expect(asPerson(MANAGER)).resolves.not.toBeNull();
+  });
+});
+
+/**
+ * `desk_roster()` — the Roster page's read, ADR-056. One row per runner, readable by a race's
+ * marshals (look-up only) and by admins.
+ *
+ * ⚠️ **The negative cases carry the weight here.** This is the first function a marshal may call
+ * that returns the field's names, so what it refuses, and the columns it leaves out, matter more
+ * than what it returns.
+ */
+describe('the roster a marshal may look runners up on', () => {
+  const MARSHAL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0d51';
+  const ADMIN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0d52';
+  const OFF_ROSTER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0d53';
+  const NOBODY = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0d54';
+  const EVENT_ID = '00000000-0000-4000-8000-000000000d51';
+  const SLUG = 'zz-timing-desk-roster';
+
+  async function asPerson<T>(
+    personId: string,
+    sql: string,
+    params: unknown[],
+  ): Promise<T> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [personId],
+      );
+      const { rows } = await db.query<{ answer: T }>(sql, params);
+      return rows[0]?.answer as T;
+    } finally {
+      await db.query('rollback');
+    }
+  }
+
+  const answerAs = (person: string, slug = SLUG) =>
+    asPerson<{
+      event: Record<string, unknown>;
+      runners: Record<string, unknown>[];
+    } | null>(person, 'select timing.desk_roster($1) as answer', [slug]);
+  const rosterAs = async (person: string, slug = SLUG) =>
+    (await answerAs(person, slug))?.runners ?? null;
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [MARSHAL, 'timing-desk-marshal@example.com'],
+      [ADMIN, 'timing-desk-admin@example.com'],
+      [OFF_ROSTER, 'timing-desk-offroster@example.com'],
+      [NOBODY, 'timing-desk-nobody@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-marshal', $1), ($2, 'timing-admin', $2),
+              ($3, 'timing-marshal', $3)
+       on conflict do nothing`,
+      [MARSHAL, ADMIN, OFF_ROSTER],
+    );
+
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Desk Roster Fixture', 'solo', '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG],
+    );
+    // Two runners and a guide. An apostrophe in a name, because that is what breaks rendering;
+    // the guide shares the second team, as a visually impaired runner's guide does.
+    await db.query(
+      `with t as (
+         insert into timing.teams (event_id, team_number, race_status)
+         values ($1, '12', null), ($1, '7', 'dns')
+         returning id, team_number
+       )
+       insert into timing.runners
+         (team_id, leg, firstname, lastname, gender, role, age_on_day, email, club_name)
+       select id, 1, f, l, g, 'runner', a, 'someone@example.com', 'Somewhere AC'
+         from t join (values ('12', 'Bernadette', 'O''Dell', 'female', 41),
+                             ('7', 'Callum', 'Prydderch', 'male', 52)) v(n, f, l, g, a)
+           on v.n = t.team_number`,
+      [EVENT_ID],
+    );
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname, gender, role)
+       select id, 2, 'Dilys', 'Anwyl', null, 'guide'
+         from timing.teams where event_id = $1 and team_number = '7'`,
+      [EVENT_ID],
+    );
+    await db.query(
+      'insert into timing.marshals (event_id, user_id) values ($1, $2) on conflict do nothing',
+      [EVENT_ID, MARSHAL],
+    );
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = $1', [EVENT_ID]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [MARSHAL, ADMIN, OFF_ROSTER],
+    ]);
+  });
+
+  it('gives a rostered marshal every runner, by surname, with bib, status and role', async () => {
+    const rows = (await rosterAs(MARSHAL)) ?? [];
+
+    expect(rows.map((r) => [r.lastname, r.bib, r.race_status, r.role])).toEqual([
+      ['Anwyl', '7', 'dns', 'guide'],
+      ["O'Dell", '12', null, 'runner'],
+      ['Prydderch', '7', 'dns', 'runner'],
+    ]);
+  });
+
+  it('names the race, and says nothing else about it', async () => {
+    // A marshal cannot read `event_detail()`, so this is how the page says which race it is.
+    expect((await answerAs(MARSHAL))?.event).toEqual({
+      slug: SLUG,
+      name: 'Desk Roster Fixture',
+      format: 'solo',
+    });
+  });
+
+  it('gives a marshal no exact age, no email and no club', async () => {
+    const [row] = (await rosterAs(MARSHAL)) ?? [];
+
+    expect(Object.keys(row ?? {}).sort()).toEqual([
+      'age_on_day',
+      'bib',
+      'firstname',
+      'gender',
+      'lastname',
+      'leg',
+      'race_status',
+      'result_placement',
+      'role',
+      'runner_id',
+      'team_id',
+    ]);
+    for (const r of (await rosterAs(MARSHAL)) ?? []) expect(r.age_on_day).toBeNull();
+  });
+
+  it('gives an admin the age a band is worked out from, on a race they do not marshal', async () => {
+    const rows = (await rosterAs(ADMIN)) ?? [];
+
+    expect(rows.find((r) => r.lastname === "O'Dell")?.age_on_day).toBe(41);
+  });
+
+  it('answers null to a marshal not on this race, to somebody holding nothing, and for no such race', async () => {
+    expect(await answerAs(OFF_ROSTER)).toBeNull();
+    expect(await answerAs(NOBODY)).toBeNull();
+    expect(await answerAs(MARSHAL, 'zz-no-such-race')).toBeNull();
+  });
+
+  it('is refused to anon by the grant, before the permission is asked', async () => {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'anon', true)");
+      await expect(
+        db.query('select timing.desk_roster($1)', [SLUG]),
+      ).rejects.toMatchObject({
+        code: '42501',
+      });
+    } finally {
+      await db.query('rollback');
+    }
   });
 });

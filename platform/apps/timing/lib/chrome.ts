@@ -95,7 +95,7 @@ export interface NavTab {
  * | Live | the live leaderboard, staff-only (ADR-038) |
  * | Staff | who is on this race's marshal roster |
  * | Registrations | the entry import, bibs and walk-ins |
- * | Roster | every entry, and DNS / DNF / DQ |
+ * | Roster | the registration desk's list; marshals read it on races they marshal (ADR-056) |
  * | Danger | wiping a rehearsal |
  */
 const RACE_NAV: readonly { key: NavKey; label: string; at: (slug: string) => string }[] =
@@ -130,6 +130,8 @@ const RACE_NAV: readonly { key: NavKey; label: string; at: (slug: string) => str
  * - **Marshal** also needs `rostered`: the door checks the race's roster as well as the
  *   permission (ADR-036), and `canOpen()` deliberately answers the permission half only, so a
  *   tab drawn on the permission alone would 404 for an admin who is not marshalling this race.
+ * - **Roster** needs `rostered` too for a marshal (ADR-056) — `desk_roster()` answers `null` on
+ *   a race they do not marshal — and not for an admin, who reads every race's.
  */
 export function raceNav(
   permissions: readonly string[],
@@ -142,7 +144,12 @@ export function raceNav(
   ];
   for (const tab of RACE_NAV) {
     const path = tab.at(slug);
-    const open = canOpen(permissions, path) && (tab.key !== 'marshal' || rostered);
+    // Marshal and Roster are both scoped to the race's roster for a marshal (ADR-036, ADR-056),
+    // which `canOpen()` deliberately does not check. An admin reads any race's roster.
+    const scoped = tab.key === 'marshal' || tab.key === 'roster';
+    const open =
+      canOpen(permissions, path) &&
+      (!scoped || rostered || (tab.key === 'roster' && canOpen(permissions, hub)));
     if (open) tabs.push({ key: tab.key, label: tab.label, path });
   }
   return tabs;

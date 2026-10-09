@@ -2152,6 +2152,18 @@ over from the old platform, and a granted marshal who is not on a race's roster 
 to not break; what belongs there is the order somebody presses things in, and the two go stale at
 different rates.
 
+### ⚠️ Marshals read the Roster since 9 October 2026
+
+[ADR-056](docs/architecture/decisions/adr-056-marshals-read-the-roster.md): a marshal's tabs are
+**Home · Marshal · Roster**, and on the Roster they **look up only**. A nineteenth permission,
+`timing.roster.read`, opens it and `timing.desk_roster()` — one row per runner, name, bib,
+category and status — and **nothing else**, held by `timing-marshal`, `timing-admin` and
+`src-admin`. ⚠️ **A marshal reads only a race they are rostered on**, checked in the function
+like the capture screen's scope, and **gets no exact age**: their category reads "Women" or
+"Men" without the band, because the band is computed from an age `desk_roster()` withholds from
+them. Marking DNS / DNF / DQ stays `timing.event.manage`. The Roster's search, sort and category
+rules are `apps/timing/lib/desk-roster.ts`, unit-tested.
+
 ### ⚠️ The console became five pages again on 9 October 2026
 
 [ADR-055](docs/architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md)
@@ -2159,7 +2171,8 @@ supersedes [ADR-045](docs/architecture/decisions/adr-045-race-night-is-one-conso
 navigation is Pass the Buck's, tabs and order alike — Home · Start · Anomalies · Timing log ·
 Results · Prizes · Marshal · Live · Staff · Registrations · Roster · Danger. **The console's
 sections are pages again**: Start (`…/start`, the race control and finishing), Anomalies
-(`…/anomalies`), Timing log (`…/crossings`) and Roster (`…/roster`, DNS / DNF / DQ); Prizes
+(`…/anomalies`), Timing log (`…/crossings`) and Roster (`…/roster`, the registration desk's
+list and DNS / DNF / DQ); Prizes
 (`…/prizes`) left the results page. The section components live in
 `app/events/[slug]/sections/`. **The console, `finish` and `status` redirect** from
 `next.config.ts`, before middleware, including a `?section=` link to the page that section

@@ -243,6 +243,11 @@ describe('the shape of the model', () => {
       'timing.marshal.assign',
       'timing.registration.import',
       'timing.result.publish',
+      // **The nineteenth, ADR-056**: look a runner up on a race's roster and change nothing.
+      // The club decided on 9 October 2026 that marshals see the Roster, look-up only. Its own
+      // permission rather than an admin one handed down, because `timing.event.manage` would
+      // also let a marshal start and wipe a race.
+      'timing.roster.read',
     ]);
   });
 
@@ -324,20 +329,26 @@ describe('the shape of the model', () => {
       'src-admin → timing.marshal.assign',
       'src-admin → timing.registration.import',
       'src-admin → timing.result.publish',
+      'src-admin → timing.roster.read',
       'super-admin → identity.person.read',
       'super-admin → identity.role.grant',
-      // **`timing-admin` runs a race; `timing-marshal` records crossings and nothing else.**
+      // **`timing-admin` runs a race; `timing-marshal` records crossings and looks runners up.**
       //
-      // ⚠️ The marshal's single permission is the point. That phone is used in a crowd, often
-      // by somebody who joined that morning — and `timing.marshals` narrows it again to the
-      // race they were rostered to, checked *after* this permission rather than instead of it.
+      // ⚠️ The marshal's two permissions are the point, and neither changes anything but a
+      // crossing. That phone is used in a crowd, often by somebody who joined that morning —
+      // and `timing.marshals` narrows both to the race they were rostered to, checked *after*
+      // the permission rather than instead of it. The second arrived with ADR-056.
       'timing-admin → timing.crossing.record',
       'timing-admin → timing.crossing.resolve',
       'timing-admin → timing.event.manage',
       'timing-admin → timing.marshal.assign',
       'timing-admin → timing.registration.import',
       'timing-admin → timing.result.publish',
+      'timing-admin → timing.roster.read',
+      // **The marshal's second, ADR-056**: the Roster, look-up only, on the races they marshal
+      // — `desk_roster()` checks the race's roster the same way the capture screen does.
       'timing-marshal → timing.crossing.record',
+      'timing-marshal → timing.roster.read',
     ]);
   });
 
@@ -578,7 +589,7 @@ describe('grantable_roles', () => {
     const signupRole = answer.roles.find((role) => role.slug === 'registered');
     expect(signupRole?.permissions).toEqual([]);
 
-    // **The master role's eighteen travel with it too**, which is the whole of what a
+    // **The master role's nineteen travel with it too**, which is the whole of what a
     // volunteer granting it can see before they hand it over. `/admin/people/`'s legend
     // renders this list, so a director granting `src-admin` from a bare slug would be granting
     // medical-note access without it appearing anywhere on the screen.
@@ -587,7 +598,8 @@ describe('grantable_roles', () => {
     // This count is exactly what the explicit-rows design exists to make somebody change by
     // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
-    expect(masterRole?.permissions).toHaveLength(18);
+    // ⚠️ **Eighteen until 9 October 2026**, when ADR-056 added `timing.roster.read`.
+    expect(masterRole?.permissions).toHaveLength(19);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });

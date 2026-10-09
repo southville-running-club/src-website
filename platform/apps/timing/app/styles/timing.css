@@ -1404,3 +1404,218 @@ body:has(.timing-ui) {
     transform: none;
   }
 }
+
+/* -------------------------------------------------------------------------------------
+ * The Roster — ADR-056: the registration desk's list
+ * -------------------------------------------------------------------------------------
+ * Four columns that fit a laptop with no sideways scroll, names in the body face, bibs alone in
+ * monospace, a header that stays put while the list scrolls, and a paper version. */
+.timing-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.timing-roster {
+  max-width: 56rem;
+}
+
+.timing-roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+}
+
+.timing-roster-search {
+  flex: 1 1 16rem;
+  min-height: 3rem;
+}
+
+.timing-roster-tool {
+  min-height: 3rem;
+}
+
+/* The card is the table's scroller only as a last resort; at four columns it should never
+   need to be. `position: relative` so nothing absolutely positioned inside it escapes. */
+.timing-roster-card {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.timing-roster-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.timing-roster-table th,
+.timing-roster-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--club-rule);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.timing-roster-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.timing-roster-table td {
+  height: 3.25rem;
+}
+
+/* The header stays in view as a long list scrolls. */
+.timing-roster-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--club-surface);
+  font-size: 0.875rem;
+}
+
+.timing-roster-table th a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  color: var(--club-text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.timing-roster-table th a:hover {
+  text-decoration: underline;
+}
+
+.timing-sort-mark {
+  color: var(--club-muted);
+}
+
+.timing-roster-category,
+.timing-roster-status {
+  white-space: nowrap;
+}
+
+.timing-roster-bib {
+  font-size: 1.125rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* An exact bib, or the only match: easy to read across a desk. The highlight is the club's own
+   pale yellow with its own ink, which `club-contrast.test.ts` holds. */
+.timing-roster-table tr[data-highlight='yes'] td {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-roster-chip {
+  display: inline-block;
+  min-width: 2.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.timing-roster-chip[data-status='normal'] {
+  color: var(--club-muted);
+}
+
+.timing-roster-chip:not([data-status='normal']) {
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+}
+
+.timing-roster-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.timing-roster-admin {
+  margin-top: 2.5rem;
+}
+
+.timing-print-only {
+  display: none;
+}
+
+/* A phone: the table stays a table, with tighter cells, so four columns fit at 320px. */
+@media (max-width: 40em) {
+  .timing-roster-table th,
+  .timing-roster-table td {
+    padding: 0.6rem 0.5rem;
+  }
+
+  .timing-roster-category {
+    white-space: normal;
+  }
+}
+
+/* The paper sheet: A4 portrait, the heading and the table, and a box to tick per runner. */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  .timing-nav,
+  .app-header,
+  .app-footer,
+  .club-skip,
+  .timing-roster-toolbar,
+  .timing-intro,
+  .timing-statusrow,
+  .timing-roster-admin {
+    display: none !important;
+  }
+
+  .timing-print-only {
+    display: revert;
+  }
+
+  .timing-roster,
+  .timing-roster-card {
+    max-width: none;
+    overflow: visible;
+    border: 0;
+  }
+
+  .timing-roster-table {
+    font-size: 11pt;
+  }
+
+  .timing-roster-table thead {
+    display: table-header-group;
+  }
+
+  .timing-roster-table thead th {
+    position: static;
+  }
+
+  .timing-roster-table tr {
+    break-inside: avoid;
+  }
+
+  .timing-roster-table td {
+    height: 7mm;
+    padding: 1mm 2mm;
+  }
+
+  .timing-roster-table tr[data-highlight='yes'] td {
+    background: none;
+  }
+
+  .timing-tick-box {
+    display: inline-block;
+    width: 6mm;
+    height: 6mm;
+    border: 1px solid #000;
+  }
+}

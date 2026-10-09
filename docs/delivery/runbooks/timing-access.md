@@ -95,16 +95,20 @@ production. **Read it rather than this table if the two ever disagree.**
 | `timing.marshal.assign` | — | ✅ | ✅ |
 | `timing.registration.import` | — | ✅ | ✅ |
 | `timing.result.publish` | — | ✅ | ✅ |
+| `timing.roster.read` | ✅ on races they marshal | ✅ | ✅ |
 
 **No other role carries any of them.** `nn-admin`, `people-admin`, `super-admin`,
 `nn-tester`, `nn-results` and `registered` hold none — a super-admin can *grant*
 `timing-admin` and still cannot open `/timing` until they grant it to themselves, which
 writes its own audit row. That is ADR-017's rule holding: **a grant is not an inheritance.**
 
-⚠️ **`timing-marshal` holds exactly one permission and that is the point.** That phone is
-used in a crowd, often by somebody who volunteered that morning. It cannot list races,
-cannot resolve an anomaly, cannot import an entry list full of names, addresses and ages,
-and cannot publish a result.
+⚠️ **`timing-marshal` holds two permissions, and neither changes anything but a crossing.**
+That phone is used in a crowd, often by somebody who volunteered that morning. It records
+crossings, and since 9 October 2026 it can **look runners up on the Roster** of a race it
+marshals — name, bib, category and status, with no age, email or club
+([ADR-056](../../architecture/decisions/adr-056-marshals-read-the-roster.md)). It cannot list
+races, cannot resolve an anomaly, cannot mark a runner DNS, cannot import an entry list, and
+cannot publish a result.
 
 ⚠️ **Neither role is staff.** Neither is on `STAFF_ROLES`, so **neither opens `/admin/`** —
 a timing admin who needs the entry list needs `nn-admin` as well, granted separately.
@@ -225,7 +229,7 @@ enforces it.
 | `/timing/events/<slug>/prizes` | `timing.result.publish` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/leaderboard` | `timing.event.manage` **or** `timing.crossing.resolve` | ❌ | ❌ | ✅ |
 | `/timing/events/<slug>/registration` | `timing.registration.import` | ❌ | ❌ | ✅ |
-| `/timing/events/<slug>/roster` | `timing.event.manage` | ❌ | ❌ | ✅ |
+| `/timing/events/<slug>/roster` | `timing.roster.read` | ❌ | ✅ **on a race they are rostered for**, look-up only | ✅ |
 | `/timing/events/<slug>/danger-zone` | `timing.event.manage` | ❌ | ❌ | ✅ |
 | `/timing/marshal/<slug>/` | `timing.crossing.record` **and a roster row** | ❌ | ✅ **on a race they are rostered for**, ❌ on any other | ❌ unless rostered — the permission is not enough, see above |
 | `/admin/` and everything under it | a staff role | ❌ | ❌ | ❌ |

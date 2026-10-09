@@ -19,8 +19,10 @@ import {
  * thing that exists, so the table is what is asserted.
  */
 
-const MARSHAL = ['timing.crossing.record'];
+/** ADR-056 gave the marshal a second permission: the Roster, look-up only. */
+const MARSHAL = ['timing.crossing.record', 'timing.roster.read'];
 const ADMIN = [
+  'timing.roster.read',
   'timing.crossing.record',
   'timing.crossing.resolve',
   'timing.event.manage',
@@ -45,7 +47,8 @@ describe('what each address demands', () => {
     ['/events/nn-2026/start', 'timing.event.manage'],
     ['/events/nn-2026/anomalies', 'timing.crossing.resolve'],
     ['/events/nn-2026/crossings', 'timing.crossing.resolve'],
-    ['/events/nn-2026/roster', 'timing.event.manage'],
+    // ADR-056: the registration desk's list, which a race's marshals read as well as admins.
+    ['/events/nn-2026/roster', 'timing.roster.read'],
     ['/events/nn-2026/prizes', 'timing.result.publish'],
     // #205's two write addresses and the presenter beside them. ⚠️ **The export rides on
     // `timing.result.publish` rather than on a permission of its own**, which is the decision
@@ -312,7 +315,6 @@ describe('who may open what', () => {
     ['/events/nn-2026/start'],
     ['/events/nn-2026/anomalies'],
     ['/events/nn-2026/crossings'],
-    ['/events/nn-2026/roster'],
     ['/events/nn-2026/prizes'],
     ['/events/nn-2026/danger-zone'],
     ['/events/nn-2026/results'],
@@ -457,11 +459,15 @@ describe('the two addresses status and finishing post to', () => {
     },
   );
 
-  it('demands exactly what the pages they post from demand', () => {
-    // ADR-055: the status list is on Roster and finishing is on Start.
+  it('demands what it always did, which is more than the page it is drawn on', () => {
+    // ADR-055 put the status list on Roster, and ADR-056 opened Roster to marshals to read.
+    // Marking a runner is still an admin's act, so the write keeps `timing.event.manage` and
+    // the page draws its controls only for somebody holding it.
     expect(surfaceFor('/events/nn-2026/status/update')?.permission).toBe(
-      surfaceFor('/events/nn-2026/roster')?.permission,
+      'timing.event.manage',
     );
+    expect(canOpen(MARSHAL, '/events/nn-2026/roster')).toBe(true);
+    expect(canOpen(MARSHAL, '/events/nn-2026/status/update')).toBe(false);
     expect(surfaceFor('/events/nn-2026/finish/update')?.permission).toBe(
       surfaceFor('/events/nn-2026/start')?.permission,
     );
@@ -740,9 +746,20 @@ describe('the race console is gone, and nothing it opened is wider than before (
     [NN_ADMIN, 'an entries admin'],
     [[], 'somebody signed in holding nothing'],
   ])('refuses every page the console became to %#: %s', (permissions) => {
-    for (const section of ['start', 'anomalies', 'crossings', 'roster']) {
+    for (const section of ['start', 'anomalies', 'crossings']) {
       expect(canOpen(permissions, `/events/nn-2026/${section}`), section).toBe(false);
     }
+  });
+
+  /**
+   * ⚠️ **Roster is the one that opened to somebody new, and on purpose** — ADR-056, the club's
+   * decision of 9 October 2026 that a marshal looks runners up on it. An entries admin and
+   * somebody holding nothing are still refused.
+   */
+  it('opens Roster to a marshal and to nobody else new', () => {
+    expect(canOpen(MARSHAL, '/events/nn-2026/roster')).toBe(true);
+    expect(canOpen(NN_ADMIN, '/events/nn-2026/roster')).toBe(false);
+    expect(canOpen([], '/events/nn-2026/roster')).toBe(false);
   });
 
   /**

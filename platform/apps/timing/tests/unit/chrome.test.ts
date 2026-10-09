@@ -86,6 +86,7 @@ describe("the race-timing nav draws only what the reader may open, in Pass the B
   const SLUG = 'nn-2026';
   const ADMIN = [
     'timing.event.manage',
+    'timing.roster.read',
     'timing.crossing.record',
     'timing.crossing.resolve',
     'timing.result.publish',
@@ -136,15 +137,18 @@ describe("the race-timing nav draws only what the reader may open, in Pass the B
     });
   });
 
-  it('gives a rostered marshal Home and Marshal, with Home at their list of races', () => {
-    const tabs = raceNav(['timing.crossing.record'], SLUG, true);
-    expect(labels(tabs)).toEqual(['Home', 'Marshal']);
+  it('gives a rostered marshal Home, Marshal and Roster, with Home at their list of races', () => {
+    // ADR-056: a marshal reads the roster, look-up only, on the races they marshal.
+    const tabs = raceNav(['timing.crossing.record', 'timing.roster.read'], SLUG, true);
+    expect(labels(tabs)).toEqual(['Home', 'Marshal', 'Roster']);
     // They cannot open the race's hub, which needs `timing.event.manage`.
     expect(tabs[0]?.path).toBe('/');
   });
 
   it('gives a marshal who is not rostered here nothing but Home, so no nav at all', () => {
-    expect(showsBar(raceNav(['timing.crossing.record'], SLUG, false))).toBe(false);
+    expect(
+      showsBar(raceNav(['timing.crossing.record', 'timing.roster.read'], SLUG, false)),
+    ).toBe(false);
   });
 
   it('gives somebody who only resolves crossings the two capture pages and Live', () => {
