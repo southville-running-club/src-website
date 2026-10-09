@@ -1997,6 +1997,7 @@ export type Database = {
         Args: { p_event_slug: string; p_limit?: number; p_search?: string }
         Returns: Json
       }
+      desk_roster: { Args: { p_event_slug: string }; Returns: Json }
       edit_crossing: {
         Args: {
           p_bib: string

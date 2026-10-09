@@ -1758,7 +1758,7 @@ test.describe('who may resolve an anomaly', () => {
    * Recording a crossing and deciding what one means are two different powers, and a marshal
    * who could quietly discard their own flagged capture is the thing this separation prevents.
    */
-  test('a timing-marshal is refused both pages and both addresses they post to', async ({
+  test('a timing-marshal may not mark a runner or finish a race', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
@@ -2100,20 +2100,24 @@ test.describe('who may mark a runner or finish a race', () => {
    * ⚠️ **A `timing-marshal` records crossings and decides nothing about them.** Disqualifying a
    * runner and declaring a race over are `timing.event.manage`, and the separation is the point.
    */
-  test('a timing-marshal is refused both pages and both addresses they post to', async ({
+  test('a timing-marshal may not mark a runner or finish a race', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const race = `/timing/events/${statusEventSlug(testInfo.project.name)}`;
 
-    for (const path of [
-      statusPath(testInfo.project.name),
-      finishPath(testInfo.project.name),
-    ]) {
-      const shown = await page.goto(path);
-      expect(shown?.status(), path).toBe(404);
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
+    // Start is an admin's page, refused at the door.
+    const shown = await page.goto(finishPath(testInfo.project.name));
+    expect(shown?.status()).toBe(404);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Not found');
 
-      const posted = await page.request.post(`${path}/update`, {
+    // ⚠️ ADR-056 opened Roster to marshals to *read*, on races they marshal — this is not one,
+    // so it is the ordinary not-found page (with a 200, as ADR-044's in-app answer is).
+    await expectNotFoundPage(page, statusPath(testInfo.project.name), 200);
+
+    // And neither write opens to them: marking a runner and finishing are both refused.
+    for (const write of [`${race}/status/update`, `${race}/finish/update`]) {
+      const posted = await page.request.post(write, {
         form: {
           intent: 'finish',
           status: 'dq',
@@ -2121,7 +2125,7 @@ test.describe('who may mark a runner or finish a race', () => {
         },
         maxRedirects: 0,
       });
-      expect(posted.status(), `${path}/update`).toBe(404);
+      expect(posted.status(), write).toBe(404);
     }
 
     const state = await statusRaceState(testInfo.project.name);
@@ -2147,6 +2151,94 @@ test.describe('who may mark a runner or finish a race', () => {
         `${path}/update`,
       ).toBe(404);
     }
+  });
+});
+
+/**
+ * The Roster as the registration desk's list — ADR-056. One row per runner, searchable, readable
+ * by a race's marshals (look-up only) and by admins, who also mark DNS / DNF / DQ below it.
+ */
+test.describe('the roster', () => {
+  // eslint-disable-next-line no-empty-pattern
+  test.beforeEach(async ({}, testInfo) => {
+    await resetStatusRace(testInfo.project.name);
+  });
+
+  test('lists every runner by surname, and finds one by name or bib', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
+    const table = page.getByRole('table');
+    await expect(table.getByRole('columnheader')).toHaveText([
+      /^Name/,
+      /^Status/,
+      /^Category/,
+      /^Bib/,
+    ]);
+    // Surname order: Hopper before Lovelace.
+    await expect(table.locator('tbody tr')).toHaveCount(STATUS_TEAMS.length);
+    await expect(table.locator('tbody tr').first()).toContainText(
+      STATUS_TEAMS[1].lastname,
+    );
+
+    await page.getByLabel('Search the roster').fill(STATUS_TEAMS[0].number);
+    await page.getByRole('button', { name: 'Search', exact: true }).first().click();
+    await expect(table.locator('tbody tr')).toHaveCount(1);
+    await expect(table.locator('tbody tr')).toContainText(STATUS_TEAMS[0].lastname);
+    await expect(page.getByText(`Showing 1 of ${STATUS_TEAMS.length}`)).toBeVisible();
+  });
+
+  test('says so when nobody matches', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${statusPath(testInfo.project.name)}?q=zz-nobody`);
+
+    await expect(page.getByRole('table')).toContainText('No runners match “zz-nobody”.');
+  });
+
+  test('gives a rostered marshal the list to read, and nothing to change', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const response = await page.goto(
+      `/timing/events/${captureEventSlug(testInfo.project.name)}/roster`,
+    );
+
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
+    await expect(page.locator('.timing-eyebrow')).toContainText('Registration desk');
+    await expect(page.getByRole('heading', { name: 'Mark a runner' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Did not start' })).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('navigation', { name: 'Race timing', exact: true })
+        .getByRole('listitem'),
+    ).toHaveText(['Home', 'Marshal', 'Roster']);
+  });
+
+  test("gives a marshal the ordinary not-found page on a race they don't marshal", async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+
+    await expectNotFoundPage(page, statusPath(testInfo.project.name), 200);
+  });
+
+  test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('does not push the page sideways at 320px', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(`/timing/events/${captureEventSlug(testInfo.project.name)}/roster`);
+
+    await expectNoSidewaysScroll(page, 'the roster at 320px');
   });
 });
 
@@ -2218,9 +2310,13 @@ test.describe('marking a runner', () => {
     await page
       .getByLabel('Search by bib, team number or name')
       .fill(STATUS_TEAMS[1].lastname);
-    await page.getByRole('button', { name: 'Search' }).click();
+    // ADR-056: the Roster's own table has a Search too, so this is the one in "Mark a runner".
+    await page
+      .getByRole('region', { name: 'Mark a runner' })
+      .getByRole('button', { name: 'Search' })
+      .click();
 
-    await expect(page).toHaveURL(new RegExp(`q=${STATUS_TEAMS[1].lastname}`));
+    await expect(page).toHaveURL(new RegExp(`status_q=${STATUS_TEAMS[1].lastname}`));
     await expect(page.locator('.triage-card')).toHaveCount(1);
   });
 
@@ -3428,9 +3524,10 @@ test.describe('the app shell every timing page wears', () => {
     await expect(page.getByRole('navigation', CLUB_BAR)).toHaveCount(0);
     await expect(page.getByRole('contentinfo')).toHaveCount(0);
     // A marshal's tabs are Home — `/timing`, their list of races, since the race's own page
-    // would 404 them — and the capture screen they are on.
+    // would 404 them — the capture screen they are on, and the Roster to look runners up on
+    // (ADR-056).
     const nav = page.getByRole('navigation', NAV);
-    await expect(nav.getByRole('listitem')).toHaveText(['Home', 'Marshal']);
+    await expect(nav.getByRole('listitem')).toHaveText(['Home', 'Marshal', 'Roster']);
     await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute(
       'href',
       '/timing',

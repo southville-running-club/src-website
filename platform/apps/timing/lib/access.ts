@@ -138,12 +138,15 @@ const EVENT_SECTIONS: Record<string, string | readonly string[]> = {
    *   and `crossings/update` already carry. ⚠️ Both pages also read `event_detail()`, which
    *   needs `timing.event.manage`, so somebody holding resolve alone gets the not-found page —
    *   the console's latent defect, carried over unchanged and met by nobody today.
-   * - **Roster** — DNS, DNF and DQ: `timing.event.manage`, as `status/update` is.
+   * - **Roster** — `timing.roster.read`, ADR-056: the registration desk's list, which a race's
+   *   marshals may read (look-up only) as well as admins. `desk_roster()` narrows a marshal to
+   *   the races they are rostered on. Marking DNS / DNF / DQ on it stays `timing.event.manage`,
+   *   which `status/update` carries and the page asks before drawing the controls.
    */
   start: 'timing.event.manage',
   anomalies: 'timing.crossing.resolve',
   crossings: 'timing.crossing.resolve',
-  roster: 'timing.event.manage',
+  roster: 'timing.roster.read',
   'danger-zone': 'timing.event.manage',
   /**
    * The results preview, the publish button and the exports.
