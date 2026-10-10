@@ -45,6 +45,7 @@ async function AppShell({
   wide = false,
   tool = false,
   light = false,
+  brand = false,
   children,
 }: {
   nav: ReactNode;
@@ -61,6 +62,12 @@ async function AppShell({
    * are used outdoors in daylight. The capture screen is always light.
    */
   light?: boolean;
+  /**
+   * Pass the Buck's brand pages — the Home hub and Start (ADR-055): the area below the nav is
+   * club green from edge to edge, with ink on it (`--club-on-brand`, 5.07:1). `<main>` carries no
+   * wrap, so the page wraps its own content and the green reaches both edges.
+   */
+  brand?: boolean;
   children: ReactNode;
 }) {
   const [permissions, roles, signedInAs] = await Promise.all([
@@ -71,13 +78,14 @@ async function AppShell({
 
   return (
     <div
-      className={
-        tool
-          ? 'timing-ui timing-force-light timing-tool-page'
-          : light
-            ? 'timing-ui timing-force-light'
-            : 'timing-ui'
-      }
+      className={[
+        'timing-ui',
+        tool || light ? 'timing-force-light' : '',
+        tool ? 'timing-tool-page' : '',
+        brand ? 'timing-brand-page' : '',
+      ]
+        .filter((name) => name !== '')
+        .join(' ')}
     >
       <SkipLink />
       {tool ? null : (
@@ -93,9 +101,11 @@ async function AppShell({
         className={
           tool
             ? 'timing-tool'
-            : wide
-              ? 'club-wrap timing-main'
-              : 'club-wrap club-wrap-narrow timing-main timing-legacy'
+            : brand
+              ? 'timing-brand-main'
+              : wide
+                ? 'club-wrap timing-main'
+                : 'club-wrap club-wrap-narrow timing-main timing-legacy'
         }
       >
         {children}
@@ -126,16 +136,19 @@ function navOrNothing(tabs: readonly NavTab[], current: NavKey | null): ReactNod
 export async function TimingFrame({
   current,
   wide,
+  brand,
   children,
 }: {
   current: 'home' | 'races';
   wide?: boolean;
+  /** The Home hub. See {@link AppShell}. */
+  brand?: boolean;
   children: ReactNode;
 }) {
   const permissions = await readPermissions();
 
   return (
-    <AppShell nav={navOrNothing(appNav(permissions), current)} wide={wide}>
+    <AppShell nav={navOrNothing(appNav(permissions), current)} wide={wide} brand={brand}>
       {children}
     </AppShell>
   );
@@ -157,6 +170,7 @@ export async function RaceFrame({
   wide,
   tool,
   light,
+  brand,
   children,
 }: {
   slug: string;
@@ -170,6 +184,8 @@ export async function RaceFrame({
   tool?: boolean;
   /** Light under a phone set to dark — the Start page. See {@link AppShell}. */
   light?: boolean;
+  /** The Home hub and Start. See {@link AppShell}. */
+  brand?: boolean;
   children: ReactNode;
 }) {
   const [permissions, rosteredSlugs] = await Promise.all([
@@ -179,7 +195,13 @@ export async function RaceFrame({
   const tabs = raceNav(permissions, slug, rosteredSlugs.includes(slug));
 
   return (
-    <AppShell nav={navOrNothing(tabs, current)} wide={wide} tool={tool} light={light}>
+    <AppShell
+      nav={navOrNothing(tabs, current)}
+      wide={wide}
+      tool={tool}
+      light={light}
+      brand={brand}
+    >
       {children}
     </AppShell>
   );

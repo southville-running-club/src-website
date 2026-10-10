@@ -60,7 +60,7 @@ skip the separation the application enforces.
 
 ## Read this first: two rules, and neither is obvious from the screen
 
-**1. Finishing a race is not publishing it, and finishing closes nothing.** *Finish this race*
+**1. Finishing a race is not publishing it, and finishing closes nothing.** *Mark race finished*
 writes a label the race director sets and can unset. It gates no capture, no correction and no
 status — the last runner crosses after somebody has called the race over, every year. The
 finish screen says so under its own button: *"Finishing is a **label, not a cut-off**."*
@@ -223,8 +223,8 @@ run at all.
       the database — they are the blast radius, not a description of one
 - [ ] Type the race's slug exactly as the page shows it, in lower case, and press **Wipe this
       race**
-- [ ] Check the race's own page afterwards: **Crossings recorded** is 0, **Actually started**
-      and **Finished** are both cleared
+- [ ] Check the race's Home afterwards, under **Race details**: **Crossings** is 0, and
+      **Actually started** and **Finished** are both cleared
 
 **What survives is the race, its name, its start time, its marshals and the record of what has
 been done to it.** The entry list goes with the crossings, so **step 1.5 is re-run after this,
@@ -266,16 +266,19 @@ are let back in.
 
 ### 2.3 — the start 🎛️ 🏛️
 
-- [ ] Open **Start** — `/timing/events/nn-2026/start` — on the laptop. It shows a countdown
+- [ ] Open **Start** — `/timing/events/nn-2026/start` — on the laptop. The whole screen is green
+      and reads **"Runners to the start."**, with a countdown
 - [ ] ⚠️ **A clock reaching zero starts nothing.** Pressing **Start the race** is what records
       the moment, and every time in the race is measured from it
 - [ ] Press it just before the gun. ⚠️ **It asks first** (since the timing redesign's Slice D):
-      the button turns into **Confirm the start**, with **Cancel** beside it. **The time is
-      recorded when Confirm is pressed**, so press Confirm on the gun, not the first button.
+      the button turns into **Start the race now**, with **Cancel** beside it. **The time is
+      recorded when Start the race now is pressed**, so press that on the gun, not the first
+      button.
       Cancel records nothing. On a device with JavaScript off there is no question, and the
       first press records the start, as it always did
 - [ ] The screen answers *"The race has started. Every time in it is measured from the moment
-      below, and pressing again will not move it."*
+      below, and pressing again will not move it."* and turns to **"Race in progress."**, with
+      the elapsed clock
 
 **Two people pressing it is fine and is expected.** The losing press is answered *"This race
 had already started, so nothing was changed"* and is shown **the winning time**, so both
@@ -345,7 +348,8 @@ something the application can notice.
       populations**: a capture a marshal's screen flagged, and an **orphan** whose bib matched
       no team. *"Nothing here is wrong by itself — an anomaly is a question."*
 - [ ] **Timing log** — `/timing/events/nn-2026/crossings` — every capture, searchable by bib or team number
-- [ ] The race's own page carries **Crossings recorded** and **Anomalies needing a human**
+- [ ] The **Anomalies** tab's status row counts what is open; the race's Home lists both counts
+      under **Race details**
 
 **Resolving one is three buttons**: **Mark valid**, **Save corrected bib**, **Discard**. A
 discard is reversible — it is *"still on the timing log below if it needs restoring"*, and
@@ -366,9 +370,9 @@ status changes what the table says and the table is about to be read.
 
 ### 4.1 — finish the race 🏛️
 
-- [ ] **Start** — `/timing/events/nn-2026/start` — → **Finish this race**, under **Finish**
+- [ ] **Start** — `/timing/events/nn-2026/start` — → **Mark race finished**
 - [ ] ⚠️ **Tell the marshals it is a label.** Captures still land, and a late one still
-      belongs. **It can be undone** — *"This race is not finished after all"* is on the same
+      belongs. **It can be undone** — **Reopen the race** is on the same
       screen
 
 ### 4.2 — clear the triage list 🎛️

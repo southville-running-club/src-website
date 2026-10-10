@@ -1,21 +1,25 @@
-import { formatLondon } from '@src/shared';
+import { formatLondon, formatLondonClock } from '@src/shared';
 import { startOutcomeFor } from '../../../../lib/start-outcomes';
+import { statusOutcomeFor } from '../../../../lib/status-outcomes';
 import { ConfirmStart } from './confirm-start';
 import { RaceClock } from './race-clock';
 import type { EventDetail } from './event-detail';
 
 /**
- * Race control on `/timing/events/<slug>/start` — the countdown, the button, and the clock
- * after it.
+ * Race control on `/timing/events/<slug>/start` — the countdown, the button, the clock after
+ * it, and finishing.
  *
  * ⚠️ **A section of the race console after #308, and a page of its own again since ADR-055**:
  * Pass the Buck's navigation, which volunteers found easy, gives each of these its own tab.
  * The form still posts where it always did, carrying the same permission at the door and in
  * the database.
  *
- * ⚠️ **Its three state headings are `h2` again**, as they were before the console: on a page of
- * its own they sit directly under the page's `h1`. Heading order is an axe rule and the bar in
- * this repository is zero violations, not few.
+ * **Pass the Buck's race control (ADR-055)**: the whole screen is club green, and it is in one
+ * of three states, each with one big action — **Runners to the start.** (Start the race),
+ * **Race in progress.** (the clock, and Mark race finished), **Race finished.** (Results, and
+ * Reopen the race). The state's title is the page's `h1`, because it is what the page is about;
+ * finishing and reopening are here rather than a second block below, as they are in Pass the
+ * Buck. Their forms still post to `finish/update`, carrying `timing.event.manage` as before.
  *
  * Issue [#250](https://github.com/southville-running-club/src-website/issues/250), under
  * [ADR-034](../../../../../../../docs/architecture/decisions/adr-034-the-timing-platform-is-rewritten-on-cloudflare.md).
@@ -60,26 +64,38 @@ export function StartSection({
   slug,
   event,
   outcomeCode,
+  finishOutcomeCode,
+  resultsHref,
 }: {
   slug: string;
   event: EventDetail;
-  /** `?outcome=`, but only when `?section=start` says this section owns it. */
+  /** `?outcome=` from `start/update`. */
   outcomeCode: string | undefined;
+  /** `?outcome=` from `finish/update`, when `?section=finish` says it is that form's. */
+  finishOutcomeCode: string | undefined;
+  /** The results page, when this person may open it — the link a finished race offers. */
+  resultsHref: string | null;
 }) {
-  const outcome = startOutcomeFor(outcomeCode);
+  const outcome = startOutcomeFor(outcomeCode) ?? statusOutcomeFor(finishOutcomeCode);
   const started = event.actually_started_at;
   const finished = event.finished_at;
-  const action = `/timing/events/${encodeURIComponent(slug)}/start/update`;
+  const startAction = `/timing/events/${encodeURIComponent(slug)}/start/update`;
+  const finishAction = `/timing/events/${encodeURIComponent(slug)}/finish/update`;
 
   return (
-    <>
+    <div className="club-wrap timing-go-screen">
+      <p className="timing-hub-eyebrow">Start · {event.name}</p>
+
       {outcome === null ? null : (
         <p
-          className={outcome.tone === 'ok' ? 'notice notice-ok' : 'notice notice-bad'}
+          className={
+            outcome.tone === 'ok'
+              ? 'timing-go-notice'
+              : 'timing-go-notice timing-go-notice-bad'
+          }
           // `role="status"` announces nothing here today and is the correct semantic for the
           // content: every path to this message is a full page load after the route handler's
           // 303, so a screen reader reads it in document order, above the block it is about.
-          // The roster page's header carries the same note at length.
           role="status"
         >
           {outcome.message}
@@ -88,66 +104,74 @@ export function StartSection({
 
       {finished !== null ? (
         /*
-         * ⚠️ **A finished race gets no button and no ticking clock.** The old application kept
-         * showing both after the finish, and #250 names fixing that as in scope from the first
-         * version — an inconsistent screen on a start line is believed.
+         * ⚠️ **A finished race gets no start button and no ticking clock.** The old application
+         * kept showing both after the finish, and #250 names fixing that as in scope from the
+         * first version — an inconsistent screen on a start line is believed.
          */
-        <section className="timing-go timing-go-panel">
-          <h2>Race finished</h2>
-
-          <p>
-            This race finished {formatLondon(finished)}. Nothing on this screen can change
-            that.
+        <section className="timing-go-hero" aria-labelledby="race-state">
+          <h1 id="race-state">Race finished.</h1>
+          <p className="timing-go-big">
+            <span aria-hidden="true">✓ </span>Race marked finished at{' '}
+            <span className="timing-mono">{formatLondonClock(finished)}</span>
           </p>
-
-          <dl className="club-meta timing-go-meta">
-            <div>
-              <dt>Started</dt>
-              <dd>{started === null ? '—' : formatLondon(started)}</dd>
-            </div>
-            <div>
-              <dt>Finished</dt>
-              <dd>{formatLondon(finished)}</dd>
-            </div>
-          </dl>
+          {resultsHref === null ? null : (
+            <p>
+              <a className="club-btn timing-btn-dark timing-go-action" href={resultsHref}>
+                Results <span aria-hidden="true">→</span>
+              </a>
+            </p>
+          )}
+          <form method="post" action={finishAction}>
+            <input type="hidden" name="intent" value="reopen" />
+            <button type="submit" className="club-btn timing-hub-outline">
+              Reopen the race
+            </button>
+          </form>
+          <p className="timing-go-small">
+            Started {started === null ? '—' : formatLondon(started)}, finished{' '}
+            {formatLondon(finished)}. Finishing is a label, not a cut-off: crossings can
+            still be recorded and corrected. Reopen it only if it was called too early.
+          </p>
         </section>
       ) : started !== null ? (
-        <section className="timing-go timing-go-panel">
-          <h2>The race is running</h2>
-
-          <p>
-            It started {formatLondon(started)}. Every time in this race is measured from
-            that moment, so it cannot be moved by pressing anything again.
-          </p>
+        <section className="timing-go-hero" aria-labelledby="race-state">
+          <h1 id="race-state">Race in progress.</h1>
+          <p className="timing-go-big">Have a great run.</p>
 
           <RaceClock mode="elapsed" atIso={started}>
             The elapsed clock needs JavaScript. The race started {formatLondon(started)}.
           </RaceClock>
 
-          <h3>A false start</h3>
+          <form method="post" action={finishAction}>
+            <input type="hidden" name="intent" value="finish" />
+            <button type="submit" className="club-btn timing-btn-dark timing-go-action">
+              Mark race finished
+            </button>
+          </form>
+          <p className="timing-go-small">
+            It started {formatLondon(started)}. Every time in this race is measured from
+            that moment. Marking it finished is a <strong>label, not a cut-off</strong>:
+            the last runner&rsquo;s crossing still counts, and it can be undone.
+          </p>
 
           {event.counts.crossings === 0 ? (
-            <form method="post" action={action}>
+            <form method="post" action={startAction} className="timing-go-secondary">
               <input type="hidden" name="intent" value="clear" />
-
-              <p>
-                Nobody has been timed in this race yet, so the start can still be cleared.
-                That puts the race back to not started and lets its details be corrected
-                again.
+              <h2>A false start</h2>
+              <p className="timing-go-small">
+                Nobody has been timed yet, so the start can still be cleared. That puts
+                the race back to not started.
               </p>
-
               {/*
-                ⚠️ **Not `button-wide`, and not beside the start button.** The full-width
-                control is for the one thing this screen is opened to do; this one undoes a
-                race and wants to be pressed on purpose. The two are never on the page at
-                once, because the states above are exclusive.
+                ⚠️ **Not the full-width action, and away from it.** This one undoes a race and
+                wants to be pressed on purpose.
               */}
-              <button className="club-btn club-btn-secondary" type="submit">
+              <button className="club-btn timing-hub-outline" type="submit">
                 Clear the start
               </button>
             </form>
           ) : (
-            <p className="notice">
+            <p className="timing-go-small timing-go-secondary">
               Somebody has already been timed in this race, so the start can no longer be
               cleared here. Every time recorded is measured from it, and clearing it now
               would silently re-time all of them.
@@ -155,37 +179,36 @@ export function StartSection({
           )}
         </section>
       ) : (
-        <section className="timing-go timing-go-panel">
-          <h2>Not started</h2>
+        <section className="timing-go-hero" aria-labelledby="race-state">
+          <h1 id="race-state">Runners to the start.</h1>
+          <p className="timing-go-big">
+            Scheduled for{' '}
+            <span className="timing-mono">{formatLondonClock(event.start_at)}</span>
+          </p>
 
           <RaceClock mode="countdown" atIso={event.start_at}>
             The countdown needs JavaScript. The scheduled start is{' '}
             {formatLondon(event.start_at)}, and this race has not started.
           </RaceClock>
 
-          <p>
-            {/*
-              The migration's own rule, said where somebody can act on it: nothing here reads
-              the scheduled time, and `now()` is what gets stored.
-            */}
-            A clock reaching zero starts nothing. Pressing the button below is what
-            records the moment, and every time in the race is measured from it.
-          </p>
-
-          <form method="post" action={action}>
+          <form method="post" action={startAction}>
             <input type="hidden" name="intent" value="start" />
-
             {/* D4: asked twice with scripting on, once without — `confirm-start.tsx`. */}
             <ConfirmStart />
           </form>
 
-          <p>
-            Pressing it twice does not move the clock. If somebody else has already
-            started this race, this page will say so and show their time rather than
-            overwriting it.
+          <p className="timing-go-small">
+            {/*
+              The migration's own rule, said where somebody can act on it: nothing here reads
+              the scheduled time, and `now()` is what gets stored.
+            */}
+            A clock reaching zero starts nothing. Pressing the button is what records the
+            moment. Pressing it twice does not move the clock: if somebody else has
+            already started this race, this page shows their time rather than overwriting
+            it.
           </p>
         </section>
       )}
-    </>
+    </div>
   );
 }

@@ -155,6 +155,81 @@ export function raceNav(
   return tabs;
 }
 
+/** A button on a Home hub — one of the nav's own tabs, labelled the way Pass the Buck's hub is. */
+export interface HubTool {
+  key: NavKey;
+  label: string;
+  path: string;
+}
+
+export interface HubGroup {
+  key: 'race-night' | 'setup' | 'after';
+  tools: HubTool[];
+}
+
+/**
+ * The Home hub's buttons, grouped — Pass the Buck's hub (ADR-055).
+ *
+ * ⚠️ **Built from {@link raceNav}, never listed separately**, so the hub and the nav cannot
+ * disagree: a button is on the hub exactly when its tab is in the nav, which is exactly when the
+ * door would open it. Race-night tools first (solid), then setup (outline), then what happens
+ * after the gun (outline). Live is the hub's primary button rather than one of these.
+ */
+const HUB_LABELS: Partial<Record<NavKey, string>> = {
+  roster: 'Roster',
+  anomalies: 'Anomalies',
+  marshal: 'Marshal',
+  start: 'Start screen',
+  crossings: 'Timing log',
+  staff: 'Manage staff',
+  registrations: 'Manage registrations',
+  results: 'Results',
+  prizes: 'Prizes',
+};
+
+const HUB_GROUPS: readonly { key: HubGroup['key']; tabs: readonly NavKey[] }[] = [
+  { key: 'race-night', tabs: ['roster', 'anomalies', 'marshal', 'start', 'crossings'] },
+  { key: 'setup', tabs: ['staff', 'registrations'] },
+  { key: 'after', tabs: ['results', 'prizes'] },
+];
+
+export function hubTools(
+  permissions: readonly string[],
+  slug: string,
+  rostered: boolean,
+): HubGroup[] {
+  const open = raceNav(permissions, slug, rostered);
+  // A marshal's own job comes first on their hub — Pass the Buck's marshal hub leads with
+  // Marshal — while an admin's keeps Pass the Buck's admin order. Somebody who may not start a
+  // race is somebody whose hub is about capturing it.
+  const capturer = !open.some((t) => t.key === 'start');
+  return HUB_GROUPS.map((group) => {
+    const tabs: readonly NavKey[] =
+      capturer && group.key === 'race-night'
+        ? ['marshal', ...group.tabs.filter((key) => key !== 'marshal')]
+        : group.tabs;
+    return {
+      key: group.key,
+      tools: tabs.flatMap((key) => {
+        const tab = open.find((t) => t.key === key);
+        const label = HUB_LABELS[key];
+        return tab === undefined || label === undefined
+          ? []
+          : [{ key, label, path: tab.path }];
+      }),
+    };
+  }).filter((group) => group.tools.length > 0);
+}
+
+/** The hub's primary button: the live board, when this person may open it. */
+export function hubLive(
+  permissions: readonly string[],
+  slug: string,
+  rostered: boolean,
+): string | null {
+  return raceNav(permissions, slug, rostered).find((t) => t.key === 'live')?.path ?? null;
+}
+
 /** The pages that belong to no race: the landing page, and the races list for an admin. */
 export function appNav(permissions: readonly string[]): NavTab[] {
   const tabs: NavTab[] = [{ key: 'home', label: 'Home', path: '/' }];

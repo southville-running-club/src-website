@@ -148,3 +148,35 @@ account. It has no Sign out, because signing out needs a token only the club's o
 the anomaly rules are exactly as they were. The Online pill reads the browser's own network
 events, so it says whether the phone has a network, not whether the club's site answers. The
 queue's sync states remain the truth.
+
+## Amendment, 10 October 2026: Home and Start are Pass the Buck's brand pages
+
+Below the nav, the race's **Home** and its **Start** screen are club green from edge to edge,
+with the page's ink on it. That is `--club-on-brand` on `--club-brand`, 5.07:1; white on that
+green is 3.5:1 and is never used.
+
+- **Home** is Pass the Buck's role hub:
+  - a small eyebrow, then the race in large type ending in a full stop;
+  - one status line: when it starts, "Race in progress", or "Race complete — view final
+    results";
+  - **Live results** as the primary button, then "Signed in as …";
+  - the tools as full-width buttons: race-night tools solid, then setup, then after the race.
+
+  ⚠️ **The tools are built from the nav's own tabs** (`hubTools()`), so a button is on the hub
+  exactly when its tab is in the nav. The race's details are a collapsed "Race details" block at
+  the foot. A marshal on one race gets that race's hub at `/timing`, with their Marshal and
+  Roster buttons.
+- **Start** is one state at a time, with one big action each:
+  - **Runners to the start.** — Start the race, asked twice with scripting on;
+  - **Race in progress.** — the clock and **Mark race finished**, plus Clear the start while
+    nobody has been timed;
+  - **Race finished.** — Results, and **Reopen the race**.
+
+  Finishing moved into the running state, as in Pass the Buck. The forms still post to
+  `start/update` and `finish/update`, unchanged.
+
+**Not adopted:**
+- **Pass the Buck's "It can't be undone" on the start confirm.** It isn't true here: the start
+  can be cleared until somebody is timed.
+- **Updating the Start screen live when another device starts the race.** The losing press is
+  already told the winning time.

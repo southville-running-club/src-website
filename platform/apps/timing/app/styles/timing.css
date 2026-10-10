@@ -583,7 +583,7 @@ body:has(.timing-ui) {
 }
 
 /* A section linked to by its id lands with a little room above it. */
-.timing-ui section[id]:not(.timing-go) {
+.timing-ui section[id]:not(.timing-go-hero) {
   scroll-margin-top: 4.5rem;
 }
 
@@ -815,103 +815,210 @@ body:has(.timing-ui) {
 }
 
 /* -------------------------------------------------------------------------------------
- * The race control on Start, where the panel goes green
- * ------------------------------------------------------------------------------------- */
+ * Pass the Buck's brand pages — the Home hub and Start (ADR-055)
+ * -------------------------------------------------------------------------------------
+ * Below the nav the page is club green from edge to edge, with the page's ink on it:
+ * `--club-on-brand` on `--club-brand` is 5.07:1. **Never white on this green** — that is 3.5:1
+ * and fails for body text. The frame gives `<main>` no wrap; the page wraps its own content. */
+.timing-brand-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
 
-/* `--club-on-brand` on `--club-brand`, 5.07:1. Never white on this green. */
-.timing-go {
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 0.9rem;
-  padding: 2rem var(--club-gutter);
+.timing-ui .timing-brand-main {
+  flex: 1;
+  max-width: none;
+  margin: 0;
+  padding: 3rem 0 4rem;
   background: var(--club-brand);
   color: var(--club-on-brand);
+}
+
+.timing-brand-main :is(h1, h2, h3, p, dt, dd, summary, legend) {
+  color: inherit;
+}
+
+.timing-brand-main a:not(.club-btn) {
+  color: inherit;
+  font-weight: 700;
+}
+
+/* The ink on the green: 4.06:1, over the 3:1 a focus indicator needs. */
+.timing-brand-main :focus-visible {
+  outline: 3px solid var(--club-on-brand);
+  outline-offset: 3px;
+}
+
+/* An outline button on the green: the ink as the border and the label. */
+.timing-hub-outline {
+  border: 2px solid var(--club-on-brand);
+  background: transparent;
+  color: var(--club-on-brand);
+}
+
+.timing-hub-outline:hover {
+  background: color-mix(in srgb, var(--club-on-brand) 10%, var(--club-brand));
+}
+
+/* The hub: left-aligned, one column, the tools full width. */
+.timing-hub > * {
+  max-width: 36rem;
+}
+
+.timing-hub-eyebrow {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.timing-hub-title {
+  max-width: 14ch;
+  margin: 0 0 1rem;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 1;
+}
+
+.timing-hub-status p {
+  margin: 0 0 1.75rem;
+  font-size: 1.25rem;
+}
+
+.timing-hub-primary {
+  margin: 0 0 1.75rem;
+}
+
+.timing-hub-button {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.25rem;
+}
+
+.timing-hub-who {
+  margin: 0 0 1rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--club-on-brand);
+}
+
+.timing-hub-group ul,
+.timing-hub-races,
+.timing-hub-race-tools {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.timing-hub-group[data-group='setup'],
+.timing-hub-group[data-group='after'] {
+  padding-top: 1rem;
+  border-top: 1px solid var(--club-on-brand);
+}
+
+.timing-hub-section h2 {
+  margin: 1.5rem 0 0.75rem;
+}
+
+.timing-hub-races > li {
+  padding-top: 1rem;
+  border-top: 1px solid var(--club-on-brand);
+}
+
+.timing-hub-races h3 {
+  margin: 0 0 0.25rem;
+}
+
+.timing-hub-details {
+  margin: 1.5rem 0;
+}
+
+.timing-hub-details summary {
+  min-height: 2.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.timing-hub-account {
+  margin: 1.5rem 0 0;
+}
+
+/* Start: a centred hero, one state at a time, one big action. */
+.timing-go-screen {
   text-align: center;
 }
 
-.timing-go h1 {
-  max-width: 18ch;
-  margin: 0;
-  color: inherit;
-  font-size: clamp(2rem, 7vw, 3.25rem);
+.timing-go-screen .timing-hub-eyebrow {
+  margin-bottom: 1.5rem;
 }
 
-.timing-go p {
-  max-width: 34rem;
+.timing-go-hero {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.timing-go-hero h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 8vw, 4.5rem);
+  line-height: 1;
+}
+
+.timing-go-hero p {
   margin: 0;
 }
 
-.timing-go-race {
-  font-weight: 700;
+.timing-go-big {
+  font-size: 1.35rem;
 }
 
 .timing-go-caption {
   font-size: 0.95rem;
 }
 
-.timing-go form {
-  display: contents;
+.timing-go-small {
+  max-width: 32rem;
+  font-size: 0.95rem;
 }
 
-.timing-go .timing-btn-dark {
+.timing-go-action {
   width: min(28rem, 100%);
-  font-size: 1.15rem;
+  min-height: 3.75rem;
+  font-size: 1.2rem;
 }
 
-.timing-go-rule {
+.timing-go-secondary {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
   width: min(28rem, 100%);
-  height: 0;
-  margin: 0.25rem 0;
-  border: 0;
-  border-top: 1px solid currentcolor;
-  opacity: 0.35;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--club-on-brand);
 }
 
-.timing-go a {
-  color: inherit;
-  font-weight: 700;
-}
-
-/* The ink on the green: 4.06:1, over the 3:1 a focus indicator needs. The race control screen
-   is always light (D5); were it ever drawn dark, the dark ink on this green is still 3.08:1. */
-.timing-go :focus-visible {
-  outline: 3px solid var(--club-text);
-  outline-offset: 3px;
-}
-
-.timing-go-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.5rem 1.25rem;
-}
-
-/* The race control is a panel under the Start page's own head, so it is tall rather than the
-   whole viewport. One state, one action. */
-.timing-go-panel {
-  min-height: min(30rem, 70dvh);
-  margin: 1rem 0 1.5rem;
-  border-radius: var(--club-radius-card);
-}
-
-.timing-go :is(h2, h3) {
-  max-width: 18ch;
+.timing-go-secondary h2 {
   margin: 0;
-  color: inherit;
-  font-size: clamp(1.75rem, 6vw, 2.5rem);
+  font-size: 1.25rem;
 }
 
-/* The facts under a finished race, ink on the green like the rest of the panel. */
-.timing-go-meta {
-  justify-self: stretch;
-  max-width: 24rem;
-  margin: 0 auto;
-  text-align: left;
+/* What just happened, on a white card so it reads as a message rather than as the screen. */
+.timing-go-notice {
+  max-width: 40rem;
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: var(--club-surface);
+  color: var(--club-text);
 }
 
-.timing-go-meta dt {
-  color: inherit;
+.timing-go-notice-bad {
+  border-left: 6px solid var(--club-danger);
 }
 
 /* D4: "Start the race" asked twice. The question replaces the button in place. */
