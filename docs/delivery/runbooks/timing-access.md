@@ -134,7 +134,7 @@ Done by somebody holding **`timing.marshal.assign`**, at
 **`/timing/events/<slug>/marshals/`**.
 
 - [ ] Open `/timing/events/` and follow the race
-- [ ] Open **Marshals**
+- [ ] Open the **Staff** tab (it was called Marshals)
 - [ ] Choose them under **Add somebody** and press **Add to this roster**
 - [ ] Tell them the race is now listed under **Marshalling** on `/timing`, linking straight to
       its capture screen. **There is no address to send them any more** — they open

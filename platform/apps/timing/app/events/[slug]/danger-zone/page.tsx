@@ -1,8 +1,8 @@
-import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { resetOutcomeFor } from '../../../../lib/reset-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { WipeConfirm } from './wipe-confirm';
 import { raceMetadata, readEventDetail } from '../../../../lib/titles';
 
@@ -120,10 +120,16 @@ export default async function DangerZonePage({
   return (
     <RaceFrame slug={slug} name={event.name} current="danger" page="Danger zone" wide>
       <div className="club-wrap-narrow">
-        <div className="club-phead">
-          <h1>Danger zone</h1>
-          <p className="club-lede">{event.name}</p>
-        </div>
+        <PageHead
+          eyebrow={raceEyebrow(event.name)}
+          title="Danger."
+          intro={
+            <p>
+              Destructive actions for this race. Read what would be removed before
+              pressing anything. The race itself and its marshals are never touched.
+            </p>
+          }
+        />
 
         {outcome === null ? null : (
           <p
@@ -135,7 +141,8 @@ export default async function DangerZonePage({
           </p>
         )}
 
-        <section className="timing-danger-card" aria-labelledby="danger-removed">
+        <section className="timing-danger-card" aria-labelledby="danger-reset">
+          <h2 id="danger-reset">Reset event data</h2>
           <p>
             Wiping this race removes <strong>every crossing and every entry</strong>{' '}
             recorded against it and puts it back to not started and not finished. It is
@@ -147,7 +154,7 @@ export default async function DangerZonePage({
           The whole argument for a typed confirmation is that somebody has looked at what they
           are about to remove; a sentence saying "this will remove your crossings" is not
           something anybody can check themselves against. */}
-          <h2 id="danger-removed">What would be removed</h2>
+          <h3>What would be removed</h3>
 
           <dl className="club-meta timing-details">
             <div>
@@ -172,7 +179,7 @@ export default async function DangerZonePage({
           as "delete the race" and the next thing this volunteer does is look for the race they
           just reset. The marshal count is here rather than above for the same reason: it is the
           number somebody would otherwise fear they had to rebuild. */}
-          <h2>What would be kept</h2>
+          <h3>What would be kept</h3>
 
           <dl className="club-meta timing-details">
             <div>
@@ -199,12 +206,6 @@ export default async function DangerZonePage({
             <WipeConfirm slug={event.slug} blockedBy={publishedReason} />
           </form>
         </section>
-
-        <p className="club-btns timing-back">
-          <Link className="club-btn club-btn-secondary" href={`/events/${slug}`}>
-            Back to this race
-          </Link>
-        </p>
       </div>
     </RaceFrame>
   );

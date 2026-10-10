@@ -9,6 +9,7 @@ import {
   type FindingSummary,
 } from '../../../../lib/registration-outcomes';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { raceMetadata } from '../../../../lib/titles';
 
 export const generateMetadata = raceMetadata('Entry list');
@@ -253,11 +254,23 @@ export default async function RegistrationPage({
       page="Entry list"
       wide
     >
-      <div className="club-wrap-narrow">
-        <div className="club-phead">
-          <h1>Entry list</h1>
-          <p className="club-lede">Who is on the start line for {event.name}.</p>
-        </div>
+      <div className="timing-medium">
+        <PageHead
+          eyebrow={raceEyebrow(event.name)}
+          title="Registrations."
+          intro={
+            <p>
+              Who is on the start line for {event.name}: import the club&rsquo;s entries,
+              assign bibs, and take walk-ins. Addresses, phone numbers, emergency
+              contacts, medical notes and dates of birth are dropped before anything is
+              stored here.
+            </p>
+          }
+          status={{
+            count: `${teams.length} ${teams.length === 1 ? 'entry' : 'entries'} · ${numbered} with a bib`,
+            refresh: `/timing/events/${encodeURIComponent(slug)}/registration`,
+          }}
+        />
 
         {outcome === null ? null : (
           <div

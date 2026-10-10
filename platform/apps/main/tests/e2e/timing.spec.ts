@@ -541,7 +541,7 @@ test.describe('the marshal roster', () => {
     const response = await page.goto(rosterPath(testInfo.project.name));
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Staff.');
     /*
      * ⚠️ **The empty roster says *why* it matters, and that sentence is load-bearing.**
      * ADR-036 checks the roster after the permission for everybody, so a `timing-admin` who
@@ -558,7 +558,7 @@ test.describe('the marshal roster', () => {
     await page.goto(EVENT);
     await raceCard(page, 'Manage staff').click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Staff.');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/marshals`);
   });
 
@@ -1102,7 +1102,7 @@ test.describe('the entry list', () => {
     const response = await page.goto(registrationPath(testInfo.project.name));
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Registrations.');
 
     /*
      * ⚠️ **Both ways in are on the page and the club's own entries come first**, because
@@ -1126,7 +1126,7 @@ test.describe('the entry list', () => {
     await page.goto(EVENT);
     await raceCard(page, 'Manage registrations').click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Registrations.');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/registration`);
   });
 
@@ -2560,7 +2560,7 @@ test.describe('the danger zone', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(dangerZonePath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger zone');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger.');
 
     const removed = page.locator('dl').first();
     await expect(removed.getByText('Crossings recorded')).toBeVisible();
@@ -2607,7 +2607,7 @@ test.describe('the danger zone', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(dangerZonePath(testInfo.project.name));
 
-    const button = page.getByRole('button', { name: 'Wipe this race' });
+    const button = page.getByRole('button', { name: 'Reset event data' });
     await expect(button).toBeDisabled();
     await expect(button).toHaveAccessibleDescription(/Stays disabled until the box says/);
 
@@ -2631,7 +2631,7 @@ test.describe('the danger zone', () => {
     await page.goto(dangerZonePath(testInfo.project.name));
 
     await page.getByLabel(/^Type /).fill(resetEventSlug(testInfo.project.name));
-    await page.getByRole('button', { name: 'Wipe this race' }).click();
+    await page.getByRole('button', { name: 'Reset event data' }).click();
 
     await expect(page.getByText(/This race has been wiped/)).toBeVisible();
 
@@ -2655,7 +2655,7 @@ test.describe('the danger zone', () => {
     for (const pass of [1, 2]) {
       await page.goto(dangerZonePath(testInfo.project.name));
       await page.getByLabel(/^Type /).fill(slug);
-      await page.getByRole('button', { name: 'Wipe this race' }).click();
+      await page.getByRole('button', { name: 'Reset event data' }).click();
       await expect(
         page.getByText(/This race has been wiped/),
         `pass ${pass}`,
@@ -2686,7 +2686,7 @@ test.describe('the danger zone', () => {
 
     await page.goto(dangerZonePath(testInfo.project.name));
     await page.getByLabel(/^Type /).fill(resetEventSlug(testInfo.project.name));
-    await page.getByRole('button', { name: 'Wipe this race' }).click();
+    await page.getByRole('button', { name: 'Reset event data' }).click();
 
     await expect(page.getByText(/This race has been wiped/)).toBeVisible();
     expect(dialogs, 'the typing is the modal').toBe(0);
@@ -2701,7 +2701,7 @@ test.describe('the danger zone', () => {
       .getByRole('navigation', { name: 'Race timing', exact: true })
       .getByRole('link', { name: 'Danger' })
       .click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger zone');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger.');
   });
 
   test('gives a race that does not exist the ordinary not-found page', async ({
@@ -2778,7 +2778,7 @@ test.describe('the results preview', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(previewPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results.');
     await expect(page.getByText('Finished, not published')).toBeVisible();
 
     const table = page.getByRole('table');
@@ -2974,7 +2974,7 @@ test.describe('the results preview', () => {
     await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
 
     await raceCard(page, 'Results').click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Results.');
   });
 
   test('has no accessibility violations @requires-js', async ({ page }, testInfo) => {
@@ -3652,6 +3652,10 @@ test.describe('the app shell every timing page wears', () => {
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     for (const [suffix, title] of [
+      ['/results', 'Results.'],
+      ['/marshals', 'Staff.'],
+      ['/registration', 'Registrations.'],
+      ['/danger-zone', 'Danger.'],
       ['/anomalies', 'Anomalies.'],
       ['/crossings', 'Timing log.'],
       ['/prizes', 'Prizes.'],

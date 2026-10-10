@@ -41,7 +41,7 @@ export function WipeConfirm({
     <>
       <div className="club-field">
         <label className="club-label" htmlFor="confirmation">
-          Type <strong>{slug}</strong> to confirm
+          Type <strong>{slug}</strong> to enable the reset button
         </label>
         <p className="club-hint" id="confirmation-hint">
           Exactly as it appears above, in lower case.
@@ -73,7 +73,7 @@ export function WipeConfirm({
           disabled={disabled}
           aria-describedby={reason === null ? undefined : 'wipe-reason'}
         >
-          Wipe this race
+          Reset event data
         </button>
         {reason === null ? null : (
           <span className="timing-guard-reason" id="wipe-reason">

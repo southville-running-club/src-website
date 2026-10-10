@@ -2127,3 +2127,14 @@ body:has(.timing-ui) {
 .timing-presenter-leave {
   font-weight: 700;
 }
+
+/* Pass the Buck's medium width (ADR-055): Staff and Registrations are forms and short lists, so
+   they read better held to a column than stretched across a laptop. */
+.timing-medium {
+  max-width: 56rem;
+}
+
+.timing-danger-card h2 {
+  margin-top: 0;
+  color: var(--club-danger);
+}

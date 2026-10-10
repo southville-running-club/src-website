@@ -235,3 +235,19 @@ Its place is in the address (`?present=1&prize=N&reveal=1`) like every other cho
 makes, so a refresh mid-ceremony loses nothing, and it works with scripting off. **Not adopted:**
 Pass the Buck's Facebook link and "Copy HTML" export. The prize CSV and spreadsheet stay as they
 are.
+
+## Amendment, 10 October 2026: every page opens the same way
+
+**Results, Staff, Registrations and Danger** now open with the shared page head: an eyebrow, a
+heading ending in a full stop, an intro and a status row. With the five pages done when this ADR
+was written, §4's "page by page" is finished.
+- **Headings:** "Results.", "Staff.", "Registrations." and "Danger.". The pages were headed
+  Results, Marshals, Entry list and Danger zone.
+- **Status rows:**
+  - Results counts finishers and DNS / DNF / DQ, from the same `buildResults()` its table uses.
+  - Staff counts the marshals on the roster.
+  - Registrations counts entries and how many have a bib.
+- **Widths:** Staff and Registrations are held to a medium column (56rem); Danger stays narrow.
+- **Danger** uses Pass the Buck's wording. Its card is **Reset event data**, the box says "Type
+  the slug to enable the reset button", and the button is **Reset event data**. Its "Back to
+  this race" row is gone, since the nav is the way back.
