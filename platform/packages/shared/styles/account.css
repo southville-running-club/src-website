@@ -10,10 +10,84 @@
  * desktop, and the Turnstile widget's own spacing.
  */
 
+/* **The page lines up with the header above it, and its text keeps a reading measure.**
+   This was a 32rem column centred in the window, so on a desktop it sat in the middle while the
+   club logo and the section bar's first tab sat at the left of `.club-wrap` — two left edges a
+   few hundred pixels apart. Now `<main>` is as wide as `.club-wrap` and has its gutter, and each
+   child is capped at the old 32rem instead, so a form is exactly as narrow as it was and starts
+   where the logo does. `.account-tiles` is the one child allowed the full width. */
 .account-page {
-  max-width: 32rem;
+  max-width: var(--club-wrap, 1200px);
   margin: 0 auto;
-  padding: calc(var(--space) * 2) var(--space);
+  padding: calc(var(--space) * 2) var(--club-gutter, var(--space));
+}
+
+.account-page > * {
+  max-width: 32rem;
+}
+
+.account-page > .account-tiles,
+.account-page > .account-staff {
+  max-width: none;
+}
+
+.account-lede {
+  margin-bottom: calc(var(--space) * 1.5);
+}
+
+/* The account home's cards — one per page, each saying what it is for. Same rule-and-radius,
+   no-fill treatment as `.account-card` below, for that rule's reason. **The link is the title**
+   and its `::after` covers the card, so the whole card is a target without the hint becoming
+   part of the link's name. */
+.account-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space);
+  margin: 0 0 calc(var(--space) * 2);
+  padding: 0;
+  list-style: none;
+}
+
+.account-tile {
+  position: relative;
+  margin: 0;
+  padding: var(--space);
+  border: 1px solid var(--colour-rule);
+  border-radius: 6px;
+}
+
+.account-tile > a {
+  font-weight: 700;
+}
+
+.account-tile > a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.account-tile:hover {
+  border-color: var(--colour-accent);
+}
+
+/* No `color` on the hint, for `.account-note`'s reason below. Keyboard focus is the global
+   `:focus-visible` ring on the link itself. */
+.account-tile > p {
+  margin: 0.35rem 0 0;
+  font-size: 0.9375rem;
+}
+
+.account-staff > h2 {
+  margin-bottom: 0.25rem;
+}
+
+.account-staff > .field-hint {
+  margin: 0 0 var(--space);
+}
+
+.account-sign-out {
+  margin-top: var(--space);
 }
 
 .account-captcha {

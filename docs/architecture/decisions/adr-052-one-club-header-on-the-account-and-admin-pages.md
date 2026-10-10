@@ -1,6 +1,6 @@
 # ADR-052: One club header on the account and admin pages
 
-**Status:** Accepted
+**Status:** Accepted · §5 superseded by [ADR-057](adr-057-staff-tools-are-on-the-account-home.md) on 10 October 2026
 **Date:** 1 October 2026
 **Supersedes:** [ADR-048](adr-048-the-club-website-is-its-own-surface.md) **in part** — its
 fence around `/account/*` and `/admin/*` only. ADR-048's fence around `/nn/*`,

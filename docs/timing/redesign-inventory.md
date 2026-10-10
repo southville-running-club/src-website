@@ -330,7 +330,7 @@ the test.
 
 The three-area header has to come from the same predicates `/account/` already uses:
 `holdsAnyTimingPermission()` for Race timing and `isStaff()` for Club admin (`worker/account.ts`
-`withStaffTabs()`). Otherwise the account bar and the timing header would disagree about who
+`staffAreas()` since ADR-057). Otherwise the account home and the timing header would disagree about who
 sees what.
 
 ### 5.2 Proposed area bar (D1 default: race-day order)

@@ -364,13 +364,14 @@ describe('the club chrome, on every account page', () => {
   });
 
   /**
-   * The tabs that depend on who is signed in, drawn by the predicate each door asks.
+   * Staff tools, drawn by the predicate each door asks — on the home page, never in the bar.
    *
-   * A member — an account and nothing beyond `registered` — sees the five account tabs. A
-   * timing volunteer sees Race timing as well, staff see Club admin, and `src-admin` sees both.
-   * Each case is the role's own permissions as `identity-permissions.test.ts` asserts them.
+   * A member — an account and nothing beyond `registered` — sees none. A timing volunteer sees
+   * Race timing, staff see Club admin, and `src-admin` sees both. Each case is the role's own
+   * permissions as `identity-permissions.test.ts` asserts them. **The bar is the five account
+   * pages for everybody**, because a tab that leaves the section is not a page of the section.
    */
-  describe('the tabs that depend on who is signed in', () => {
+  describe('the staff tools, which depend on who is signed in', () => {
     function signedInAs(roles: string[], permissions: string[]) {
       getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
       userGetUser.mockResolvedValue({
@@ -386,13 +387,6 @@ describe('the club chrome, on every account page', () => {
       );
     }
 
-    async function tabsOn(path: string): Promise<string[]> {
-      const markup = await render(path, SIGNED_IN);
-      const bar = element(markup, /<nav class="club-section"/, 'nav');
-      expect(markup, 'the slot must never reach a page').not.toContain('staff tabs');
-      return [...bar.matchAll(/<a href="[^"]+"[^>]*>([^<]+)<\/a>/g)].map((m) => m[1]!);
-    }
-
     const ACCOUNT = [
       'Your account',
       'Your entries',
@@ -401,24 +395,37 @@ describe('the club chrome, on every account page', () => {
       'Your data',
     ];
 
-    it('gives a member the five account tabs and nothing else', async () => {
+    async function home(): Promise<{ tabs: string[]; tools: string[] }> {
+      const markup = await render('/account/', SIGNED_IN);
+      const bar = element(markup, /<nav class="club-section"/, 'nav');
+      const tabs = [...bar.matchAll(/<a href="[^"]+"[^>]*>([^<]+)<\/a>/g)].map(
+        (m) => m[1]!,
+      );
+      const staff = element(markup, /<section class="account-staff"/, 'section');
+      const tools = [...staff.matchAll(/<a href="[^"]+">([^<]+)<\/a>/g)].map(
+        (m) => m[1]!,
+      );
+      return { tabs, tools };
+    }
+
+    it('gives a member the five account tabs and no staff tools', async () => {
       signedInAs(['registered'], []);
-      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+      expect(await home()).toEqual({ tabs: ACCOUNT, tools: [] });
     });
 
-    it('adds Race timing for a marshal, and not Club admin', async () => {
+    it('offers Race timing to a marshal, and not Club admin', async () => {
       signedInAs(['registered', 'timing-marshal'], ['timing.crossing.record']);
-      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Race timing']);
+      expect(await home()).toEqual({ tabs: ACCOUNT, tools: ['Race timing'] });
     });
 
-    it('adds Club admin for staff, and not Race timing', async () => {
+    it('offers Club admin to staff, and not Race timing', async () => {
       signedInAs(['registered', 'nn-admin'], ['nn.entry.read', 'nn.email.read']);
-      expect(await tabsOn('/account/')).toEqual([...ACCOUNT, 'Club admin']);
+      expect(await home()).toEqual({ tabs: ACCOUNT, tools: ['Club admin'] });
     });
 
     it('does not count nn-tester as staff, because /admin/ would answer it 404', async () => {
       signedInAs(['registered', 'nn-tester'], ['nn.entry.before_open']);
-      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+      expect(await home()).toEqual({ tabs: ACCOUNT, tools: [] });
     });
 
     it('gives src-admin both', async () => {
@@ -426,11 +433,10 @@ describe('the club chrome, on every account page', () => {
         ['registered', 'src-admin'],
         ['identity.person.read', 'timing.event.manage'],
       );
-      expect(await tabsOn('/account/')).toEqual([
-        ...ACCOUNT,
-        'Race timing',
-        'Club admin',
-      ]);
+      expect(await home()).toEqual({
+        tabs: ACCOUNT,
+        tools: ['Race timing', 'Club admin'],
+      });
     });
 
     it('draws neither when the read fails, rather than guessing', async () => {
@@ -442,21 +448,25 @@ describe('the club chrome, on every account page', () => {
       );
       const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      expect(await tabsOn('/account/')).toEqual(ACCOUNT);
+      expect(await home()).toEqual({ tabs: ACCOUNT, tools: [] });
       expect(errors.mock.calls.flat().join(' ')).toContain('PGRST202');
       errors.mockRestore();
     });
 
     it('links each to the page its own door opens', async () => {
       signedInAs(['registered', 'src-admin'], ['timing.event.manage']);
-      const bar = element(
-        await render('/account/', SIGNED_IN),
-        /<nav class="club-section"/,
-        'nav',
-      );
+      const markup = await render('/account/', SIGNED_IN);
 
-      expect(bar).toContain('<li><a href="/timing">Race timing</a></li>');
-      expect(bar).toContain('<li><a href="/admin/">Club admin</a></li>');
+      expect(markup).toContain('<a href="/timing">Race timing</a>');
+      expect(markup).toContain('<a href="/admin/">Club admin</a>');
+    });
+
+    it('offers them on no other account page', async () => {
+      signedInAs(['registered', 'src-admin'], ['timing.event.manage']);
+      const markup = await render('/account/password/', SIGNED_IN);
+
+      expect(markup).not.toContain('href="/timing"');
+      expect(markup).not.toContain('href="/admin/"');
     });
   });
 
@@ -557,8 +567,8 @@ describe('GET /account/, signed in', () => {
    *
    * Drawn from `holdsAnyTimingPermission()`, the same predicate `/timing/`'s door asks — so the
    * cases are a permission that opens it, permissions that do not, and a read that failed.
-   * **It is the account bar's tab since ADR-052**; the page used to draw a second copy of the
-   * same link in its body, and the first case below asserts there is only one.
+   * **It is a Staff tools card on this page since 10 October 2026**, and was the account bar's
+   * tab under ADR-052 before that; the first case below asserts there is only one.
    */
   describe('the Race timing link', () => {
     async function homeWith(answer: { data: unknown; error: unknown }): Promise<string> {
@@ -585,10 +595,9 @@ describe('GET /account/, signed in', () => {
       const body = await homeWith({ data: ['timing.crossing.record'], error: null });
 
       expect(body).toContain('<a href="/timing">Race timing</a>');
-      // One link, in the bar — not the bar's and a second in the page that went to the same
-      // place. Two would also make `getByRole('link', { name: 'Race timing' })` ambiguous.
+      // One link, under Staff tools — never a second copy in the bar. Two would also make
+      // `getByRole('link', { name: 'Race timing' })` ambiguous.
       expect(body.match(/href="\/timing"/g) ?? []).toHaveLength(1);
-      expect(body).toContain('<li><a href="/timing">Race timing</a></li>');
     });
 
     it('is not drawn for somebody holding nothing under timing', async () => {

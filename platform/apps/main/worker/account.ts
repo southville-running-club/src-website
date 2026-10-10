@@ -42,7 +42,6 @@ import {
   clubHeader,
   clubSkipLink,
   sectionBar,
-  type SectionTab,
 } from './club-chrome';
 import { faviconLink } from './site-chrome';
 import {
@@ -255,28 +254,19 @@ export async function handleAccount(
     return redirectTo('/account/sign-in/?timed-out=ok', secure, refreshedCookies);
   }
 
-  const response = await routeAccount(request, env, url, {
+  return routeAccount(request, env, url, {
     secure,
     cfg,
     session,
     refreshedCookies,
     segments,
   });
-
-  // **GET only.** A POST that is refused — a stale form, a missing confirmation — re-renders
-  // the page and must still ask the database nothing at all, which is what makes a forged or
-  // replayed submission cheap to turn away. So a re-rendered form shows the five tabs every
-  // account has, and the next ordinary load shows the rest.
-  return session !== null && request.method === 'GET'
-    ? withStaffTabs(response, session, cfg)
-    : withoutStaffTabs(response);
 }
 
 /**
  * Every address under `/account/` past the session read and the two guards above it.
  *
- * Split out of `handleAccount()` so that what this answers can be finished in one place on its
- * way out — `withStaffTabs()` — rather than at the thirty-odd places a page is built.
+ * Split out of `handleAccount()` so the session read and its guards sit apart from the routing.
  */
 async function routeAccount(
   request: Request,
@@ -499,13 +489,15 @@ async function accountHome(
   // is where the confirmed address lives — `identity.people` deliberately does not hold one —
   // and it is the read `worker/admin.ts` already makes for the same purpose.
   //
-  // **The "Race timing" link moved to the section bar on 1 October 2026** — ADR-052. It was drawn
-  // here, in the page, from `my_permissions()` and `holdsAnyTimingPermission()`, because this
-  // was the only page a timing volunteer could reach that knew who they were. The account bar's
-  // **Race timing** tab is drawn by `withStaffTabs()` from the same predicate and goes to the same
-  // address, on every signed-in account page rather than this one, so the link and the read that
-  // fed it went. A failed read still draws no link, there as it did here.
-  const { data: user } = await client.auth.getUser();
+  // **Staff tools are on this page and nowhere else in the section, since 10 October 2026.**
+  // They were tabs in the account bar from ADR-052 — "Race timing" and "Club admin" after the
+  // five account pages — which put two different applications in a bar of personal pages, so
+  // pressing either silently left the section. They are a labelled group here instead, drawn by
+  // `staffAreas()` from the predicate each door asks.
+  const [{ data: user }, areas] = await Promise.all([
+    client.auth.getUser(),
+    staffAreas(client),
+  ]);
   const email = user?.user?.email ?? null;
 
   const csrfToken = mintCsrfToken();
@@ -513,7 +505,7 @@ async function accountHome(
   const body = html`
     <main class="account-page" id="main">
       <h1>Your account</h1>
-      <p>
+      <p class="account-lede">
         ${
           email === null
             ? /* The session is good — it got this far — but Supabase Auth did not answer.
@@ -530,13 +522,19 @@ async function accountHome(
             : html`Signed in as <strong>${email}</strong>.`
         }
       </p>
-      <p><a href="/account/entries/">Your race entries</a></p>
-      <p><a href="/account/details/">Your details</a></p>
-      <p><a href="/account/password/">Change your password</a></p>
-      <p><a href="/account/data/">Your data — download or delete it</a></p>
-      <form method="post" action="/account/sign-out/">
+      ${tiles(ACCOUNT_TILES)}
+      ${
+        areas.length === 0
+          ? null
+          : html`<section class="account-staff" aria-labelledby="account-staff">
+              <h2 id="account-staff">Staff tools</h2>
+              <p class="field-hint">Shown because of the roles you hold.</p>
+              ${tiles(areas)}
+            </section>`
+      }
+      <form class="account-sign-out" method="post" action="/account/sign-out/">
         <input type="hidden" name="${raw(CSRF_FIELD)}" value="${csrfToken}" />
-        <button class="button" type="submit">Sign out</button>
+        <button class="button button-secondary" type="submit">Sign out</button>
       </form>
     </main>
   `;
@@ -2940,90 +2938,104 @@ const ACCOUNT_TABS = [
 
 type AccountTab = (typeof ACCOUNT_TABS)[number]['href'];
 
-/**
- * Where the tabs that depend on who is signed in go. `page()` writes this comment inside the
- * section bar's list and `withStaffTabs()` replaces it on the way out of `handleAccount()` with
- * whatever this person may open — so the thirty-odd places a page is built need to know
- * nothing about roles.
- */
-const STAFF_TABS_SLOT = '<!-- account: staff tabs -->';
+interface Tile {
+  href: string;
+  label: string;
+  hint: string;
+}
+
+/** The four account pages, as the home page offers them — each with what it is for. */
+const ACCOUNT_TILES: readonly Tile[] = [
+  {
+    href: '/account/entries/',
+    label: 'Your race entries',
+    hint: 'The places you hold, and asking to cancel or transfer one.',
+  },
+  {
+    href: '/account/details/',
+    label: 'Your details',
+    hint: 'Your name, date of birth and email address.',
+  },
+  {
+    href: '/account/password/',
+    label: 'Change your password',
+    hint: 'The password you sign in with.',
+  },
+  {
+    href: '/account/data/',
+    label: 'Your data',
+    hint: 'Download what the club holds about you, or delete your account.',
+  },
+];
 
 /**
- * The tabs only some people get: **Race timing** for anybody holding a `timing.*` permission,
- * and **Club admin** for anybody holding a staff role. A member — somebody with an account and
- * no role beyond `registered` — gets neither, and sees the five account tabs alone.
+ * A list of cards, each one link. **The link is the title alone**, so its accessible name is the
+ * page's name rather than the name and a sentence; the card is made clickable by the link's own
+ * `::after` stretched over it, in `account.css`, not by wrapping the card in the link.
+ */
+function tiles(items: readonly Tile[]): Html {
+  return html`<ul class="account-tiles">
+    ${items.map(
+      (item) =>
+        html`<li class="account-tile">
+          <a href="${item.href}">${item.label}</a>
+          <p>${item.hint}</p>
+        </li>`,
+    )}
+  </ul>`;
+}
+
+/**
+ * The applications beyond this one that somebody may open: **Race timing** for anybody holding a
+ * `timing.*` permission, and **Club admin** for anybody holding a staff role. A member —
+ * somebody with an account and no role beyond `registered` — gets neither.
  *
  * **Each is drawn by the predicate its own door asks**: `holdsAnyTimingPermission()` is what
- * `/timing`'s middleware asks and `isStaff()` is what `/admin/` asks. So a tab appears exactly
+ * `/timing`'s middleware asks and `isStaff()` is what `/admin/` asks. So a card appears exactly
  * when following it would open a page, and never when it would answer 404 — a link to a refusal
  * tells somebody the page exists, which is the disclosure both doors are built to avoid. Read
  * per request, so a role granted at `/admin/people/` shows on the next load.
  *
  * **A failed read draws neither**, with a code in the log and nothing about it on the page: a
  * missing shortcut costs somebody one typed address, and a drawn one would be a guess about
- * access. The rule `accountHome()` already keeps for its own Race timing link.
- *
- * Only a response carrying the slot pays for the two reads — the five signed-in pages — and a
- * response without one passes through with its body unchanged.
+ * access.
  */
-/** The slot, emptied, for a response that is not getting the tabs — a POST's re-render. */
-async function withoutStaffTabs(response: Response): Promise<Response> {
-  if (!(response.headers.get('content-type') ?? '').startsWith('text/html'))
-    return response;
-  const markup = await response.text();
-  return new Response(markup.replace(STAFF_TABS_SLOT, ''), {
-    status: response.status,
-    headers: response.headers,
-  });
-}
+async function staffAreas(client: ReturnType<typeof createUserClient>): Promise<Tile[]> {
+  const [roleRead, permissionRead] = await Promise.all([
+    client.rpc('my_roles'),
+    client.rpc('my_permissions'),
+  ]);
+  const failure = roleRead.error ?? permissionRead.error;
 
-async function withStaffTabs(
-  response: Response,
-  session: Session,
-  cfg: SupabaseConfig,
-): Promise<Response> {
-  if (!(response.headers.get('content-type') ?? '').startsWith('text/html'))
-    return response;
-
-  const markup = await response.text();
-  const tabs: SectionTab[] = [];
-
-  if (markup.includes(STAFF_TABS_SLOT)) {
-    const client = createUserClient(cfg, session.accessToken);
-    const [roleRead, permissionRead] = await Promise.all([
-      client.rpc('my_roles'),
-      client.rpc('my_permissions'),
-    ]);
-    const failure = roleRead.error ?? permissionRead.error;
-
-    if (failure) {
-      // A code and a message, never a row — the property `/admin/` keeps for the same read.
-      console.error(
-        `identity role/permission read unavailable — ${failure.code}: ${failure.message}`,
-      );
-    } else {
-      const roles = Array.isArray(roleRead.data) ? (roleRead.data as string[]) : [];
-      const permissions = Array.isArray(permissionRead.data)
-        ? (permissionRead.data as string[])
-        : [];
-
-      if (holdsAnyTimingPermission(permissions)) {
-        tabs.push({ href: '/timing', label: 'Race timing' });
-      }
-      if (isStaff(roles)) {
-        tabs.push({ href: '/admin/', label: 'Club admin' });
-      }
-    }
+  if (failure) {
+    // A code and a message, never a row — the property `/admin/` keeps for the same read.
+    console.error(
+      `identity role/permission read unavailable — ${failure.code}: ${failure.message}`,
+    );
+    return [];
   }
 
-  const items = html`${tabs.map(
-    (tab) => html`<li><a href="${tab.href}">${tab.label}</a></li>`,
-  )}`.toString();
+  const roles = Array.isArray(roleRead.data) ? (roleRead.data as string[]) : [];
+  const permissions = Array.isArray(permissionRead.data)
+    ? (permissionRead.data as string[])
+    : [];
+  const areas: Tile[] = [];
 
-  return new Response(
-    markup.replace(STAFF_TABS_SLOT, () => items),
-    { status: response.status, headers: response.headers },
-  );
+  if (holdsAnyTimingPermission(permissions)) {
+    areas.push({
+      href: '/timing',
+      label: 'Race timing',
+      hint: 'Timing, marshalling and results for the club’s races.',
+    });
+  }
+  if (isStaff(roles)) {
+    areas.push({
+      href: '/admin/',
+      label: 'Club admin',
+      hint: 'Race entries, emails, people and roles.',
+    });
+  }
+  return areas;
 }
 
 /**
@@ -3068,7 +3080,7 @@ function page(
       </head>
       <body>
         ${clubSkipLink()} ${clubHeader(`${ACCOUNT_PREFIX}/`)}
-        ${options.tab === undefined ? '' : sectionBar('Account', ACCOUNT_TABS, options.tab, raw(STAFF_TABS_SLOT))}
+        ${options.tab === undefined ? '' : sectionBar('Account', ACCOUNT_TABS, options.tab)}
         ${main} ${clubFooter()}
       </body>
     </html>`;
