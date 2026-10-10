@@ -286,6 +286,14 @@ const EVENT_SECTION_ACTIONS: Record<
    */
   results: { update: 'timing.result.publish', export: 'timing.result.publish' },
   prizes: { export: 'timing.result.publish' },
+  /**
+   * The admin half of the Roster (ADR-056): correcting a name or a bib, setting a status, and
+   * adding an on-the-day runner. The entry list's own permission — the person who imports it
+   * and adds walk-ins is the person who corrects it. A status change also needs
+   * `timing.event.manage`, which `set_race_status()` checks itself. A marshal, who reads the
+   * roster, is refused here.
+   */
+  roster: { update: 'timing.registration.import' },
 };
 
 /**

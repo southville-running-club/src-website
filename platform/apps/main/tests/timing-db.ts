@@ -876,6 +876,27 @@ export async function resetStatusRace(project: string): Promise<void> {
       eventId,
     ]);
     await db.query('delete from timing.admin_actions where event_id = $1', [eventId]);
+
+    // The Roster's admin half (ADR-056) changes more than a status: a corrected name, a bib
+    // override, and an on-the-day runner added. Put the fixture back exactly, so a test that
+    // renamed Ada does not leave the next one looking for somebody who is not there.
+    const numbers = STATUS_TEAMS.map((team) => team.number);
+    await db.query(
+      'delete from timing.teams where event_id = $1 and not (team_number = any($2::text[]))',
+      [eventId, numbers],
+    );
+    await db.query(
+      'update timing.teams set bib_leg1 = null, bib_leg2 = null where event_id = $1',
+      [eventId],
+    );
+    for (const team of STATUS_TEAMS) {
+      await db.query(
+        `update timing.runners r set firstname = $3, lastname = $4
+           from timing.teams t
+          where r.team_id = t.id and t.event_id = $1 and t.team_number = $2`,
+        [eventId, team.number, team.firstname, team.lastname],
+      );
+    }
   });
 }
 

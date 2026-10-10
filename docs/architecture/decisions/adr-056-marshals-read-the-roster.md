@@ -62,3 +62,36 @@ on-the-day runners is an admin's too, and arrives in a later change.
 - **`identity-permissions.test.ts` grows to nineteen permissions**, and the timing schema to
   thirty-six granted functions. Each addition was made in a diff, which is what both lists
   exist to force.
+
+## Amendment, 10 October 2026: the admin half
+
+§4 said fixing names and bibs and adding on-the-day runners would arrive later. It has. Admins
+change the Roster from the page itself:
+
+- **Edit**, a link on each row, opens a panel to correct the runner's name and bib. For somebody
+  holding `timing.event.manage` it also sets Normal, DNS, DNF or DQ, with help text that
+  matches what is chosen.
+- **Add runner** takes an on-the-day entry: a name, how they want to be placed, an optional age
+  (never a date of birth) and the spare bib being handed over. Left blank, the bib is the next
+  unused number.
+- Both post to `roster/update`, behind **`timing.registration.import`**, the entry list's own
+  permission. A marshal is refused there, as at every other write.
+
+One new database function, **`timing.rename_runner()`**:
+- It is a compare-and-swap on the name the form was drawn with. Two desks correcting the same
+  runner is the normal case, so the second is told "changed on another device" rather than
+  overwriting the first.
+- It is audited without copying the old or new name into `admin_actions`.
+
+Everything else reuses functions that existed:
+- `set_bib_override()` refuses a bib somebody else holds. The page names who holds it, looked up
+  from the roster it has already read, so no name travels in the address.
+- `add_walk_in()` creates the runner, with the next free number.
+- `set_race_status()` sets the status.
+
+**What the desk spec asked for that this does not do:**
+- **A reason with a DQ**: `set_race_status()` takes none.
+- **Swapping two runners' bibs in one save.**
+- **Marking a runner as an on-the-day entry**: no column records where an entry came from.
+
+Each would be a new function, and none was asked for in this change.

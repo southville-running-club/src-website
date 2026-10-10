@@ -1558,6 +1558,111 @@ body:has(.timing-ui) {
   }
 }
 
+/* The Edit and Add panels — on the page rather than a scripted modal (`panels.tsx`). */
+.timing-roster-panel {
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid var(--club-text);
+}
+
+.timing-roster-panel h2 {
+  margin: 0 0 0.25rem;
+}
+
+.timing-roster-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0 1rem;
+  margin-top: 1rem;
+}
+
+.timing-roster-fields .field-input {
+  width: 100%;
+  min-height: 3rem;
+}
+
+.timing-roster-status-field {
+  margin: 1rem 0;
+  padding: 0;
+  border: 0;
+}
+
+.timing-roster-status-field legend {
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+/* A segmented control made of real radios, so it is a radio group to a screen reader and to the
+   keyboard, and works with scripting off. */
+.timing-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--club-rule-strong);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.timing-segmented label {
+  position: relative;
+  display: inline-flex;
+}
+
+.timing-segmented input {
+  position: absolute;
+  opacity: 0;
+}
+
+.timing-segmented span {
+  min-width: 4rem;
+  padding: 0.6rem 1rem;
+  color: var(--club-text);
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+}
+
+.timing-segmented input:checked + span {
+  background: var(--club-text);
+  color: var(--club-surface);
+}
+
+.timing-segmented input:focus-visible + span {
+  outline: 2px solid var(--club-focus);
+  outline-offset: -4px;
+}
+
+/* The help line that matches what is chosen. With scripting off and no `:has()`, every line
+   shows, which is still true. */
+.timing-status-help {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--club-muted);
+  font-size: 0.9375rem;
+}
+
+.timing-roster-status-field:has(input:checked) .timing-status-help li {
+  display: none;
+}
+
+.timing-roster-status-field:has(input[value='normal']:checked) li[data-status='normal'],
+.timing-roster-status-field:has(input[value='dns']:checked) li[data-status='dns'],
+.timing-roster-status-field:has(input[value='dnf']:checked) li[data-status='dnf'],
+.timing-roster-status-field:has(input[value='dq']:checked) li[data-status='dq'] {
+  display: list-item;
+}
+
+.timing-roster-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.timing-roster-edit {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+}
+
 /* The paper sheet: A4 portrait, the heading and the table, and a box to tick per runner. */
 @media print {
   @page {
@@ -1570,6 +1675,9 @@ body:has(.timing-ui) {
   .app-footer,
   .club-skip,
   .timing-roster-toolbar,
+  .timing-roster-panel,
+  .timing-roster-actions,
+  .club-notice,
   .timing-intro,
   .timing-statusrow,
   .timing-roster-admin {
