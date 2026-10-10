@@ -66,6 +66,7 @@ export default defineConfig({
     '**/timing-redesign-baseline.screens.ts',
     '**/timing-redesign-shell.screens.ts',
     '**/account-home.screens.ts',
+    '**/marshal-keypad.screens.ts',
   ],
   testIgnore: [
     '**/node_modules/**',

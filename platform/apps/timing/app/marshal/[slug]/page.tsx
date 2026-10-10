@@ -1,6 +1,12 @@
 import { formatLondon } from '@src/shared';
 import type { EventFormat } from '@src/shared/timing/anomaly';
-import { readSignedInAs, readTiming } from '../../../lib/reads';
+import {
+  readPermissions,
+  readRosteredSlugs,
+  readSignedInAs,
+  readTiming,
+} from '../../../lib/reads';
+import { raceNav, timingHref } from '../../../lib/chrome';
 import { MarshalScreen } from './marshal-screen';
 import { NotFoundBody } from '../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../chrome/frames';
@@ -97,7 +103,17 @@ export default async function MarshalPage({
   }
 
   const event = read.data;
-  const signedInAs = await readSignedInAs();
+  const [signedInAs, permissions, rosteredSlugs] = await Promise.all([
+    readSignedInAs(),
+    readPermissions(),
+    readRosteredSlugs(),
+  ]);
+  // Timing mode keeps the tab bar above the screen, out of view, so the same tabs — less this
+  // one — are offered in the ⋯ menu. The same `raceNav()` the bar is drawn from, so the two
+  // cannot disagree about what this person may open.
+  const menuLinks = raceNav(permissions, slug, rosteredSlugs.includes(slug))
+    .filter((tab) => tab.key !== 'marshal')
+    .map((tab) => ({ label: tab.label, href: timingHref(tab.path) }));
   const when =
     event.finished_at !== null
       ? `This race finished at ${formatLondon(event.finished_at)}.`
@@ -114,6 +130,7 @@ export default async function MarshalPage({
           raceName={event.name}
           marshalName={signedInAs}
           when={when}
+          menuLinks={menuLinks}
         >
           {/* ⚠️ The server's own markup, and what a phone with no JavaScript is left with. It
             says what to do instead, because "this needs JavaScript" on its own is of no use to
