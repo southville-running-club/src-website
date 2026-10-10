@@ -3174,7 +3174,12 @@ test.describe('the live leaderboard', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(boardPath(testInfo.project.name));
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
+    // Pass the Buck's header band (ADR-055): the race's name, and — the fixture race being
+    // finished — "Final results".
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      `Preview fixture ${testInfo.project.name}`,
+    );
+    await expect(page.locator('.timing-live-band')).toContainText('Final results');
 
     // The fixture's three captures are forty, forty-five and forty-six minutes after a recorded
     // start, so the order is 701, 702, 703 — and 704, who is marked DNF, sorts behind all of them
@@ -3184,6 +3189,29 @@ test.describe('the live leaderboard', () => {
     await expect(rows.nth(0)).toContainText('701');
     await expect(rows.nth(0)).toContainText('40:00');
     await expect(rows.nth(3)).toContainText('Did not finish');
+  });
+
+  /**
+   * **Top of the race** — Pass the Buck's panel (ADR-055): the first three across the line, from
+   * the board's own positions, so it cannot disagree with the table below it.
+   */
+  test('puts the first three across the line at the top, whatever the sort', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${boardPath(testInfo.project.name)}?sort=teamNumber`);
+
+    const cards = page
+      .getByRole('region', { name: 'Top of the race' })
+      .locator('.timing-top-card');
+    await expect(cards).toHaveCount(3);
+    await expect(cards.nth(0)).toContainText('1st');
+    await expect(cards.nth(0)).toContainText('701');
+    await expect(cards.nth(0)).toContainText('40:00');
+    // The category comes from the runners now rather than a stored value nobody fills in.
+    await expect(page.locator('table.results-table tbody tr').first()).toContainText(
+      "Men's Vet 50",
+    );
   });
 
   /**
@@ -3277,7 +3305,7 @@ test.describe('the live leaderboard', () => {
     // The hub's primary button, as Pass the Buck's is (ADR-055).
     await raceCard(page, 'Live results').click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
+    await expect(page.locator('.timing-live-band')).toBeVisible();
   });
 
   /**

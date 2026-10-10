@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { formatLondonClock } from '@src/shared';
 import { formatDuration } from '@src/shared/timing/results';
 import {
@@ -8,6 +8,7 @@ import {
   type Leaderboard,
   type LeaderboardRow,
 } from '@src/shared/timing/leaderboard';
+import { isGuide, resultCategoryLabel } from '@src/shared/timing/result-category';
 import type { LeaderboardPayload } from '../../../../lib/leaderboard';
 import {
   boardCaveats,
@@ -106,21 +107,39 @@ function BoardRow({
   row,
   board,
   format,
+  category,
 }: {
   row: LeaderboardRow;
   board: Leaderboard;
   format: 'relay' | 'solo';
+  category: string;
 }) {
   return (
     <tr>
       <td className="results-num">
         {row.position === null ? '—' : String(row.position)}
       </td>
-      <td className="results-num">{bibCell(row)}</td>
-      <td className="results-name">{whoCell(row)}</td>
-      <td>{row.category ?? '—'}</td>
+      <td className="results-status">
+        {/* One short pill, as Pass the Buck's: a flagged row says so instead of its status,
+            because its time is the thing in question. */}
+        <span
+          className="timing-live-pill"
+          data-status={row.suspect ? 'suspect' : row.status}
+        >
+          {row.suspect
+            ? `${SUSPECT_WORDS.charAt(0).toUpperCase()}${SUSPECT_WORDS.slice(1)}`
+            : statusWords(row.status, format)}
+        </span>
+      </td>
+      <td className="results-name">
+        {whoCell(row)}
+        <span className="timing-live-bib">
+          Bib <span className="timing-mono">{bibCell(row)}</span>
+        </span>
+      </td>
+      <td className="timing-live-category">{category}</td>
       {board.columns.map((column) => (
-        <td className="results-num" key={column}>
+        <td className="results-num timing-live-time" key={column}>
           {formatDuration(
             column === 'splitA'
               ? row.splitAMs
@@ -130,10 +149,6 @@ function BoardRow({
           )}
         </td>
       ))}
-      <td className="results-status">
-        {statusWords(row.status, format)}
-        {row.suspect ? <span className="results-suspect"> — {SUSPECT_WORDS}</span> : null}
-      </td>
     </tr>
   );
 }
@@ -145,19 +160,47 @@ const COLUMN_HEADINGS: Record<Leaderboard['columns'][number], string> = {
   total: 'Total',
 };
 
-function BoardTable({ board, format }: { board: Leaderboard; format: 'relay' | 'solo' }) {
+/**
+ * The Category cell, from the runners themselves — the results page's own rule
+ * (`resultCategoryLabel()`), so the two cannot disagree. A guide is named as one.
+ *
+ * ⚠️ **The board's read carries no `result_placement`** (20260914150000's header: it computes no
+ * prize band), so a non-binary runner reads "—" here rather than a category the board would be
+ * guessing at. Where they are placed is the Prizes page's business, after the race.
+ */
+function categoriesOf(payload: LeaderboardPayload): Map<string, string> {
+  return new Map(
+    payload.teams.map((team) => [
+      team.id,
+      team.runners.length > 0 && team.runners.every(isGuide)
+        ? 'Guide'
+        : (resultCategoryLabel(
+            team.runners,
+            payload.event.format,
+            team.category ?? null,
+          ) ?? '—'),
+    ]),
+  );
+}
+
+function BoardTable({
+  board,
+  format,
+  categories,
+}: {
+  board: Leaderboard;
+  format: 'relay' | 'solo';
+  categories: Map<string, string>;
+}) {
   if (board.rows.length === 0) {
-    return <p className="results-empty">Nothing has been captured for this race yet.</p>;
+    return (
+      <p className="results-empty">
+        No runners entered yet. Results appear here as marshals capture crossings.
+      </p>
+    );
   }
 
   return (
-    // ⚠️ **A scrollable region has to be reachable by keyboard, and this table holds nothing
-    // focusable.** axe's `scrollable-region-focusable` is satisfied either by the region being
-    // focusable itself or by it *containing* something focusable; a board is all text, so it is
-    // neither, and somebody navigating by keyboard at 375px could not scroll it at all. **Only
-    // mobile-safari sees it**, because the table does not overflow at desktop width and a region
-    // that does not scroll is not a scrollable region. This is the fourth instance in this
-    // repository and all four are the same three attributes — `results/page.tsx` is the nearest.
     <div
       className="results-scroll"
       tabIndex={0}
@@ -171,7 +214,7 @@ function BoardTable({ board, format }: { board: Leaderboard; format: 'relay' | '
         <thead>
           <tr>
             <th scope="col">Pos</th>
-            <th scope="col">Bib</th>
+            <th scope="col">Status</th>
             <th scope="col">Runner</th>
             <th scope="col">Category</th>
             {board.columns.map((column) => (
@@ -179,12 +222,17 @@ function BoardTable({ board, format }: { board: Leaderboard; format: 'relay' | '
                 {COLUMN_HEADINGS[column]}
               </th>
             ))}
-            <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody>
           {board.rows.map((row) => (
-            <BoardRow key={row.teamId} row={row} board={board} format={format} />
+            <BoardRow
+              key={row.teamId}
+              row={row}
+              board={board}
+              format={format}
+              category={categories.get(row.teamId) ?? '—'}
+            />
           ))}
         </tbody>
       </table>
@@ -192,14 +240,65 @@ function BoardTable({ board, format }: { board: Leaderboard; format: 'relay' | '
   );
 }
 
+const PLACES = ['1st', '2nd', '3rd'] as const;
+
+/**
+ * **Top of the race** — Pass the Buck's panel: the first three across the line, as cards that
+ * read "To be decided" until somebody fills them. Overall only, and from the board's own
+ * positions, so it is exactly the top of the table below and moves with it. Category winners are
+ * the prize list's, on the Prizes page, because the board does not carry what places a
+ * non-binary runner.
+ */
+function TopOfRace({ board }: { board: Leaderboard }) {
+  const finishers = board.rows
+    .filter((row) => row.position !== null && row.status === 'finished')
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+  return (
+    <section className="timing-top" aria-labelledby="top-of-the-race">
+      <div className="timing-top-head">
+        <h2 id="top-of-the-race">Top of the race</h2>
+        <p className="club-small">Updates as runners finish.</p>
+      </div>
+      <ol className="timing-top-cards">
+        {PLACES.map((place, index) => {
+          const row = finishers[index];
+          return (
+            <li key={place} className="timing-top-card" data-filled={row ? 'yes' : 'no'}>
+              <p className="timing-top-place">{place}</p>
+              {row === undefined ? (
+                <p className="timing-top-tbd">To be decided</p>
+              ) : (
+                <>
+                  <p className="timing-top-time timing-mono">
+                    {formatDuration(row.totalMs)}
+                  </p>
+                  <p className="timing-top-name">{whoCell(row)}</p>
+                  <p className="club-small">
+                    Bib <span className="timing-mono">{bibCell(row)}</span>
+                    {row.suspect ? <> · {SUSPECT_WORDS}</> : null}
+                  </p>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 export function LiveBoard({
   slug,
   initial,
   sort,
+  sortControl,
 }: {
   slug: string;
   initial: LeaderboardPayload;
   sort: 'total' | 'splitA' | 'splitB' | 'category' | 'teamNumber';
+  /** The "Sort by" links, drawn by the server so they work with scripting off. */
+  sortControl?: ReactNode;
 }) {
   const [payload, setPayload] = useState(initial);
   const [connection, setConnection] = useState<ConnectionState>('off');
@@ -331,6 +430,8 @@ export function LiveBoard({
   }, [slug]);
 
   const board = buildLeaderboard(payload, sort);
+  // Always by time, whatever the table is sorted by — the top of a race is who is fastest.
+  const byTime = sort === 'total' ? board : buildLeaderboard(payload, 'total');
   const caveats = boardCaveats(board);
 
   return (
@@ -346,7 +447,14 @@ export function LiveBoard({
         {updatedAt === null ? null : ` Last change ${formatLondonClock(updatedAt)}.`}
       </p>
 
-      <BoardTable board={board} format={payload.event.format} />
+      <TopOfRace board={byTime} />
+      <h2 className="timing-live-board-title">Leaderboard</h2>
+      {sortControl}
+      <BoardTable
+        board={board}
+        format={payload.event.format}
+        categories={categoriesOf(payload)}
+      />
     </>
   );
 }
