@@ -552,8 +552,10 @@ and set the race-window dates aside for it.
 - **Move `STAFF_ROLES` into `packages/shared`** and import it from both apps, deleting
   `apps/timing/lib/staff-roles.ts` and its drift test (Slice B's copy, for the same reason as
   the `club.css` one).
-- **The app shell on `/account/*` and `/admin/*`** (ADR-054 §6), with a real sign-out button,
-  and the duplicate "Race timing" and "Club admin" links removed from those pages' bars.
+- **The app shell on `/account/*` and `/admin/*`** (ADR-054 §6), with a real sign-out button.
+  Removing the "Race timing" and "Club admin" links from the **account** bar was **done before
+  the race, on 10 October 2026** — [ADR-057](../architecture/decisions/adr-057-staff-tools-are-on-the-account-home.md)
+  moved them to `/account/` as "Staff tools".
 - ~~**Split the race console** (brief D3).~~ **Done before the race, on 9 October 2026**, as
   part of adopting Pass the Buck's navigation —
   [ADR-055](../architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md),

@@ -1310,12 +1310,15 @@ is `.club-*`-scoped throughout and is what `/account.css` and `/admin.css` appen
 load **both, chrome first** — the order the rules had as one file. A new chrome rule goes in
 `club-chrome.css` and must be scoped to a `.club-*` class.
 
-⚠️ **The account bar's Race timing and Club admin tabs are filled in on the way out of
-`handleAccount()`, on GET only.** `page()` writes a slot comment; `withStaffTabs()` reads
-`my_roles()` and `my_permissions()` and fills it, with the same predicates `/timing` and
-`/admin/` ask. On a POST the slot is emptied unread, because a refused form — a stale CSRF token
-— must ask the database nothing, and `account.test.ts` asserts that. A new account page that
-wants the bar passes `tab:` to `page()`; it does not read roles itself.
+⚠️ **Race timing and Club admin are "Staff tools" cards on `/account/` and nowhere else in the
+section since 10 October 2026** — [ADR-057](docs/architecture/decisions/adr-057-staff-tools-are-on-the-account-home.md).
+They were tabs in the account bar, filled into a slot on the way out of `handleAccount()`; that
+slot and `withStaffTabs()` are gone. `staffAreas()` in `accountHome()` reads `my_roles()` and
+`my_permissions()` with the same predicates `/timing` and `/admin/` ask, so the other account
+pages make no role read at all. A new account page that wants the bar passes `tab:` to `page()`.
+**`.account-page` is `.club-wrap`'s width and each child is capped at 32rem**, so a form starts
+where the logo does; a child that should use the full width needs its own exception in
+`account.css`.
 
 ⚠️ **The admin 404 has no club header because `masthead()` adds it** and `notFound()` never
 calls `masthead()`. Moving the header into `page()` would put the club's navigation on the page

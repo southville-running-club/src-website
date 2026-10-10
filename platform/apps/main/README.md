@@ -397,8 +397,9 @@ is the argument; this is the map.
 Their **chrome** is the club's — the header, the Menu, the footer, from `worker/club-chrome.ts`
 — and their **bodies** are still styled by `base.css`. `/account.css` and `/admin.css` append
 `club-chrome.css`, whose rules are all `.club-*`-scoped; `club.css` must never be added to
-either, because it restyles bare elements. The account pages also carry a section bar, with
-**Race timing** and **Club admin** tabs for the people those doors open for, and breadcrumbs;
+either, because it restyles bare elements. The account pages also carry a section bar of the five account pages, and breadcrumbs;
+`/account/` itself offers **Race timing** and **Club admin** as "Staff tools" cards to the people
+those doors open for (ADR-057);
 the admin pages carry a slim "You are in Club admin" strip in place of their old masthead.
 
 **Neither stylesheet imports the other, and neither reaches a page that does not want it.**

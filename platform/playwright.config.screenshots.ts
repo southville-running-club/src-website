@@ -65,6 +65,7 @@ export default defineConfig({
     '**/admin-people-layout.screens.ts',
     '**/timing-redesign-baseline.screens.ts',
     '**/timing-redesign-shell.screens.ts',
+    '**/account-home.screens.ts',
   ],
   testIgnore: [
     '**/node_modules/**',
