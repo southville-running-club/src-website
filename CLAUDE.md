@@ -2164,6 +2164,14 @@ like the capture screen's scope, and **gets no exact age**: their category reads
 them. Marking DNS / DNF / DQ stays `timing.event.manage`. The Roster's search, sort and category
 rules are `apps/timing/lib/desk-roster.ts`, unit-tested.
 
+**Admins change it from the page since 10 October 2026** (ADR-056's amendment): an **Edit** link
+per row opens a panel for name, bib and status, and **Add runner** takes an on-the-day entry, both
+posting to `roster/update` behind `timing.registration.import`. ⚠️ **Panels, not a scripted
+modal** — every spec runs with scripting off. ⚠️ **No name ever travels in the address**: a bib
+somebody else holds comes back as the holder's runner id and the page names them.
+`timing.rename_runner()` is the one new function, a compare-and-swap so the second of two desks
+is told rather than overwriting.
+
 ### ⚠️ The console became five pages again on 9 October 2026
 
 [ADR-055](docs/architecture/decisions/adr-055-race-timing-follows-pass-the-bucks-navigation.md)

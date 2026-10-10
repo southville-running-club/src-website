@@ -17,13 +17,14 @@ import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
 import { PageHead } from '../../../chrome/page-head';
 import { RaceUnavailable } from '../../../chrome/race-unavailable';
-import { StatusSection, type StatusTeam } from '../sections/status';
+import { bibTakenBy, rosterOutcomeFor } from '../../../../lib/roster-outcomes';
+import { AddPanel, EditPanel } from './panels';
 import { PrintButton } from './print-button';
 
 export const generateMetadata = raceMetadata('Roster');
 
 /**
- * `/timing/events/<slug>/roster` — the registration desk's list. ADR-056.
+ * `/timing/events/<slug>/roster` — the registration desk's list. ADR-056 and its admin half.
  *
  * One row per runner — **Name, Status, Category, Bib** — readable by the race's **marshals**,
  * who look runners up and change nothing, and by admins. Behind `timing.roster.read`;
@@ -38,8 +39,11 @@ export const generateMetadata = raceMetadata('Roster');
  * - **Print** is the paper sheet bib collection is ticked off on: the print stylesheet hides
  *   everything but the heading and the table, and adds a Collected ✓ column.
  *
- * **Admins also mark DNS, DNF and DQ here**, in the list below the table, which is the race
- * status block the race console used to carry. A marshal never sees it.
+ * **Admins also change it.** An **Edit** link on each row (`?edit=<runner>`) opens a panel to
+ * correct the name and bib and, for somebody holding `timing.event.manage`, set DNS / DNF / DQ;
+ * **Add runner** (`?add=1`) takes an on-the-day entry. Both post to `roster/update`, behind
+ * `timing.registration.import`. A marshal sees neither, and is refused at that door anyway.
+ * `panels.tsx` carries why they are panels rather than a scripted modal.
  */
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +52,26 @@ function one(value: string | string[] | undefined): string | undefined {
 }
 
 const MANAGE = 'timing.event.manage';
+const IMPORT = 'timing.registration.import';
+
+/** A search that found nobody, as a name: one word is a surname, more is first then last. */
+function prefillFrom(query: string): { firstname: string; lastname: string } {
+  const words = query
+    .trim()
+    .split(/\s+/u)
+    .filter((w) => w !== '' && !/^\d+$/u.test(w));
+  if (words.length === 0) return { firstname: '', lastname: '' };
+  if (words.length === 1) return { firstname: '', lastname: words[0] ?? '' };
+  return { firstname: words.slice(0, -1).join(' '), lastname: words.at(-1) ?? '' };
+}
+
+/** The next unused bib: one more than the highest numeric bib on the race. */
+function nextBibOf(bibs: readonly (string | null)[]): string {
+  const numbers = bibs
+    .filter((b): b is string => b !== null && /^\d+$/u.test(b))
+    .map(Number);
+  return String((numbers.length === 0 ? 0 : Math.max(...numbers)) + 1);
+}
 
 const COLUMNS: readonly { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Name' },
@@ -67,22 +91,18 @@ export default async function RosterPage({
   const query = await searchParams;
   const outcomeCode = one(query.outcome);
   const search = one(query.q) ?? '';
-  const statusSearch = one(query.status_q) ?? '';
   const sort = sortFrom(one(query.sort));
   const dir = dirFrom(one(query.dir));
+  const editing = one(query.edit);
+  const adding = one(query.add) === '1';
+  const savedId = one(query.saved);
+  const addedTeam = one(query.added_team);
 
   const permissions = await readPermissions();
   const mayManage = permissions.includes(MANAGE);
+  const mayEdit = permissions.includes(IMPORT);
 
-  const [read, statusRead] = await Promise.all([
-    readTiming<DeskRoster>('desk_roster', { p_event_slug: slug }),
-    mayManage
-      ? readTiming<StatusTeam[]>('team_status_list', {
-          p_event_slug: slug,
-          p_search: statusSearch === '' ? null : statusSearch,
-        })
-      : null,
-  ]);
+  const read = await readTiming<DeskRoster>('desk_roster', { p_event_slug: slug });
 
   if (read.state === 'unavailable') {
     return <RaceUnavailable slug={slug} current="roster" title="Roster." />;
@@ -103,6 +123,22 @@ export default async function RosterPage({
   const rows = search.trim() === '' ? sortRoster(found, sort, dir) : found;
   const dns = runners.filter((r) => r.race_status === 'dns').length;
   const single = rows.length === 1;
+  const action = `${base}/update`;
+  const back = search === '' ? base : `${base}?q=${encodeURIComponent(search)}`;
+  const editRunner = mayEdit ? runners.find((r) => r.runner_id === editing) : undefined;
+
+  // What just happened, named from the roster rather than from the address (no name in a URL).
+  const outcome = rosterOutcomeFor(outcomeCode);
+  const holder = runners.find((r) => r.runner_id === one(query.holder));
+  const takenBib = one(query.bib);
+  const added = runners.find((r) => r.team_id === addedTeam);
+  const message =
+    outcomeCode === 'bib_taken' && holder !== undefined && takenBib !== undefined
+      ? bibTakenBy(takenBib, holder)
+      : outcomeCode === 'added' && added !== undefined
+        ? `Added ${added.firstname} ${added.lastname} · Bib ${added.bib ?? '—'}.`
+        : (outcome?.message ?? null);
+  const highlightId = savedId ?? added?.runner_id;
 
   /** The address a header links to: this column, the other way round if it is already on. */
   const sortHref = (key: SortKey): string => {
@@ -123,8 +159,8 @@ export default async function RosterPage({
           intro={
             <p>
               {runners.length} {runners.length === 1 ? 'runner' : 'runners'}.{' '}
-              {mayManage
-                ? 'Search by name or bib. Mark a runner as not started, not finished or disqualified below the list.'
+              {mayEdit
+                ? 'Search by name or bib. Edit a row to fix a name or bib, or to mark a runner as not started, not finished or disqualified.'
                 : 'Search by name or bib to look a runner up. This list is read-only.'}
             </p>
           }
@@ -133,6 +169,38 @@ export default async function RosterPage({
             refresh: base,
           }}
         />
+
+        {message === null ? null : (
+          <p
+            className={
+              outcome?.tone === 'bad' && outcomeCode !== 'added'
+                ? 'club-notice timing-notice-bad'
+                : 'club-notice'
+            }
+            role="status"
+          >
+            {message}
+          </p>
+        )}
+
+        {editRunner === undefined ? null : (
+          <EditPanel
+            action={action}
+            cancel={back}
+            runner={editRunner}
+            query={search}
+            mayMark={mayManage}
+          />
+        )}
+
+        {mayEdit && adding ? (
+          <AddPanel
+            action={action}
+            cancel={back}
+            nextBib={nextBibOf(runners.map((r) => r.bib))}
+            prefill={prefillFrom(search)}
+          />
+        ) : null}
 
         <form method="get" action={base} className="timing-roster-toolbar" role="search">
           <label className="timing-visually-hidden" htmlFor="roster-q">
@@ -157,6 +225,14 @@ export default async function RosterPage({
           <button type="submit" className="club-btn club-btn-primary timing-roster-tool">
             Search
           </button>
+          {mayEdit ? (
+            <a
+              className="club-btn club-btn-secondary timing-roster-tool"
+              href={`${base}?add=1`}
+            >
+              Add runner
+            </a>
+          ) : null}
           <PrintButton />
         </form>
 
@@ -192,6 +268,11 @@ export default async function RosterPage({
                     </th>
                   );
                 })}
+                {mayEdit ? (
+                  <th scope="col" className="timing-roster-actions">
+                    <span className="timing-visually-hidden">Edit</span>
+                  </th>
+                ) : null}
                 <th scope="col" className="timing-print-only timing-roster-collected">
                   Collected ✓
                 </th>
@@ -200,18 +281,32 @@ export default async function RosterPage({
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="timing-roster-empty">
+                  <td colSpan={mayEdit ? 5 : 4} className="timing-roster-empty">
                     {runners.length === 0
-                      ? mayManage
-                        ? 'No runners yet. Import entries on the Registrations page, or add a walk-in there.'
+                      ? mayEdit
+                        ? 'No runners yet. Import entries on the Registrations page, or add a runner.'
                         : 'No runners yet. Ask the race director to import entries.'
                       : `No runners match “${search.trim()}”.`}
+                    {mayEdit && runners.length > 0 ? (
+                      <>
+                        {' '}
+                        <a
+                          className="club-btn club-btn-secondary"
+                          href={`${base}?add=1&q=${encodeURIComponent(search.trim())}`}
+                        >
+                          Add runner
+                        </a>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ) : (
                 rows.map((runner) => {
                   const status = runner.race_status ?? 'normal';
-                  const highlight = single || isExactBib(runner, search);
+                  const highlight =
+                    single ||
+                    isExactBib(runner, search) ||
+                    runner.runner_id === highlightId;
                   return (
                     <tr
                       key={runner.runner_id}
@@ -229,6 +324,20 @@ export default async function RosterPage({
                       <td className="timing-roster-bib timing-mono">
                         {runner.bib ?? '—'}
                       </td>
+                      {mayEdit ? (
+                        <td className="timing-roster-actions">
+                          <a
+                            className="club-btn club-btn-secondary timing-roster-edit"
+                            href={`${base}?${new URLSearchParams({
+                              ...(search === '' ? {} : { q: search }),
+                              edit: runner.runner_id,
+                            }).toString()}`}
+                            aria-label={`Edit ${runner.firstname} ${runner.lastname}`}
+                          >
+                            Edit
+                          </a>
+                        </td>
+                      ) : null}
                       <td className="timing-print-only timing-roster-collected">
                         <span className="timing-tick-box" aria-hidden="true" />
                       </td>
@@ -239,26 +348,6 @@ export default async function RosterPage({
             </tbody>
           </table>
         </div>
-
-        {mayManage ? (
-          <section className="timing-roster-admin" aria-labelledby="mark-a-runner">
-            <h2 id="mark-a-runner">Mark a runner</h2>
-            {statusRead?.state === 'ok' ? null : (
-              <p className="club-notice timing-notice-bad">
-                The club&rsquo;s database could not be reached, so this list could not be
-                read. Nothing has been changed. Try again in a moment.
-              </p>
-            )}
-            <div id="status">
-              <StatusSection
-                slug={slug}
-                teams={statusRead?.state === 'ok' ? statusRead.data : []}
-                search={statusSearch}
-                outcomeCode={outcomeCode}
-              />
-            </div>
-          </section>
-        ) : null}
       </div>
     </RaceFrame>
   );

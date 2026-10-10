@@ -2045,6 +2045,17 @@ export type Database = {
         }
         Returns: Json
       }
+      rename_runner: {
+        Args: {
+          p_event_slug: string
+          p_expected_firstname: string
+          p_expected_lastname: string
+          p_firstname: string
+          p_lastname: string
+          p_runner_id: string
+        }
+        Returns: Json
+      }
       reopen_event: { Args: { p_event_slug: string }; Returns: Json }
       reset_event: {
         Args: { p_confirmation: string; p_event_slug: string }

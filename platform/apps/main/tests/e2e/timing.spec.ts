@@ -2172,11 +2172,13 @@ test.describe('the roster', () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
     const table = page.getByRole('table');
+    // Four data columns, and an admin's Edit column (its header is for screen readers).
     await expect(table.getByRole('columnheader')).toHaveText([
       /^Name/,
       /^Status/,
       /^Category/,
       /^Bib/,
+      'Edit',
     ]);
     // Surname order: Hopper before Lovelace.
     await expect(table.locator('tbody tr')).toHaveCount(STATUS_TEAMS.length);
@@ -2209,8 +2211,9 @@ test.describe('the roster', () => {
     expect(response?.status()).toBe(200);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
     await expect(page.locator('.timing-eyebrow')).toContainText('Registration desk');
-    await expect(page.getByRole('heading', { name: 'Mark a runner' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Did not start' })).toHaveCount(0);
+    // Look-up only: no Edit on any row, and no Add runner.
+    await expect(page.getByRole('link', { name: /^Edit / })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Add runner' })).toHaveCount(0);
     await expect(
       page
         .getByRole('navigation', { name: 'Race timing', exact: true })
@@ -2248,76 +2251,113 @@ test.describe('marking a runner', () => {
     await resetStatusRace(testInfo.project.name);
   });
 
+  /** Open a runner's Edit panel from their row — ADR-056's admin half. */
+  async function openEdit(
+    page: Page,
+    runner: (typeof STATUS_TEAMS)[number],
+  ): Promise<void> {
+    await page
+      .getByRole('link', { name: `Edit ${runner.firstname} ${runner.lastname}` })
+      .click();
+    await expect(page.getByRole('heading', { name: 'Edit runner' })).toBeVisible();
+  }
+
   test('records a DNF and then lifts it', async ({ page }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Roster.');
 
-    const card = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
-    await card.getByRole('button', { name: 'Did not finish' }).click();
+    await openEdit(page, STATUS_TEAMS[0]);
+    await page.getByRole('radio', { name: 'DNF' }).check();
+    await page.getByRole('button', { name: 'Save' }).click();
 
-    // ⚠️ The wording says what happens to the result, not merely that it was recorded — and it
-    // says the captured facts survive, which is the half people are surprised by.
-    await expect(page.getByText(/Recorded as did not finish/)).toBeVisible();
-    await expect(page.getByText(/stays captured/)).toBeVisible();
-
+    await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+    await expect(
+      page.getByRole('row', { name: new RegExp(STATUS_TEAMS[0].lastname) }),
+    ).toContainText('DNF');
     expect(
       (await statusRaceState(testInfo.project.name)).statuses[STATUS_TEAMS[0].number],
     ).toBe('dnf');
 
-    const marked = page.locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname });
-    await marked.getByRole('button', { name: /^Lift did not finish/ }).click();
+    await openEdit(page, STATUS_TEAMS[0]);
+    await page.getByRole('radio', { name: 'Normal' }).check();
+    await page.getByRole('button', { name: 'Save' }).click();
 
-    await expect(page.getByText(/That has been lifted/)).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
     expect(
       (await statusRaceState(testInfo.project.name)).statuses[STATUS_TEAMS[0].number],
     ).toBeNull();
-  });
-
-  /**
-   * ⚠️ **Offered only when there is something to lift.** A "clear" beside an unmarked runner is
-   * a button that does nothing, on a page where every other button changes a result.
-   */
-  test('offers no way to lift a status nobody has', async ({ page }, testInfo) => {
-    await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(statusPath(testInfo.project.name));
-
-    await expect(page.getByRole('button', { name: /^Lift / })).toHaveCount(0);
   });
 
   test('leaves everybody else alone', async ({ page }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
-    await page
-      .locator('.triage-card', { hasText: STATUS_TEAMS[0].lastname })
-      .getByRole('button', { name: 'Disqualify' })
-      .click();
-    await expect(page.getByText(/Recorded as disqualified/)).toBeVisible();
+    await openEdit(page, STATUS_TEAMS[0]);
+    await page.getByRole('radio', { name: 'DQ' }).check();
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
 
     const state = await statusRaceState(testInfo.project.name);
     expect(state.statuses[STATUS_TEAMS[0].number]).toBe('dq');
     expect(state.statuses[STATUS_TEAMS[1].number]).toBeNull();
   });
 
-  test('searches by name, and the searched view is a URL somebody can send', async ({
+  test('corrects a name, and tells the second of two desks', async ({
+    page,
+    context,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    // Two desks open the same runner before either saves.
+    const other = await context.newPage();
+    await other.goto(statusPath(testInfo.project.name));
+    await openEdit(other, STATUS_TEAMS[0]);
+    await openEdit(page, STATUS_TEAMS[0]);
+
+    await page.getByLabel('First name').fill('Augusta Ada');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible();
+    await expect(page.getByRole('table')).toContainText('Augusta Ada');
+
+    await other.getByLabel('First name').fill('Ada A.');
+    await other.getByRole('button', { name: 'Save' }).click();
+    await expect(other.getByRole('status')).toContainText(
+      'This runner was changed on another device',
+    );
+    await expect(other.getByRole('table')).toContainText('Augusta Ada');
+  });
+
+  test('refuses a bib somebody else holds, and says who', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(statusPath(testInfo.project.name));
+
+    await openEdit(page, STATUS_TEAMS[0]);
+    await page.getByLabel('Bib', { exact: true }).fill(STATUS_TEAMS[1].number);
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByRole('status')).toContainText(
+      `Bib ${STATUS_TEAMS[1].number} is already assigned to ${STATUS_TEAMS[1].firstname} ${STATUS_TEAMS[1].lastname}.`,
+    );
+  });
+
+  test('adds an on-the-day runner, who joins the list with the next bib', async ({
     page,
   }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(statusPath(testInfo.project.name));
 
-    await page
-      .getByLabel('Search by bib, team number or name')
-      .fill(STATUS_TEAMS[1].lastname);
-    // ADR-056: the Roster's own table has a Search too, so this is the one in "Mark a runner".
-    await page
-      .getByRole('region', { name: 'Mark a runner' })
-      .getByRole('button', { name: 'Search' })
-      .click();
+    await page.getByRole('link', { name: 'Add runner' }).first().click();
+    await expect(page.getByRole('heading', { name: 'Add runner' })).toBeVisible();
+    await page.getByLabel('First name').fill('Mary');
+    await page.getByLabel('Last name').fill('Somerville');
+    await page.getByRole('radio', { name: 'Women' }).check();
+    await page.getByRole('button', { name: 'Add runner' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`status_q=${STATUS_TEAMS[1].lastname}`));
-    await expect(page.locator('.triage-card')).toHaveCount(1);
+    await expect(page.getByRole('status')).toContainText('Added Mary Somerville · Bib');
+    await expect(page.getByRole('table')).toContainText('Somerville');
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {

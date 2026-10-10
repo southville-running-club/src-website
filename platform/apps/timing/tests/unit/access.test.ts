@@ -756,6 +756,19 @@ describe('the race console is gone, and nothing it opened is wider than before (
    * decision of 9 October 2026 that a marshal looks runners up on it. An entries admin and
    * somebody holding nothing are still refused.
    */
+  /**
+   * The admin half of ADR-056: correcting a name or bib and adding an on-the-day runner post to
+   * `roster/update`, behind the entry list's own permission. A marshal reads the roster and is
+   * refused here.
+   */
+  it('keeps the Roster’s form address for whoever may change the entry list', () => {
+    expect(surfaceFor('/events/nn-2026/roster/update')?.permission).toBe(
+      'timing.registration.import',
+    );
+    expect(canOpen(ADMIN, '/events/nn-2026/roster/update')).toBe(true);
+    expect(canOpen(MARSHAL, '/events/nn-2026/roster/update')).toBe(false);
+  });
+
   it('opens Roster to a marshal and to nobody else new', () => {
     expect(canOpen(MARSHAL, '/events/nn-2026/roster')).toBe(true);
     expect(canOpen(NN_ADMIN, '/events/nn-2026/roster')).toBe(false);

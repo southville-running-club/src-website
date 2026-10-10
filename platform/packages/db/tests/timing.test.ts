@@ -321,7 +321,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-six functions, and anon exactly two of them', async () => {
+  it('grants exactly these thirty-seven functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -329,7 +329,7 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-six functions and thirty-eight rows: `results_for_event` and
+    // Thirty-seven functions and thirty-nine rows: `results_for_event` and
     // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
@@ -386,6 +386,12 @@ describe('what may be called, and by whom', () => {
       { routine_name: 'open_anomalies', grantee: 'authenticated' },
       { routine_name: 'publish_results', grantee: 'authenticated' },
       { routine_name: 'record_crossing', grantee: 'authenticated' },
+      /**
+       * ⚠️ **The thirty-seventh, the admin half of ADR-056**: correcting a runner's name from
+       * the Roster. Behind `timing.registration.import`, the entry list's own permission, and a
+       * compare-and-swap on the name the form was drawn with.
+       */
+      { routine_name: 'rename_runner', grantee: 'authenticated' },
       { routine_name: 'reopen_event', grantee: 'authenticated' },
       { routine_name: 'reset_event', grantee: 'authenticated' },
       { routine_name: 'resolve_crossing', grantee: 'authenticated' },
@@ -5999,6 +6005,191 @@ describe('the roster a marshal may look runners up on', () => {
       ).rejects.toMatchObject({
         code: '42501',
       });
+    } finally {
+      await db.query('rollback');
+    }
+  });
+});
+
+/**
+ * `rename_runner()` — correcting a name from the Roster, the admin half of ADR-056. Two desks on
+ * one roster is the normal case, so the compare-and-swap is what is weighted here.
+ */
+describe("correcting a runner's name", () => {
+  const ADMIN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0e51';
+  const MARSHAL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa0e52';
+  const EVENT_ID = '00000000-0000-4000-8000-000000000e51';
+  const OTHER_EVENT_ID = '00000000-0000-4000-8000-000000000e52';
+  const RUNNER_ID = '00000000-0000-4000-8000-000000000e53';
+  const SLUG = 'zz-timing-rename';
+
+  /** Renames and commits, so a second call sees the first. */
+  async function renameAs(
+    person: string,
+    first: string,
+    last: string,
+    expectedFirst: string,
+    expectedLast: string,
+    slug = SLUG,
+  ): Promise<{ ok: boolean; reason?: string }> {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'authenticated', true)");
+      await db.query(
+        "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+        [person],
+      );
+      const { rows } = await db.query<{ answer: { ok: boolean; reason?: string } }>(
+        'select timing.rename_runner($1, $2, $3, $4, $5, $6) as answer',
+        [slug, RUNNER_ID, first, last, expectedFirst, expectedLast],
+      );
+      await db.query('commit');
+      return rows[0]!.answer;
+    } catch (error) {
+      await db.query('rollback');
+      throw error;
+    }
+  }
+
+  const nameNow = async () =>
+    (
+      await db.query<{ firstname: string; lastname: string }>(
+        'select firstname, lastname from timing.runners where id = $1',
+        [RUNNER_ID],
+      )
+    ).rows[0];
+
+  beforeAll(async () => {
+    for (const [id, email] of [
+      [ADMIN, 'timing-rename-admin@example.com'],
+      [MARSHAL, 'timing-rename-marshal@example.com'],
+    ]) {
+      await db.query(
+        `insert into auth.users
+           (id, instance_id, aud, role, email, encrypted_password,
+            email_confirmed_at, created_at, updated_at)
+         values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+                 'authenticated', $2, 'not-a-password', now(), now(), now())
+         on conflict (id) do nothing`,
+        [id, email],
+      );
+      await db.query(
+        'insert into identity.people (id) values ($1) on conflict (id) do nothing',
+        [id],
+      );
+    }
+    await db.query(
+      `insert into identity.role_grants (person_id, role, granted_by)
+       values ($1, 'timing-admin', $1), ($2, 'timing-marshal', $2)
+       on conflict do nothing`,
+      [ADMIN, MARSHAL],
+    );
+  });
+
+  beforeEach(async () => {
+    await db.query('delete from timing.events where id = any($1::uuid[])', [
+      [EVENT_ID, OTHER_EVENT_ID],
+    ]);
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, 'Rename Fixture', 'solo', '2026-11-01T11:00:00Z'),
+              ($3, 'zz-timing-rename-other', 'Other Fixture', 'solo', '2026-11-01T11:00:00Z')`,
+      [EVENT_ID, SLUG, OTHER_EVENT_ID],
+    );
+    await db.query(
+      `with t as (
+         insert into timing.teams (event_id, team_number) values ($1, '12') returning id
+       )
+       insert into timing.runners (id, team_id, leg, firstname, lastname)
+       select $2, id, 1, 'Bernadete', 'O''Dell' from t`,
+      [EVENT_ID, RUNNER_ID],
+    );
+    await db.query('insert into timing.marshals (event_id, user_id) values ($1, $2)', [
+      EVENT_ID,
+      MARSHAL,
+    ]);
+  });
+
+  afterAll(async () => {
+    await db.query('delete from timing.events where id = any($1::uuid[])', [
+      [EVENT_ID, OTHER_EVENT_ID],
+    ]);
+    await db.query('delete from identity.role_grants where person_id = any($1::uuid[])', [
+      [ADMIN, MARSHAL],
+    ]);
+  });
+
+  it('corrects a spelling, trimmed, and audits it without copying the name', async () => {
+    expect(
+      await renameAs(ADMIN, '  Bernadette ', "O'Dell", 'Bernadete', "O'Dell"),
+    ).toEqual({
+      ok: true,
+      runner_id: RUNNER_ID,
+    });
+    expect(await nameNow()).toEqual({ firstname: 'Bernadette', lastname: "O'Dell" });
+
+    const { rows } = await db.query<{ detail: Record<string, unknown> }>(
+      `select detail from timing.admin_actions
+        where event_id = $1 and action = 'runner_renamed'`,
+      [EVENT_ID],
+    );
+    expect(rows.map((r) => r.detail)).toEqual([
+      { runner_id: RUNNER_ID, firstname_changed: true, lastname_changed: false },
+    ]);
+  });
+
+  it('tells the second of two desks, and keeps the first desk’s correction', async () => {
+    expect(
+      (await renameAs(ADMIN, 'Bernadette', "O'Dell", 'Bernadete', "O'Dell")).ok,
+    ).toBe(true);
+    // The second laptop opened the form before the first saved.
+    expect(await renameAs(ADMIN, 'Bernie', "O'Dell", 'Bernadete', "O'Dell")).toEqual({
+      ok: false,
+      reason: 'changed_elsewhere',
+    });
+    expect((await nameNow())?.firstname).toBe('Bernadette');
+  });
+
+  it('refuses a blank name', async () => {
+    expect(await renameAs(ADMIN, '  ', "O'Dell", 'Bernadete', "O'Dell")).toEqual({
+      ok: false,
+      reason: 'incomplete',
+    });
+  });
+
+  it('refuses a marshal, who reads the roster and changes nothing', async () => {
+    expect(
+      await renameAs(MARSHAL, 'Bernadette', "O'Dell", 'Bernadete', "O'Dell"),
+    ).toEqual({
+      ok: false,
+      reason: 'refused',
+    });
+    expect((await nameNow())?.firstname).toBe('Bernadete');
+  });
+
+  it('refuses a runner through a race they are not on', async () => {
+    expect(
+      await renameAs(
+        ADMIN,
+        'Bernadette',
+        "O'Dell",
+        'Bernadete',
+        "O'Dell",
+        'zz-timing-rename-other',
+      ),
+    ).toEqual({ ok: false, reason: 'no_such_runner' });
+  });
+
+  it('is refused to anon by the grant', async () => {
+    await db.query('begin');
+    try {
+      await db.query("select set_config('role', 'anon', true)");
+      await expect(
+        db.query("select timing.rename_runner($1, $2, 'a', 'b', 'c', 'd')", [
+          SLUG,
+          RUNNER_ID,
+        ]),
+      ).rejects.toMatchObject({ code: '42501' });
     } finally {
       await db.query('rollback');
     }

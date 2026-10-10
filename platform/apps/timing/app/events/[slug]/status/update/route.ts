@@ -5,6 +5,11 @@ import { writeTiming } from '../../../../../lib/writes';
 /**
  * `POST /timing/events/<slug>/status/update` — mark a team DNS, DNF or DQ, or lift one.
  *
+ * ⚠️ **No page posts here any more** — the Roster's Edit panel sets a status through
+ * `roster/update` since ADR-056's admin half. This address is kept so a Roster tab left open from
+ * before that deploy still works rather than losing a mark somebody made; it can go once no such
+ * tab can be open.
+ *
  * Issue [#253](https://github.com/southville-running-club/src-website/issues/253). Behind
  * `timing.event.manage`; `lib/access.ts` maps it and `middleware.ts` enforces it, exactly as it
  * does for the page that posts here.
@@ -52,8 +57,7 @@ function backTo(
   // list rather than to all 250. `basePath` is not applied to a URL built here, so `/timing` is
   // written out; every part is encoded because the outcome can be a `reason` the database chose.
   // Back to the Roster page — ADR-055. **`status_q`, not `q`**: named while #308 put this list
-  // and the timing log on one page; kept, because a searched view is a URL somebody may have
-  // sent. `sections/status.tsx` carries the other half.
+  // and the timing log on one page.
   const query =
     search === ''
       ? `outcome=${encodeURIComponent(outcome)}`
