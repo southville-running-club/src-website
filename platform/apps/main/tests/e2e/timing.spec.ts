@@ -85,14 +85,11 @@ const EVENTS = '/timing/events/';
 const EVENT = `/timing/events/${RESULTS_EVENT_SLUG}`;
 
 /**
- * One job card on a race's overview, found by its heading. The card is the link, so its
- * accessible name is the whole card (title, sentence and count). Matching the heading is what
- * survives the sentence being reworded.
+ * One tool on a race's Home hub — ADR-055: Pass the Buck's hub, whose buttons are the nav's own
+ * tabs labelled the way its hub labels them ("Start screen", "Manage staff").
  */
 function raceCard(page: Page, title: string) {
-  return page
-    .locator('a.timing-link-card')
-    .filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+  return page.locator('.timing-hub').getByRole('link', { name: title, exact: true });
 }
 
 /**
@@ -246,7 +243,10 @@ test.describe('who may open the events pages', () => {
     const response = await page.goto('/timing');
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
+    // The Home hub (ADR-055): "Race timing." — or, for a marshal on exactly one race, that
+    // race's own hub, titled with its name. Either way a heading ending in a full stop.
+    await expect(page.locator('.timing-hub')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(/\.$/);
   });
 
   test('a signed-out visitor is refused', async ({ page }) => {
@@ -342,7 +342,7 @@ test.describe('the way in from /account/', () => {
 
       await link.click();
       await expect(page).toHaveURL(/\/timing\/?$/);
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('Race timing');
+      await expect(page.locator('.timing-hub')).toBeVisible();
     });
   }
 });
@@ -363,7 +363,10 @@ test.describe('the events list', () => {
     await page.goto(EVENTS);
     await page.getByRole('link', { name: RESULTS_EVENT_NAME }).click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(RESULTS_EVENT_NAME);
+    // The race's Home hub (ADR-055): its name without the year, ending in a full stop.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      `${RESULTS_EVENT_NAME.replace(/\s+\d{4}$/u, '')}.`,
+    );
     expect(new URL(page.url()).pathname).toBe(EVENT);
   });
 
@@ -376,7 +379,10 @@ test.describe('the events list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
 
     expect((await page.goto(`${EVENT}/`))?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(RESULTS_EVENT_NAME);
+    // The race's Home hub (ADR-055): its name without the year, ending in a full stop.
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      `${RESULTS_EVENT_NAME.replace(/\s+\d{4}$/u, '')}.`,
+    );
   });
 
   test('has no accessibility violations @requires-js', async ({ page }) => {
@@ -402,15 +408,17 @@ test.describe('one race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
 
-    // The facts band, named for a screen reader by a visually hidden heading.
-    const facts = page.getByRole('region', { name: 'Where it has got to' });
+    // The counts are under the hub's "Race details" (ADR-055), a disclosure that opens with
+    // scripting off.
+    await page.getByText('Race details', { exact: true }).click();
+    const facts = page.locator('.timing-hub-details');
     await expect(facts).toBeVisible();
     // `timing-db.ts`'s fixture running has a field on it, so these are not all zero — a page
     // of zeroes would render identically whether or not the counts were wired up. Read off the
     // counts alone: the band also carries the start date, which begins with a digit too.
     await expect(
       facts
-        .locator('.club-num')
+        .locator('.timing-mono')
         .filter({ hasText: /^[1-9]/ })
         .first(),
     ).toBeVisible();
@@ -548,7 +556,7 @@ test.describe('the marshal roster', () => {
   test("is linked from the race's own page", async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
-    await raceCard(page, 'Marshals').click();
+    await raceCard(page, 'Manage staff').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marshals');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/marshals`);
@@ -687,7 +695,9 @@ test.describe('who may open the start screen', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(startPath(testInfo.project.name, 'pending'));
 
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Runners to the start.' }),
+    ).toBeVisible();
   });
 });
 
@@ -700,8 +710,12 @@ test.describe('a race that has not started', () => {
     const response = await page.goto(startPath(testInfo.project.name, 'pending'));
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Runners to the start.',
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Runners to the start.' }),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
 
     /*
@@ -735,9 +749,11 @@ test.describe('a race that has not started', () => {
     const slug = startEventSlug(testInfo.project.name, 'pending');
 
     await page.goto(`/timing/events/${slug}`);
-    await raceCard(page, 'Start').click();
+    await raceCard(page, 'Start screen').click();
 
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Runners to the start.',
+    );
     // ADR-055: Start is its own page again.
     expect(new URL(page.url()).pathname).toBe(`/timing/events/${slug}/start`);
   });
@@ -778,7 +794,7 @@ test.describe('a race that has not started', () => {
 /**
  * Press "Start the race" the way the person on this project would (D4, 4 October 2026).
  *
- * With scripting on, the first press asks "Confirm the start" and the second records it; with
+ * With scripting on, the first press asks "Start the race now" and the second records it; with
  * scripting off the form submits on the first press, as it always did. **Decided by the project,
  * never by looking for the Confirm button**: a read that decides what to do next on a page that
  * may not have hydrated yet is the trap `CLAUDE.md` records against `nn-consolidated.spec.ts`.
@@ -786,7 +802,7 @@ test.describe('a race that has not started', () => {
 async function pressStart(page: Page, testInfo: TestInfo): Promise<void> {
   await page.getByRole('button', { name: 'Start the race' }).click();
   if (testInfo.project.name !== 'no-javascript') {
-    await page.getByRole('button', { name: 'Confirm the start' }).click();
+    await page.getByRole('button', { name: 'Start the race now' }).click();
   }
 }
 
@@ -801,18 +817,20 @@ test.describe('the gun', () => {
     await page.getByRole('button', { name: 'Start the race' }).click();
 
     // The question replaces the button, and takes focus so a keyboard lands on it.
-    const confirm = page.getByRole('button', { name: 'Confirm the start' });
+    const confirm = page.getByRole('button', { name: 'Start the race now' });
     await expect(confirm).toBeVisible();
     await expect(confirm).toBeFocused();
     // A `<details>` is a group too, so the question is found by the name it gives its group.
-    await expect(page.getByRole('group', { name: /Start the race now\?/ })).toBeVisible();
+    await expect(page.getByRole('group', { name: /Start the race\?/ })).toBeVisible();
 
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
 
     // Nothing was recorded: the race is still not started when read back from the server.
     await page.goto(path);
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Runners to the start.' }),
+    ).toBeVisible();
   });
 
   /**
@@ -835,9 +853,7 @@ test.describe('the gun', () => {
     await pressStart(page, testInfo);
 
     await expect(page.getByText(/The race has started/)).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Race in progress.' })).toBeVisible();
 
     const started = await page.getByText(/^It started /).textContent();
     expect(started).toBeTruthy();
@@ -878,9 +894,7 @@ test.describe('a race that is running', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(startPath(testInfo.project.name, 'running'));
 
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Race in progress.' })).toBeVisible();
     await expect(
       page.getByText(`It started ${START_FIXTURE_STARTED_LONDON}`),
     ).toBeVisible();
@@ -923,9 +937,7 @@ test.describe('a race that is running', () => {
     expect(posted.headers()['location']).toContain('outcome=crossings_exist');
 
     await page.goto(path);
-    await expect(
-      page.getByRole('heading', { name: 'The race is running' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Race in progress.' })).toBeVisible();
   });
 
   test('clears a false start when nobody has been timed, and counts down again', async ({
@@ -937,7 +949,9 @@ test.describe('a race that is running', () => {
     await page.getByRole('button', { name: 'Clear the start' }).click();
 
     await expect(page.getByText(/The start has been cleared/)).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Not started' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Runners to the start.' }),
+    ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start the race' })).toBeVisible();
   });
 });
@@ -953,7 +967,7 @@ test.describe('a race that has finished', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(startPath(testInfo.project.name, 'finished'));
 
-    await expect(page.getByRole('heading', { name: 'Race finished' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Race finished.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start the race' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Clear the start' })).toHaveCount(0);
 
@@ -1110,7 +1124,7 @@ test.describe('the entry list', () => {
   test("is linked from the race's own page", async ({ page }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(EVENT);
-    await raceCard(page, 'Entry list').click();
+    await raceCard(page, 'Manage registrations').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Entry list');
     expect(new URL(page.url()).pathname).toBe(`${EVENT}/registration`);
@@ -1871,7 +1885,7 @@ test.describe('the triage list', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${anomalyEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Captures waiting to be resolved' }).click();
+    await raceCard(page, 'Anomalies').click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Anomalies.');
   });
 
@@ -2408,7 +2422,7 @@ test.describe('finishing a race', () => {
     await page.goto(finishPath(testInfo.project.name));
 
     await expect(page.getByText(/label, not a cut-off/)).toBeVisible();
-    await page.getByRole('button', { name: 'Finish this race' }).click();
+    await page.getByRole('button', { name: 'Mark race finished' }).click();
 
     await expect(page.getByText(/This race is finished/).first()).toBeVisible();
     await expect(page.getByText(/Crossings can still be recorded/).first()).toBeVisible();
@@ -2419,10 +2433,8 @@ test.describe('finishing a race', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(finishPath(testInfo.project.name));
 
-    await page.getByRole('button', { name: 'Finish this race' }).click();
-    await page
-      .getByRole('button', { name: 'This race is not finished after all' })
-      .click();
+    await page.getByRole('button', { name: 'Mark race finished' }).click();
+    await page.getByRole('button', { name: 'Reopen the race' }).click();
 
     await expect(page.getByText(/no longer marked finished/)).toBeVisible();
     expect((await statusRaceState(testInfo.project.name)).finished).toBe(false);
@@ -2434,10 +2446,8 @@ test.describe('finishing a race', () => {
 
     // Same rule as the start screen: there is never a page with two buttons on it, which is what
     // keeps a cold thumb from finding the wrong one.
-    await expect(page.getByRole('button', { name: 'Finish this race' })).toHaveCount(1);
-    await expect(
-      page.getByRole('button', { name: 'This race is not finished after all' }),
-    ).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Mark race finished' })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Reopen the race' })).toHaveCount(0);
   });
 
   test("is linked from the race's own page", async ({ page }, testInfo) => {
@@ -2445,9 +2455,9 @@ test.describe('finishing a race', () => {
     await page.goto(`/timing/events/${statusEventSlug(testInfo.project.name)}`);
 
     // ADR-055: finishing is on Start, which the race's own page links to.
-    await raceCard(page, 'Start').click();
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Start.');
-    await expect(page.getByRole('heading', { level: 2, name: 'Finish' })).toBeVisible();
+    await raceCard(page, 'Start screen').click();
+    // Pass the Buck's race control: finishing is the running state's own action (ADR-055).
+    await expect(page.getByRole('button', { name: 'Mark race finished' })).toBeVisible();
   });
 
   test('gives a race that does not exist the ordinary not-found page', async ({
@@ -2686,7 +2696,11 @@ test.describe('the danger zone', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${resetEventSlug(testInfo.project.name)}`);
 
-    await page.getByRole('link', { name: 'Wipe this race and start again' }).click();
+    // ADR-055: Danger is a tab of the race's nav, as it is in Pass the Buck.
+    await page
+      .getByRole('navigation', { name: 'Race timing', exact: true })
+      .getByRole('link', { name: 'Danger' })
+      .click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Danger zone');
   });
 
@@ -3260,9 +3274,8 @@ test.describe('the live leaderboard', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`/timing/events/${previewEventSlug(testInfo.project.name)}`);
 
-    // The overview's card: the area bar carries a tab of the same name, and a finished race
-    // also offers it as one of the page's two buttons.
-    await raceCard(page, 'Live leaderboard').click();
+    // The hub's primary button, as Pass the Buck's is (ADR-055).
+    await raceCard(page, 'Live results').click();
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Leaderboard');
   });
@@ -3539,7 +3552,6 @@ test.describe('the app shell every timing page wears', () => {
   }) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     for (const [suffix, title] of [
-      ['/start', 'Start.'],
       ['/anomalies', 'Anomalies.'],
       ['/crossings', 'Timing log.'],
       ['/prizes', 'Prizes.'],

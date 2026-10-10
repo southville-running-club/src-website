@@ -7,6 +7,8 @@ import {
   PAGE_TREATMENTS,
   appAreas,
   appNav,
+  hubLive,
+  hubTools,
   raceNav,
   showsBar,
   timingHref,
@@ -206,5 +208,55 @@ describe('which areas the app header offers (ADR-054)', () => {
     expect(appAreas(['nn.entry.before_open'], ['nn-tester']).map((a) => a.key)).toEqual([
       'account',
     ]);
+  });
+});
+
+describe("the Home hub's buttons, built from the nav (ADR-055)", () => {
+  const SLUG = 'nn-2026';
+  const ADMIN = [
+    'timing.event.manage',
+    'timing.roster.read',
+    'timing.crossing.record',
+    'timing.crossing.resolve',
+    'timing.result.publish',
+    'timing.registration.import',
+    'timing.marshal.assign',
+  ];
+
+  it('gives an admin race-night tools, then setup, then after the race', () => {
+    expect(
+      hubTools(ADMIN, SLUG, true).map((group) => [
+        group.key,
+        group.tools.map((tool) => tool.label),
+      ]),
+    ).toEqual([
+      ['race-night', ['Roster', 'Anomalies', 'Marshal', 'Start screen', 'Timing log']],
+      ['setup', ['Manage staff', 'Manage registrations']],
+      ['after', ['Results', 'Prizes']],
+    ]);
+  });
+
+  it('gives a rostered marshal their own two tools and nothing else', () => {
+    expect(
+      hubTools(['timing.crossing.record', 'timing.roster.read'], SLUG, true).map((g) =>
+        g.tools.map((t) => t.label),
+      ),
+    ).toEqual([['Marshal', 'Roster']]);
+  });
+
+  it('never offers a button the nav would not, because it is built from the nav', () => {
+    for (const permissions of [ADMIN, ['timing.crossing.record'], []]) {
+      const nav = raceNav(permissions, SLUG, false).map((tab) => tab.path);
+      for (const group of hubTools(permissions, SLUG, false)) {
+        for (const tool of group.tools) expect(nav).toContain(tool.path);
+      }
+    }
+  });
+
+  it('offers the live board only to somebody who may open it', () => {
+    expect(hubLive(ADMIN, SLUG, false)).toBe('/events/nn-2026/leaderboard');
+    expect(
+      hubLive(['timing.crossing.record', 'timing.roster.read'], SLUG, true),
+    ).toBeNull();
   });
 });

@@ -1,8 +1,9 @@
-import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import { canOpen } from '../lib/access';
-import { readPermissions, readTiming } from '../lib/reads';
+import { hubTools, timingHref } from '../lib/chrome';
+import { readPermissions, readSignedInAs, readTiming } from '../lib/reads';
 import { TimingFrame } from './chrome/frames';
+import { Hub, hubTitle } from './chrome/hub';
 
 /**
  * `/timing`, for the people allowed to see it — **the list of where each of them may go.**
@@ -55,15 +56,6 @@ interface MarshalRace {
   finished_at: string | null;
 }
 
-/** The same three words the races list uses, so a race reads the same on both pages. */
-function stage(race: MarshalRace): string {
-  if (race.finished_at !== null) {
-    return 'Finished';
-  }
-
-  return race.actually_started_at === null ? 'Not started' : 'Running';
-}
-
 export default async function Page() {
   const permissions = await readPermissions();
   const mayManage = canOpen(permissions, '/events');
@@ -82,38 +74,64 @@ export default async function Page() {
   const showMarshalSection =
     mayCapture && (!mayManage || rostered.length > 0 || races.state === 'unavailable');
 
+  const signedInAs = await readSignedInAs();
+  const roleWord = mayManage ? 'admin' : mayCapture ? 'marshal' : null;
+
+  // **A marshal on one race is shown that race's hub** — Pass the Buck's: the race, where it
+  // has got to, and the buttons for what they may do on it. Anybody else gets the timing hub,
+  // which says where they may go.
+  const only = !mayManage && rostered.length === 1 ? rostered[0] : undefined;
+  if (only !== undefined) {
+    return (
+      <TimingFrame current="home" brand>
+        <Hub
+          eyebrow={only.name}
+          title={hubTitle(only.name)}
+          status={<p>{whereItIs(only)}</p>}
+          live={null}
+          signedInAs={signedInAs}
+          roleWord={roleWord}
+          groups={hubTools(permissions, only.slug, true)}
+        />
+      </TimingFrame>
+    );
+  }
+
   return (
-    <TimingFrame current="home">
-      <>
-        <h1>Race timing</h1>
-
-        {permissions.length === 0 ? (
-          <p className="notice notice-bad">
-            The club&rsquo;s database could not be reached, so this page cannot show where
-            you can go. Nothing has been changed. Try again in a moment.
-          </p>
-        ) : (
-          <p className="lede">
-            You are signed in with access to the club&rsquo;s race-timing system.
-          </p>
-        )}
-
-        {mayManage ? (
-          <section aria-labelledby="timing-races">
-            <h2 id="timing-races">Running a race</h2>
+    <TimingFrame current="home" brand>
+      <Hub
+        eyebrow="Southville Running Club"
+        title="Race timing."
+        status={
+          permissions.length === 0 ? (
             <p>
-              <Link href="/events">Races</Link> &mdash; the entry list, the start, the
-              finish and the results for each race set up for timing.
+              The club&rsquo;s database could not be reached, so this page cannot show
+              where you can go. Nothing has been changed. Try again in a moment.
             </p>
-          </section>
-        ) : null}
-
+          ) : (
+            <p>You are signed in to the club&rsquo;s race timing.</p>
+          )
+        }
+        live={null}
+        signedInAs={signedInAs}
+        roleWord={roleWord}
+        groups={
+          mayManage
+            ? [
+                {
+                  key: 'race-night',
+                  tools: [{ key: 'races', label: 'Races', path: '/events' }],
+                },
+              ]
+            : []
+        }
+      >
         {showMarshalSection ? (
-          <section aria-labelledby="timing-marshalling">
+          <section className="timing-hub-section" aria-labelledby="timing-marshalling">
             <h2 id="timing-marshalling">Marshalling</h2>
 
             {races.state === 'unavailable' ? (
-              <p className="notice notice-bad">
+              <p>
                 The races you are marshalling could not be read just now. Try again in a
                 moment, or open the link the race organiser sent you.
               </p>
@@ -123,32 +141,41 @@ export default async function Page() {
                 have, it will be listed here.
               </p>
             ) : (
-              <ul className="summary-list">
+              <ul className="timing-hub-races">
                 {rostered.map((race) => (
                   <li key={race.slug}>
-                    <h3>
-                      <Link href={`/marshal/${race.slug}`}>{race.name}</Link>
-                    </h3>
-                    <dl>
-                      <dt>Starts</dt>
-                      {/* `formatLondon` and nothing else — the race is the weekend after the
-                        clocks go back. */}
-                      <dd>{formatLondon(race.start_at)}</dd>
-
-                      <dt>Where it has got to</dt>
-                      <dd>{stage(race)}</dd>
-                    </dl>
+                    <h3>{race.name}</h3>
+                    <p>{whereItIs(race)}</p>
+                    <ul className="timing-hub-race-tools">
+                      {hubTools(permissions, race.slug, true)
+                        .flatMap((group) => group.tools)
+                        .filter((tool) => tool.key === 'marshal' || tool.key === 'roster')
+                        .map((tool) => (
+                          <li key={tool.key}>
+                            <a
+                              className="club-btn timing-btn-dark timing-hub-button"
+                              href={timingHref(tool.path)}
+                            >
+                              {tool.label}
+                            </a>
+                          </li>
+                        ))}
+                    </ul>
                   </li>
                 ))}
               </ul>
             )}
           </section>
         ) : null}
-
-        <p>
-          <a href="/">Southville Running Club</a>
-        </p>
-      </>
+      </Hub>
     </TimingFrame>
   );
+}
+
+/** Where a race has got to, in one line — Pass the Buck's status line. */
+function whereItIs(race: MarshalRace): string {
+  if (race.finished_at !== null) return 'Race complete.';
+  if (race.actually_started_at !== null) return 'Race in progress.';
+  // `formatLondon` and nothing else — the race is the weekend after the clocks go back.
+  return `Starts ${formatLondon(race.start_at)}.`;
 }

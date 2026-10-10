@@ -1,19 +1,20 @@
-import { formatLondon } from '@src/shared';
 import { readEventDetail, raceMetadata } from '../../../../lib/titles';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
-import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { RaceUnavailable } from '../../../chrome/race-unavailable';
 import type { EventDetail } from '../sections/event-detail';
 import { StartSection } from '../sections/start';
-import { FinishSection } from '../sections/finish';
+import { canOpen } from '../../../../lib/access';
+import { readPermissions } from '../../../../lib/reads';
+import { timingHref } from '../../../../lib/chrome';
 
 export const generateMetadata = raceMetadata('Start');
 
 /**
  * `/timing/events/<slug>/start` — race control: the start, the race clock, and finishing.
  *
- * ADR-055: Pass the Buck's Start page, one of the five the race console became. Its two forms
+ * ADR-055: Pass the Buck's Start page, one of the five the race console became — a club-green
+ * screen in one of three states, each with one big action (`sections/start.tsx`). Its two forms
  * still post where they always did — `start/update` and `finish/update`, each behind
  * `timing.event.manage` at the door and again in the database — and both come back here with
  * `?section=` naming which of the two the `?outcome=` is about, so a message is shown above the
@@ -52,38 +53,18 @@ export default async function StartPage({
   }
 
   const event = detail.data;
+  const permissions = await readPermissions();
+  const results = `/events/${event.slug}/results`;
 
   return (
-    <RaceFrame slug={slug} current="start" light>
-      <div className="timing-console">
-        <PageHead
-          eyebrow={raceEyebrow(event.name)}
-          title="Start."
-          intro={
-            <p>
-              Start the race when the gun goes, and mark it finished when the last runner
-              is in. It is scheduled to start {formatLondon(event.start_at)}.
-            </p>
-          }
-        />
-
-        <div id="start">
-          <StartSection
-            slug={slug}
-            event={event}
-            outcomeCode={section === 'finish' ? undefined : outcomeCode}
-          />
-        </div>
-
-        <div id="finish">
-          <h2>Finish</h2>
-          <FinishSection
-            slug={slug}
-            event={event}
-            outcomeCode={section === 'finish' ? outcomeCode : undefined}
-          />
-        </div>
-      </div>
+    <RaceFrame slug={slug} current="start" light brand>
+      <StartSection
+        slug={slug}
+        event={event}
+        outcomeCode={section === 'finish' ? undefined : outcomeCode}
+        finishOutcomeCode={section === 'finish' ? outcomeCode : undefined}
+        resultsHref={canOpen(permissions, results) ? timingHref(results) : null}
+      />
     </RaceFrame>
   );
 }

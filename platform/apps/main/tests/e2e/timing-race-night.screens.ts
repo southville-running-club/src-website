@@ -230,9 +230,9 @@ test.describe('the screens a volunteer meets on race night', () => {
     // Started, with the elapsed clock and no way to clear it — `clearable` is the other half,
     // and the pair is what makes "pressing again does not move it" legible in a picture.
     await page.goto(`/timing/events/${startEventSlug(slot, 'running')}/start`);
-    // A state of the Start page's race control, an h2 under the page's h1 (ADR-055).
+    // The Start page's state is its own h1 — Pass the Buck's race control (ADR-055).
     await expect(
-      page.getByRole('heading', { level: 2, name: 'The race is running' }),
+      page.getByRole('heading', { level: 1, name: 'Race in progress.' }),
     ).toBeVisible();
     await shoot(page, '06-after-the-gun');
   });
@@ -302,7 +302,7 @@ test.describe('the screens a volunteer meets on race night', () => {
     // `running` rather than `finished`, because the picture wanted is the one with the button
     // and the sentence under it — "finishing is a label, not a cut-off".
     await page.goto(`/timing/events/${startEventSlug(slot, 'running')}/start#finish`);
-    await expect(page.getByRole('button', { name: 'Finish this race' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Mark race finished' })).toBeVisible();
     await shoot(page, '12-finishing-is-a-label');
 
     await page.goto(`/timing/events/${statusEventSlug(slot)}/roster`);

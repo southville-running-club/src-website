@@ -40,12 +40,12 @@ export function ConfirmStart() {
   return (
     <div className="timing-confirm" role="group" aria-labelledby="confirm-start-question">
       <p id="confirm-start-question" className="timing-confirm-question">
-        Start the race now? The moment you press Confirm is the time every runner is
-        measured from.
+        Start the race? This records the start for every runner, from the moment you press
+        below.
       </p>
       {/* Focus moves to the question that just replaced the button the person pressed. */}
       <button className="club-btn timing-btn-dark" type="submit" autoFocus>
-        Confirm the start
+        Start the race now
       </button>
       <button
         className="club-btn club-btn-secondary"
