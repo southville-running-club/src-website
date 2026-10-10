@@ -2013,3 +2013,117 @@ body:has(.timing-ui) {
   font-family: var(--timing-mono);
   font-weight: 800;
 }
+
+/* -------------------------------------------------------------------------------------
+ * Prizes — presenter mode (ADR-055): a dark screen for the projector at HQ
+ * -------------------------------------------------------------------------------------
+ * The brand frame with the ink as the background: the page's own background colour as text on
+ * the page's ink is 14.2:1. The winner and the actions are club green with its ink on them. */
+.timing-brand-main:has(> .timing-presenter) {
+  padding: 0;
+  background: var(--club-text);
+  color: var(--club-background);
+}
+
+.timing-presenter {
+  min-height: calc(100dvh - 8rem);
+  padding-bottom: 3rem;
+}
+
+.timing-presenter :is(h1, p, a:not(.club-btn)) {
+  color: inherit;
+}
+
+.timing-presenter :focus-visible {
+  outline: 3px solid var(--club-background);
+  outline-offset: 3px;
+}
+
+.timing-presenter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--club-background);
+}
+
+.timing-presenter-bar p {
+  margin: 0;
+}
+
+.timing-presenter-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-left: auto;
+}
+
+.timing-presenter-centre {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding-top: 3rem;
+  text-align: center;
+}
+
+.timing-presenter-centre h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  line-height: 1;
+}
+
+.timing-presenter-centre p {
+  margin: 0;
+}
+
+.timing-presenter-rule {
+  font-size: 1.25rem;
+}
+
+.timing-presenter-big {
+  font-size: clamp(1.5rem, 4vw, 2.25rem);
+  font-weight: 700;
+}
+
+/* The face-down card: a winner who has not been revealed yet. */
+.timing-presenter-card {
+  display: grid;
+  place-items: center;
+  width: 9rem;
+  height: 12rem;
+  border: 3px solid var(--club-background);
+  border-radius: var(--club-radius-card);
+  font: 800 5rem / 1 var(--club-font-display);
+}
+
+.timing-presenter-winner {
+  font: 800 clamp(2.25rem, 6vw, 4rem) / 1.1 var(--club-font-display);
+}
+
+.timing-presenter-time {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 800;
+}
+
+.timing-presenter-primary {
+  min-width: 12rem;
+  min-height: 3.5rem;
+  border-color: var(--club-brand);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  font-size: 1.15rem;
+}
+
+.timing-presenter-outline {
+  border: 2px solid var(--club-background);
+  background: transparent;
+  color: var(--club-background);
+}
+
+.timing-presenter-leave {
+  font-weight: 700;
+}

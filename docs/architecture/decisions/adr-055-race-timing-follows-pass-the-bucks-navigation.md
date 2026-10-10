@@ -201,3 +201,37 @@ outside the staff sees a result before it is published.
   non-binary runner. Category winners are the prize list's, on Prizes.
 - **The same gap means a non-binary runner's Category cell reads "—"** on the board rather than a
   guess.
+
+## Amendment, 10 October 2026: Prizes is presenter mode, with Nightingale Nightmare's prizes
+
+**A solo race gets Nightingale Nightmare's prize list and nothing else.** The list is the race's
+published prizes (`/nn/`, `race.json`), confirmed by the club on 10 October 2026:
+1. **Fancy dress, three prizes.** These are judged on the day, so they have no computed winner.
+   The screen and the export say "Judged".
+2. **1st, 2nd and 3rd female and male**, by finishing time.
+3. **1st Vet 40, Vet 50 and Vet 60, female and male.**
+
+⚠️ **One prize each.** A runner placed 1st to 3rd is passed over for a veteran prize, which goes
+to the next fastest in that band. That is the club's decision, 10 October 2026.
+
+None of Pass the Buck's prizes reach Nightingale Nightmare: no mixed overall podium, no Senior
+band, no "Furthest Apart" or "Closest Together", no fastest leg and no spot draw. Pass the Buck's
+relay keeps its own list unchanged. The runner-voted marshals' award is not a race result and is
+not on the timing list. `computeNnAwards()` in `packages/shared/src/timing/awards.ts` holds the
+list.
+
+**A visually impaired runner can now win.** The solo prize finder used to skip any team with more
+than one runner. That team includes the runner's guide (ADR-022), so such a runner never could
+win. The NN list looks at the team's one non-guide runner, and the guide still wins nothing.
+
+**Presenter mode** is Pass the Buck's prize-giving screen, for the projector at HQ:
+- one prize at a time on a dark screen;
+- the winner face down until **Reveal**;
+- ← / → between prizes;
+- **Not here — pass to the next**;
+- "All prizes awarded" at the end.
+
+Its place is in the address (`?present=1&prize=N&reveal=1`) like every other choice the presenter
+makes, so a refresh mid-ceremony loses nothing, and it works with scripting off. **Not adopted:**
+Pass the Buck's Facebook link and "Copy HTML" export. The prize CSV and spreadsheet stay as they
+are.

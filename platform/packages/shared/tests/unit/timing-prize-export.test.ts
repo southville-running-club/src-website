@@ -85,13 +85,23 @@ describe('buildPrizeRows', () => {
     expect(rows).toHaveLength(awards.length);
     // ⚠️ An unclaimed band stays on the list. See the module header: the club's prize list is
     // prizes *offered*, and "nobody in the Vet 50 women's band this year" is the useful fact.
-    expect(rowFor(rows, "Women's Vet 50")).toMatchObject({ winner: '', time: '' });
+    expect(rowFor(rows, '1st Female Vet 50')).toMatchObject({ winner: '', time: '' });
+  });
+
+  it('marks fancy dress as judged, with nobody and no time beside it', () => {
+    const rows = buildPrizeRows(computeAwards(SOLO, FIELD, CROSSINGS), 'solo');
+
+    expect(rowFor(rows, 'Best Fancy Dress (1 of 3)')).toMatchObject({
+      winner: '',
+      time: '',
+      kind: 'Judged',
+    });
   });
 
   it('names the winner, the bib and the metric the award was actually won on', () => {
     const rows = buildPrizeRows(computeAwards(SOLO, FIELD, CROSSINGS), 'solo');
 
-    expect(rowFor(rows, '1st Place Overall')).toMatchObject({
+    expect(rowFor(rows, '1st Male')).toMatchObject({
       winner: 'Grace Test',
       bibs: '12',
       time: '40:00',
@@ -102,24 +112,23 @@ describe('buildPrizeRows', () => {
     const passed = computeAwards(SOLO, FIELD, CROSSINGS, new Set(['team-12']));
     const rows = buildPrizeRows(passed, 'solo');
 
-    // Grace has gone home, so Ada is first overall — on the screen and therefore in the file.
-    expect(rowFor(rows, '1st Place Overall')?.winner).toBe('Ada Test');
+    // Grace has gone home, and she was the only man — on the screen and therefore in the file.
+    expect(rowFor(rows, '1st Male')?.winner).toBe('');
     expect(rows.some((row) => row.winner === 'Grace Test')).toBe(false);
   });
 
   it('carries a spot draw the presenter made, with no time beside it', () => {
-    const awards = computeAwards(SOLO, FIELD, CROSSINGS);
-    const draw = awards.find((award) => award.kind === 'random_draw_1');
-    const drawn = awards.map((award): PrizeAward =>
-      award === draw
-        ? {
-            ...award,
-            // What `resolvePrizeAwards()` does with a choice out of the URL: a team, and
-            // deliberately no metric.
-            winner: { type: 'team', team: FIELD[2]!, metricMs: 0, metricLabel: '' },
-          }
-        : award,
-    );
+    // A spot draw is Pass the Buck's — Nightingale Nightmare's list has none — so the award is
+    // built by hand: what `resolvePrizeAwards()` does with a choice out of the URL is a team,
+    // and deliberately no metric.
+    const drawn: PrizeAward[] = [
+      {
+        kind: 'random_draw_1',
+        title: 'Spot Prize',
+        subtitle: 'Random draw from finished teams',
+        winner: { type: 'team', team: FIELD[2]!, metricMs: 0, metricLabel: '' },
+      },
+    ];
 
     const row = rowFor(buildPrizeRows(drawn, 'solo'), 'Spot Prize');
     // ⚠️ `Drawn` rather than a blank Time column beside a name, which would read as a lost time.

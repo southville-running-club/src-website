@@ -111,7 +111,12 @@ function Prize({
       </p>
       <p className="triage-reason">{award.subtitle}</p>
 
-      {winner === null ? (
+      {award.judged === true ? (
+        // Nightingale Nightmare's fancy dress: decided by people on the day, never by a time.
+        <p className="triage-reason">
+          <em>Judged on the day.</em>
+        </p>
+      ) : winner === null ? (
         <p className="triage-reason">
           {offer === undefined ? (
             <em>Nobody has won this.</em>

@@ -26,12 +26,7 @@
  * unreachable branch in prize logic is a thing somebody later has to work out is unreachable.
  */
 
-import {
-  AGE_CATEGORY_CODES,
-  ageCategoryFor,
-  ageCategoryLabel,
-  type AgeCategoryCode,
-} from '../age-category';
+import { ageCategoryFor, ageCategoryLabel, type AgeCategoryCode } from '../age-category';
 import { deriveCategory, type PairCategory } from './categories';
 import { placementFor } from './gender';
 import { buildResults, sortResults, teamRaceStatus, type Result } from './results';
@@ -58,15 +53,22 @@ export type AwardKind =
   | 'smallest_spread'
   | 'fastest_individual_male'
   | 'fastest_individual_female'
-  // The club's own prize list for a **solo** race, from `/nn/`: four age bands awarded to
-  // female and male runners. Eight kinds rather than one parameterised kind, because every
-  // other award here is a named constant with its own title and subtitle and a prize list is
-  // read aloud rather than computed.
-  | 'solo_female_senior'
+  // **Nightingale Nightmare's own prize list** — a solo race, and `/nn/`'s published prizes:
+  // three judged fancy-dress prizes, 1st to 3rd female and male, and 1st Vet 40, Vet 50 and
+  // Vet 60 female and male. Named kinds rather than one parameterised kind, because every other
+  // award here is a named constant and a prize list is read aloud rather than computed.
+  | 'fancy_dress_1'
+  | 'fancy_dress_2'
+  | 'fancy_dress_3'
+  | 'solo_female_1st'
+  | 'solo_female_2nd'
+  | 'solo_female_3rd'
+  | 'solo_male_1st'
+  | 'solo_male_2nd'
+  | 'solo_male_3rd'
   | 'solo_female_vet40'
   | 'solo_female_vet50'
   | 'solo_female_vet60'
-  | 'solo_male_senior'
   | 'solo_male_vet40'
   | 'solo_male_vet50'
   | 'solo_male_vet60'
@@ -115,6 +117,12 @@ export type Award = {
    * the client further excludes other random-draw picks at pick time.
    */
   randomPool?: TeamWithRunners[];
+  /**
+   * A prize the club decides on the day rather than one a time decides — Nightingale
+   * Nightmare's fancy dress. Never has a computed winner; the presenter says it is judged rather
+   * than that nobody has won it.
+   */
+  judged?: boolean;
 };
 
 const PODIUM_AWARDS: Array<{
@@ -233,62 +241,103 @@ function isGuide(runner: { role?: string | null }): boolean {
 }
 
 /**
- * The eight solo category prizes, in the order the club's prize list gives them.
- *
- * Derived from `AGE_CATEGORY_CODES` rather than typed out, so a band added to the club's list
- * appears here without this file being edited — and so the bands cannot drift from the ones
- * `/nn/` publishes and the entry form already uses.
+ * The one runner a solo prize is about: the team's runner who is not a guide. A visually
+ * impaired runner's team has their guide on it too (ADR-022), and the runner is as eligible as
+ * anybody — an earlier version skipped every team with more than one runner on it, which meant
+ * a visually impaired runner could never win.
  */
-const SOLO_CATEGORY_AWARDS: Array<{
-  kind: AwardKind;
-  title: string;
-  subtitle: string;
-  gender: 'female' | 'male';
-  code: AgeCategoryCode;
-}> = (['female', 'male'] as const).flatMap((gender) =>
-  AGE_CATEGORY_CODES.map((code) => ({
-    kind: `solo_${gender}_${code}` as AwardKind,
-    title: `${gender === 'female' ? 'Women' : 'Men'}'s ${ageCategoryLabel(code)}`,
-    subtitle: `Fastest ${gender} runner in the ${ageCategoryLabel(code)} band`,
-    gender,
-    code,
-  })),
-);
+function soloRunner(team: TeamWithRunners): Runner | null {
+  const runners = team.runners.filter((runner) => !isGuide(runner));
+  return runners.length === 1 ? (runners[0] ?? null) : null;
+}
+
+const PLACE_WORDS = ['1st', '2nd', '3rd'] as const;
+const VET_CODES: readonly AgeCategoryCode[] = ['vet40', 'vet50', 'vet60'];
 
 /**
- * Fastest finisher in one age band on a solo race.
+ * **Nightingale Nightmare's prize list**, in the order it is read out — the race's published
+ * prizes (`/nn/`, `race.json`), confirmed by the club on 10 October 2026:
  *
- * `finished` arrives pre-sorted ascending by total time, so the first match is the winner —
- * the same assumption every other finder in this file makes.
+ * 1. **Fancy dress, three prizes** — judged on the day, so never computed.
+ * 2. **1st, 2nd and 3rd female, then male**, by finishing time.
+ * 3. **1st Vet 40, Vet 50 and Vet 60, female then male** — ⚠️ **one prize each**: a runner who
+ *    has already won 1st to 3rd is passed over for a veteran prize, which goes to the next
+ *    fastest in that band. The club's decision, 10 October 2026.
  *
- * A team whose runner has no recorded age, or a gender the import did not recognise, is in no
- * band and wins nothing. That is the same answer `deriveCategory` gives a relay pair it cannot
- * classify, and for the same reason.
+ * ⚠️ **None of Pass the Buck's prizes**: no mixed overall podium, no Senior band, no "Furthest
+ * Apart" or "Closest Together", no fastest leg and no spot draw. Those are a relay's, and stay
+ * on `computeAwards()`'s relay path.
+ *
+ * Gender is the place a runner is put in, through `placementFor()` (ADR-031); a guide wins
+ * nothing (ADR-022); a team with a DNS, DNF or DQ is already out of `finished`.
  */
-function findFastestSoloInCategory(
+function computeNnAwards(
   finished: Array<{ result: Result; team: TeamWithRunners }>,
-  gender: 'female' | 'male',
-  code: AgeCategoryCode,
-): TeamWinner | null {
-  for (const entry of finished) {
-    const runner = entry.team.runners[0];
-    if (runner === undefined || entry.team.runners.length !== 1) continue;
-    if (runner.age_on_day === null) continue;
-    if (isGuide(runner)) continue;
-    if (placedGender(runner) !== gender) continue;
+): Award[] {
+  const awards: Award[] = [];
 
-    const band = ageCategoryFor(runner.age_on_day, gender);
-    if (!band.known || band.code !== code) continue;
-    if (entry.result.totalMs === null) continue;
-
-    return {
-      type: 'team',
-      team: entry.team,
-      metricMs: entry.result.totalMs,
-      metricLabel: formatHms(entry.result.totalMs),
-    };
+  for (const [index] of PLACE_WORDS.entries()) {
+    awards.push({
+      kind: `fancy_dress_${index + 1}` as AwardKind,
+      title: `Best Fancy Dress (${index + 1} of 3)`,
+      subtitle: 'One of three prizes for the best fancy dress',
+      winner: null,
+      judged: true,
+    });
   }
-  return null;
+
+  // Each finisher once, with the runner a prize is about and the place they are put in.
+  const entries = finished.flatMap((entry) => {
+    const runner = soloRunner(entry.team);
+    if (runner === null || entry.result.totalMs === null) return [];
+    const gender = placedGender(runner);
+    if (gender === null) return [];
+    return [{ entry, runner, gender, totalMs: entry.result.totalMs }];
+  });
+
+  const won = new Set<string>();
+  const winnerOf = (
+    entry: { result: Result; team: TeamWithRunners },
+    totalMs: number,
+  ) => ({
+    type: 'team' as const,
+    team: entry.team,
+    metricMs: totalMs,
+    metricLabel: formatHms(totalMs),
+  });
+
+  for (const gender of ['female', 'male'] as const) {
+    const field = entries.filter((e) => e.gender === gender);
+    PLACE_WORDS.forEach((place, index) => {
+      const pick = field[index];
+      if (pick !== undefined) won.add(pick.entry.team.id);
+      awards.push({
+        kind: `solo_${gender}_${place}` as AwardKind,
+        title: `${place} ${gender === 'female' ? 'Female' : 'Male'}`,
+        subtitle: `${index === 0 ? 'Fastest' : index === 1 ? 'Second-fastest' : 'Third-fastest'} ${gender} runner`,
+        winner: pick === undefined ? null : winnerOf(pick.entry, pick.totalMs),
+      });
+    });
+  }
+
+  for (const gender of ['female', 'male'] as const) {
+    for (const code of VET_CODES) {
+      const pick = entries.find((e) => {
+        if (e.gender !== gender || won.has(e.entry.team.id)) return false;
+        if (e.runner.age_on_day === null) return false;
+        const band = ageCategoryFor(e.runner.age_on_day, gender);
+        return band.known && band.code === code;
+      });
+      awards.push({
+        kind: `solo_${gender}_${code}` as AwardKind,
+        title: `1st ${gender === 'female' ? 'Female' : 'Male'} ${ageCategoryLabel(code)}`,
+        subtitle: `Fastest ${gender} ${ageCategoryLabel(code)} runner not already winning a prize`,
+        winner: pick === undefined ? null : winnerOf(pick.entry, pick.totalMs),
+      });
+    }
+  }
+
+  return awards;
 }
 
 function findFastestPairInCategory(
@@ -436,6 +485,10 @@ export function computeAwards(
     .map((r) => attach(r, byTeamId))
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  // ⚠️ **A solo race is Nightingale Nightmare, and gets Nightingale Nightmare's prizes** and
+  // nothing else — see `computeNnAwards()`. Everything below is Pass the Buck's relay list.
+  if (!isRelay) return computeNnAwards(finished);
+
   const awards: Award[] = [];
 
   // 1–3: overall podium. `finished` is pre-sorted ascending by totalMs,
@@ -460,33 +513,15 @@ export function computeAwards(
     });
   }
 
-  // 4–6: the category prizes, and **which list depends on the race**.
-  //
-  // ⚠️ Pass the Buck is a relay and Nightingale Nightmare is solo, and they do not award the
-  // same prizes. The pair categories are derived from two runners' genders, so on a solo race
-  // `deriveCategory` answers null for every team and all three would render as prizes with no
-  // winner — three empty rows on a results page, for categories the race does not have.
-  //
-  // So the relay gets its three pair categories and a solo race gets the club's eight age
-  // bands, which is the prize list `/nn/` publishes.
-  if (isRelay) {
-    for (const def of CATEGORY_AWARDS) {
-      awards.push({
-        kind: def.kind,
-        title: def.title,
-        subtitle: def.subtitle,
-        winner: findFastestPairInCategory(finished, def.category),
-      });
-    }
-  } else {
-    for (const def of SOLO_CATEGORY_AWARDS) {
-      awards.push({
-        kind: def.kind,
-        title: def.title,
-        subtitle: def.subtitle,
-        winner: findFastestSoloInCategory(finished, def.gender, def.code),
-      });
-    }
+  // 4–6: the relay's three pair categories. A solo race never reaches here — it returned
+  // Nightingale Nightmare's own list above.
+  for (const def of CATEGORY_AWARDS) {
+    awards.push({
+      kind: def.kind,
+      title: def.title,
+      subtitle: def.subtitle,
+      winner: findFastestPairInCategory(finished, def.category),
+    });
   }
 
   // 7–8: spread extremes.
