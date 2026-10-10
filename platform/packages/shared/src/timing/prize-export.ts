@@ -73,7 +73,10 @@ export interface PrizeExportRow {
   team: string;
   /** The metric the award was won on, already formatted by `awards.ts`. Empty for no winner. */
   time: string;
-  /** `Drawn` for a spot prize, empty otherwise — so nobody looks for a time beside one. */
+  /**
+   * `Drawn` for a spot prize and `Judged` for one the club decides on the day (Nightingale
+   * Nightmare's fancy dress), empty otherwise — so nobody looks for a time beside either.
+   */
   kind: string;
 }
 
@@ -149,7 +152,7 @@ export function buildPrizeRows(
     time: award.winner?.metricLabel ?? '',
     // ⚠️ A spot prize has no metric, so an empty Time column beside a named winner would read
     // as a lost time rather than as "there was never one".
-    kind: isRandomDraw(award.kind) ? 'Drawn' : '',
+    kind: isRandomDraw(award.kind) ? 'Drawn' : award.judged === true ? 'Judged' : '',
   }));
 }
 

@@ -91,6 +91,44 @@ const PAYLOAD: ResultsPreview = {
   })),
 };
 
+/**
+ * A small **relay** race, for the spot draws — ADR-055's prize amendment gave Nightingale
+ * Nightmare's solo race its own list, which has none, so the draws are Pass the Buck's alone now.
+ * Two runners a team, a handover and a finish each; relay bibs are leg first.
+ */
+function relayTeam(number: string): ResultsPreview['teams'][number] {
+  const one = team(number, `Leg1-${number}`, 'female', 30);
+  return {
+    ...one,
+    runners: [
+      one.runners[0]!,
+      { ...one.runners[0]!, id: `r-${number}-2`, leg: 2, firstname: `Leg2-${number}` },
+    ],
+  };
+}
+
+const RELAY: ResultsPreview = {
+  event: { ...EVENT, format: 'relay' },
+  open_anomalies: 0,
+  teams: ['21', '22', '23', '24', '25', '26'].map(relayTeam),
+  crossings: ['21', '22', '23', '24', '25', '26'].flatMap((number, index) => [
+    {
+      bib: `1${number}`,
+      captured_at: at(20 + index),
+      anomaly_flag: false,
+      resolved_at: null,
+      resolved_action: null,
+    },
+    {
+      bib: `2${number}`,
+      captured_at: at(45 + index * 5),
+      anomaly_flag: false,
+      resolved_at: null,
+      resolved_action: null,
+    },
+  ]),
+};
+
 const winnerOf = (awards: ReturnType<typeof resolvePrizeAwards>, kind: string) =>
   awards.find((award) => award.kind === kind)?.winner ?? null;
 
@@ -136,23 +174,23 @@ describe('resolvePrizeAwards', () => {
 
   it('takes a passed team out of every award, not merely the one they won', () => {
     const clean = resolvePrizeAwards(PAYLOAD, prizeChoicesFrom({}));
-    expect(winnerOf(clean, 'first_overall')?.team.id).toBe('team-12');
+    expect(winnerOf(clean, 'solo_male_1st')?.team.id).toBe('team-12');
 
     const passed = resolvePrizeAwards(PAYLOAD, prizeChoicesFrom({ pass: 'team-12' }));
-    expect(winnerOf(passed, 'first_overall')?.team.id).toBe('team-11');
-    // ⚠️ Their band prize goes too. "They are not here" means every prize, or the same people
-    // go on winning everything else.
+    expect(winnerOf(passed, 'solo_male_1st')?.team.id).toBe('team-14');
+    // ⚠️ Every prize, not merely the one they won. "They are not here" means they are out of
+    // the veteran prizes too, or the same people go on winning everything else.
     expect(winnerOf(passed, 'solo_male_vet50')).toBeNull();
   });
 
   it('fills a spot draw the presenter took, with no time beside it', () => {
     const awards = resolvePrizeAwards(
-      PAYLOAD,
-      prizeChoicesFrom({ random_draw_1: 'team-16' }),
+      RELAY,
+      prizeChoicesFrom({ random_draw_1: 'team-25' }),
     );
     const drawn = winnerOf(awards, 'random_draw_1');
 
-    expect(drawn?.team.id).toBe('team-16');
+    expect(drawn?.team.id).toBe('team-25');
     // No metric, because there was never one — a `00:00` beside a name is a claim about a race.
     expect(drawn?.metricLabel).toBe('');
   });
@@ -160,9 +198,9 @@ describe('resolvePrizeAwards', () => {
   it('ignores a drawn id that is not in the pool, rather than trusting the address', () => {
     // ⚠️ A stale or invented id means the draw has not been made. The honest answer, and the
     // one that cannot promote somebody the pool already excluded.
-    for (const chosen of ['team-12', 'not-a-team']) {
+    for (const chosen of ['team-21', 'not-a-team']) {
       const awards = resolvePrizeAwards(
-        PAYLOAD,
+        RELAY,
         prizeChoicesFrom({ random_draw_1: chosen }),
       );
       expect(winnerOf(awards, 'random_draw_1')).toBeNull();
@@ -172,19 +210,19 @@ describe('resolvePrizeAwards', () => {
 
 describe('drawablePool', () => {
   it('will not offer the team the other spot prize already took', () => {
-    const choices = prizeChoicesFrom({ random_draw_2: 'team-16' });
-    const awards = resolvePrizeAwards(PAYLOAD, choices);
+    const choices = prizeChoicesFrom({ random_draw_2: 'team-25' });
+    const awards = resolvePrizeAwards(RELAY, choices);
     const first = awards.find((award) => award.kind === 'random_draw_1');
 
     const ids = drawablePool(first!, choices).map(
       (candidate: TeamWithRunners) => candidate.id,
     );
 
-    expect(ids).not.toContain('team-16');
+    expect(ids).not.toContain('team-25');
     // And the other draw still has it, because it is the one that took it.
     const second = awards.find((award) => award.kind === 'random_draw_2');
     expect(drawablePool(second!, choices).map((t: TeamWithRunners) => t.id)).toContain(
-      'team-16',
+      'team-25',
     );
   });
 });

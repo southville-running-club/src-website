@@ -2939,8 +2939,10 @@ test.describe('the results preview', () => {
     const csv = new TextDecoder('utf-8', { ignoreBOM: true }).decode(
       new Uint8Array(await response.body()),
     );
-    expect(csv).toContain('1st Place Overall');
+    // Nightingale Nightmare's own prizes — the fixture is a solo race (ADR-055's prizes).
+    expect(csv).toContain('1st Male');
     expect(csv).toContain('Grace Hopper');
+    expect(csv).not.toContain('Overall');
   });
 
   test('refuses a format nobody wrote down rather than picking one', async ({
@@ -3032,8 +3034,78 @@ test.describe('the prize presenter', () => {
 
     // ADR-055: Prizes is its own page again, as it is in Pass the Buck.
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Prizes.');
-    await expect(page.getByText('1st Place Overall')).toBeVisible();
+    // Nightingale Nightmare's own prize list, and none of Pass the Buck's.
+    await expect(page.getByText('Best Fancy Dress (1 of 3)')).toBeVisible();
+    await expect(page.getByText('1st Male', { exact: true })).toBeVisible();
     await expect(page.getByText('Grace Hopper').first()).toBeVisible();
+    await expect(page.getByText('1st Place Overall')).toHaveCount(0);
+    await expect(page.getByText('Spot Prize')).toHaveCount(0);
+  });
+
+  /**
+   * **Presenter mode** (ADR-055): one prize at a time, face down until revealed, with its place
+   * in the address so a refresh mid-ceremony loses nothing.
+   */
+  test('presents one prize at a time, judged prizes as judged and the rest face down', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(prizePath(testInfo.project.name));
+    await page.getByRole('link', { name: 'Present the prizes' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Best Fancy Dress (1 of 3)',
+    );
+    await expect(page.getByText('Prize 1 of 15')).toBeVisible();
+    await expect(page.getByText(/Judged on the day/).first()).toBeVisible();
+
+    // Prize 7 is 1st Male: face down until revealed.
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('1st Male');
+    await expect(page.getByText('Grace Hopper')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Reveal' }).click();
+    await expect(page.getByText('Grace Hopper')).toBeVisible();
+    // Revealed survives a reload, because it is in the address.
+    await page.reload();
+    await expect(page.getByText('Grace Hopper')).toBeVisible();
+  });
+
+  test('ends the presentation with every prize awarded', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=16`);
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'All prizes awarded.',
+    );
+    await expect(
+      page.getByRole('link', { name: 'Back to the prize list' }),
+    ).toBeVisible();
+  });
+
+  test('moves between prizes with the arrow keys @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=2`);
+
+    // Each press loads the next prize's page, whose keys start listening once it has hydrated —
+    // so wait for that rather than pressing into a page that cannot hear it yet.
+    const keysLive = page.locator('html[data-presenter-keys="on"]');
+    await expect(keysLive).toHaveCount(1);
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('Prize 3 of 15')).toBeVisible();
+    await expect(keysLive).toHaveCount(1);
+    await page.keyboard.press('ArrowLeft');
+    await expect(page.getByText('Prize 2 of 15')).toBeVisible();
+  });
+
+  test('has no accessibility violations in presenter mode @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
+
+    expect(await axeViolations(page)).toEqual([]);
   });
 
   /**

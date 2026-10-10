@@ -394,8 +394,14 @@ status changes what the table says and the table is about to be read.
 - [ ] **`/timing/events/nn-2026/results/`**. **State** reads *Finished, not published*, and
       **Open captures** reads 0
 - [ ] **Prizes** — `/timing/events/nn-2026/prizes` — is the same results read a second way, in the order
-      they are read out. **Not here — pass to the next** takes that team out of **every** prize
-      below; a spot prize is **Draw <name>**; **Start again** puts every pass-over back. ⚠️
+      they are read out. **They are the race's own prizes and nothing else**: three fancy dress
+      (judged on the day, so the screen has no winner for them), 1st to 3rd female and male,
+      and 1st Vet 40, Vet 50 and Vet 60 female and male. ⚠️ **One prize each**: a runner placed
+      1st to 3rd is passed over for a veteran prize, which goes to the next in the band. The
+      runner-voted marshals' award is not on it.
+- [ ] **Present the prizes** puts it on the projector one prize at a time: **Reveal**, then
+      **Next**, or ← and → on the keyboard. **Not here — pass to the next** takes that runner
+      out of **every** prize; **Start again** on the list puts every pass-over back. ⚠️
       **Every choice made on that screen lives in the address bar**, so it survives a refresh
       mid-ceremony and does **not** survive navigating away and coming back
 - [ ] Somebody holding **`nn-results`** opens **`/nn/2026/results/`** on the club's site and
