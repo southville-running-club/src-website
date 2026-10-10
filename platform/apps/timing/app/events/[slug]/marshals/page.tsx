@@ -3,6 +3,7 @@ import { readTiming } from '../../../../lib/reads';
 import { outcomeFor } from '../../../../lib/marshal-outcomes';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { raceMetadata } from '../../../../lib/titles';
 
 export const generateMetadata = raceMetadata('Marshals');
@@ -131,11 +132,22 @@ export default async function MarshalsPage({
 
   return (
     <RaceFrame slug={slug} name={event.name} current="staff" page="Marshals" wide>
-      <div className="club-wrap-narrow">
-        <div className="club-phead">
-          <h1>Marshals</h1>
-          <p className="club-lede">Who may record a crossing for {event.name}.</p>
-        </div>
+      <div className="timing-medium">
+        <PageHead
+          eyebrow={raceEyebrow(event.name)}
+          title="Staff."
+          intro={
+            <p>
+              The marshals who may record crossings on {event.name}. Put somebody on the
+              roster here once they hold the marshal role; who holds which role is on the
+              club&rsquo;s People page.
+            </p>
+          }
+          status={{
+            count: `${marshals.length} ${marshals.length === 1 ? 'marshal' : 'marshals'} on the roster`,
+            refresh: `/timing/events/${encodeURIComponent(slug)}/marshals`,
+          }}
+        />
 
         {outcome === null ? null : (
           <p

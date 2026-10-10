@@ -221,8 +221,8 @@ run at all.
 - [ ] Open **`/timing/events/nn-2026/danger-zone/`**
 - [ ] Read **What would be removed** and **What would be kept**. Those counts are read from
       the database — they are the blast radius, not a description of one
-- [ ] Type the race's slug exactly as the page shows it, in lower case, and press **Wipe this
-      race**
+- [ ] Type the race's slug exactly as the page shows it, in lower case, and press **Reset event
+      data**
 - [ ] Check the race's Home afterwards, under **Race details**: **Crossings** is 0, and
       **Actually started** and **Finished** are both cleared
 
@@ -231,9 +231,9 @@ been done to it.** The entry list goes with the crossings, so **step 1.5 is re-r
 not before it**.
 
 ⚠️ **A published race cannot be wiped**, and since 4 October 2026 the page says so before
-anybody presses anything: **Wipe this race** is disabled, and beside it reads *"This race’s
+anybody presses anything: **Reset event data** is disabled, and beside it reads *"This race’s
 results are published. Take them down on its Results page before wiping it."* That is the rule
-arriving on time rather than a fault. **Wipe this race** also stays disabled until the box holds
+arriving on time rather than a fault. **Reset event data** also stays disabled until the box holds
 the race's slug; on a device with JavaScript off it does not wait, and the database refuses a
 wrong phrase instead.
 
@@ -458,7 +458,7 @@ one sitting, at a laptop, with the correction already known.**
 not-found page. That is deliberate — the alternative is serving a table somebody is editing —
 and it is why this is one sitting rather than a job for the evening.
 
-**Unpublishing is what the danger zone asks for too.** A published race refuses to be wiped
+**Unpublishing is what the Danger tab asks for too.** A published race refuses to be wiped
 outright, and nothing about that changes until somebody with `timing.result.publish` takes the
 results down first.
 

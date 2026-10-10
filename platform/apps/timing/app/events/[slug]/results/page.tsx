@@ -23,6 +23,7 @@ import {
   resultsOutcomeFor,
 } from '../../../../lib/results-outcomes';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
+import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { raceMetadata } from '../../../../lib/titles';
 
 export const generateMetadata = raceMetadata('Results');
@@ -236,6 +237,20 @@ function PreviewTable({ payload }: { payload: ResultsPreview }) {
   );
 }
 
+/** "12 finishers · + 3 DNS / DNF / DQ" — Pass the Buck's results count. */
+function resultsCount(payload: ResultsPreview): string {
+  // The same `buildResults()` the table below is drawn from, so the count cannot disagree
+  // with the rows.
+  const results = buildResults(payload.event, payload.teams, payload.crossings);
+  const finishers = results.filter((result) => result.status === 'finished').length;
+  const statuses = results.filter((result) =>
+    ['dns', 'dnf', 'dq'].includes(result.status),
+  ).length;
+  return `${finishers} ${finishers === 1 ? 'finisher' : 'finishers'}${
+    statuses === 0 ? '' : ` · + ${statuses} DNS / DNF / DQ`
+  }`;
+}
+
 export default async function ResultsPage({
   params,
   searchParams,
@@ -301,9 +316,22 @@ export default async function ResultsPage({
       wide
     >
       <div>
-        <div className="club-phead">
-          <h1>Results</h1>
-        </div>
+        <PageHead
+          eyebrow={raceEyebrow(payload.event.name)}
+          title="Results."
+          intro={
+            <p>
+              A preview of the results file. Runners marked as being checked are flagged,
+              and anybody who did not start, did not finish or was disqualified sits at
+              the foot with a status and no position or time. Publish it when the race is
+              finished and every capture is resolved.
+            </p>
+          }
+          status={{
+            count: resultsCount(payload),
+            refresh: `/timing/events/${encodeURIComponent(slug)}/results`,
+          }}
+        />
 
         {outcome === null ? null : (
           <p
