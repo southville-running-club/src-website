@@ -1379,6 +1379,8 @@ const BIB_LANDS = `1${CAPTURE_TEAM_NUMBER}`;
 const BIB_NO_HANDOVER = '299';
 const BIB_OFFLINE = `2${CAPTURE_TEAM_NUMBER}`;
 const BIB_RELOAD = '288';
+/** Two runners timed in one signal gap. Orphans on purpose: the bibs match nobody. */
+const BIBS_GAP = ['266', '267'] as const;
 
 /** The keypad, pressed a digit at a time — which is the only way a bib is typed on this screen. */
 const typeBib = async (page: Page, bib: string): Promise<void> => {
@@ -1515,7 +1517,9 @@ test.describe('recording a crossing', () => {
     await expect(page.getByText(/Crossed at \d\d:\d\d:\d\d/)).toBeVisible();
 
     await typeBib(page, BIB_LANDS);
-    await expect(page.getByText(`Bib ${BIB_LANDS}`)).toBeVisible();
+    // Exact, because Confirm repeats the bib — "Confirm bib 147" — and a plain `getByText` is a
+    // case-insensitive substring match that finds both.
+    await expect(page.getByText(`Bib ${BIB_LANDS}`, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Confirm bib' }).click();
 
     // The queue empties once the crossing has landed, which is the screen's own statement that
@@ -1614,6 +1618,95 @@ test.describe('recording a crossing', () => {
     expect(
       (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_OFFLINE),
     ).toBe(true);
+  });
+
+  /**
+   * **Several runners in one signal gap, every one of them kept and every one sent** — the
+   * case a single crossing does not prove: two taps with no signal, both bibs typed while still
+   * offline, and both reaching the club once it comes back. Same wait as the test above, for the
+   * same reason.
+   */
+  test('keeps every crossing in a signal gap and sends them all afterwards @requires-js', async ({
+    page,
+    context,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    await context.setOffline(true);
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await expect(page.getByText('2 awaiting bib')).toBeVisible();
+
+    // One keypad at a time, oldest first: confirming the first opens the second.
+    for (const bib of BIBS_GAP) {
+      await typeBib(page, bib);
+      await page.getByRole('button', { name: `Confirm bib ${bib}` }).click();
+    }
+    await expect(page.getByText('0 awaiting bib')).toBeVisible();
+
+    const before = await captureCrossings(testInfo.project.name);
+    for (const bib of BIBS_GAP) {
+      expect(before.some((c) => c.bib === bib)).toBe(false);
+    }
+
+    await context.setOffline(false);
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
+      timeout: 45_000,
+    });
+
+    const after = await captureCrossings(testInfo.project.name);
+    for (const bib of BIBS_GAP) {
+      expect(after.some((c) => c.bib === bib)).toBe(true);
+    }
+  });
+
+  /**
+   * **Timing mode** (ADR-055's amendment of 10 October 2026): the screen is the whole phone. On
+   * the shortest phone this race will see — an iPhone SE in Safari, about 553px — the tab bar
+   * starts above the screen, the keys and Confirm are on it with nothing scrolled, and scrolling
+   * the page up brings the tab bar back. The ⋯ menu carries the same tabs.
+   */
+  test('fills the phone, with the tab bar above it @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 375, height: 553 });
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+
+    const nav = page.getByRole('navigation', { name: 'Race timing', exact: true });
+    const outOfView = async () => {
+      const box = await nav.boundingBox();
+      return box === null ? true : box.y + box.height <= 1;
+    };
+    await expect.poll(outOfView).toBe(true);
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, '9');
+    const confirm = page.getByRole('button', { name: 'Confirm bib 9' });
+    const box = await confirm.boundingBox();
+    expect(box, 'Confirm is laid out').not.toBeNull();
+    expect(box!.y + box!.height, 'Confirm is on the screen').toBeLessThanOrEqual(553);
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeInViewport();
+
+    // The menu carries the tabs the bar would.
+    await page.getByLabel('More about this screen').click();
+    await expect(
+      page.locator('.timing-more-panel').getByRole('link', { name: 'Home' }),
+    ).toBeVisible();
+
+    await page.getByLabel('More about this screen').click();
+
+    // And scrolling up brings the bar itself back.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(nav).toBeInViewport();
+
+    // The tap was never confirmed: discard it, so it does not sit in this race's queue.
+    await page.getByRole('button', { name: 'Discard this tap' }).click();
   });
 
   /**
@@ -3510,16 +3603,24 @@ test.describe('the race-day screens', () => {
 
     const tile = page.getByRole('button', { name: 'Crossed now' });
     await expect(tile).toBeVisible();
-    const box = await tile.boundingBox();
-    // About 290px on a phone (T5): big enough to hit without looking.
-    expect(box?.height ?? 0).toBeGreaterThan(240);
-    expect(box?.height ?? 0).toBeLessThan(320);
+    // Timing mode (10 October 2026): with nothing waiting for a bib the tile takes whatever the
+    // screen has left — far more than T5's 290px on a phone this size.
+    await expect
+      .poll(async () => (await tile.boundingBox())?.height ?? 0)
+      .toBeGreaterThan(240);
 
-    // Only the queue scrolls; the page itself does not.
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    // The screen is the whole viewport and starts at its top. The only thing the page can
+    // scroll to is the tab bar above it, which is how a marshal brings the bar back.
+    const layout = await page.evaluate(() => ({
+      mainTop: document.getElementById('main')!.getBoundingClientRect().top,
+      mainHeight: document.getElementById('main')!.getBoundingClientRect().height,
+      overflow:
+        document.documentElement.scrollHeight - document.documentElement.clientHeight,
+      nav: document.querySelector('.timing-nav')?.getBoundingClientRect().height ?? 0,
+    }));
+    expect(Math.abs(layout.mainTop)).toBeLessThanOrEqual(1);
+    expect(Math.abs(layout.mainHeight - 844)).toBeLessThanOrEqual(1);
+    expect(layout.overflow).toBeLessThanOrEqual(layout.nav + 1);
   });
 
   test('Start stays light on a phone set to dark', async ({ page }) => {

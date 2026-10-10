@@ -251,3 +251,57 @@ was written, §4's "page by page" is finished.
 - **Danger** uses Pass the Buck's wording. Its card is **Reset event data**, the box says "Type
   the slug to enable the reset button", and the button is **Reset event data**. Its "Back to
   this race" row is gone, since the nav is the way back.
+
+## Amendment, 10 October 2026: the bib keypad stays, and is redesigned
+
+The club compared the capture card with Pass the Buck's on 10 October and chose to **keep NN's
+on-screen keypad** rather than adopt Pass the Buck's plain bib box and the device's own keyboard.
+On a phone at a finish line the keypad has bigger keys, never covers **Crossed now**, needs no
+tap into a field, and behaves the same on every phone. The card around it is redesigned:
+
+- **The bib is a readout, the largest thing on the card**: "No bib yet" until a digit is pressed,
+  then "Bib 2145" in large tabular figures, in a well above the keys.
+- **The keys are a phone dialler**: 1 to 9, 0 under 8, and Delete as an icon key bottom right,
+  named "Delete a digit". Filled tiles with a thin edge; a press fills brand green.
+- **Confirm repeats the bib**, "Confirm bib 2145", so the last thing read is the number sent. On
+  a phone it is last, under the keys.
+- **Discard this tap moves to the top of the card**, as far from Confirm as the card allows.
+- **On a wider card** (a laptop, or a tablet held sideways), the readout and Confirm sit beside a
+  keypad held to a phone's width. The switch is a container query on the queue.
+
+Nothing about what is recorded changes: the queue, the anomaly preview that never blocks, and
+Discard only on a card with no bib are as before.
+
+## Amendment, 10 October 2026: timing mode — the capture screen is the whole phone
+
+Seen on real phone sizes, the keypad card above did not fit. On an iPhone 15 in Safari the tab
+bar, the status bar, a 220px **Crossed now** and the offline line left the card a small
+scrolling window, and Confirm was never on screen. The club asked (Bindal) for the view to fill
+the phone so that a marshal never scrolls, with the tab bar hidden and reachable by scrolling up.
+
+- **The tab bar moves above the screen rather than off the page.** `<main>` is exactly the
+  viewport's height, and the screen scrolls the page to it once when it mounts. Scrolling up
+  brings the bar back, and snap points keep a stray drag from leaving the screen half-scrolled.
+  **This reverses, for this one screen, §3's "the capture screen included"**: the bar is still
+  rendered, and is now out of view by default.
+- **The ⋯ menu carries the same tabs**, from the same `raceNav()` the bar is drawn from (Home and
+  Roster for a marshal), plus the "saved for use without signal" line.
+- **Crossed now takes whatever height is left.** With nothing waiting for a bib it fills most of
+  the phone. While a bib is being typed it shrinks, to no less than 3.5rem on the shortest
+  phones, and stays full width and always tappable.
+- **One keypad at a time**: the oldest tap still waiting for its bib. The others open in turn
+  as each is confirmed, under a line saying how many are waiting.
+- **Everything on the card scales with the screen's height.** The keys never go below 44px. A
+  short-screen rule tightens the gaps for an iPhone SE in Safari. The anomaly warning is two
+  lines: what looks wrong, and *"Confirm if that is what you saw."*
+- **The screen asks to stay awake** (the Screen Wake Lock API) while it is visible. If the phone
+  refuses, the screen dims as before.
+- **The queue drains when the phone is unlocked**, as well as on the thirty-second clock and the
+  `online` event, which iOS does not always fire.
+
+**Measured, not estimated:**
+- **iPhone 15 in Safari (393×659), iPhone SE in Safari (375×553) and Android (412×780):** every
+  key and Confirm are on screen with nothing scrolled, with a warning showing and with three
+  runners waiting.
+- **Tests:** `timing.spec.ts` asserts the SE case. A second test asserts that two crossings
+  recorded with no signal both reach the club when it returns.

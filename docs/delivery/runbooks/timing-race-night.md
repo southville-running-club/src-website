@@ -180,7 +180,15 @@ added."* Grant the role first; the picker is not where a marshal is made.
 - [ ] Press **Crossed now** once, type a bib on the keypad, press **Confirm bib**, and watch
       the card disappear
 - [ ] Check the phone is set to **automatic date and time**
+- [ ] **Recommended: add it to the home screen** (Safari: Share → Add to Home Screen; Chrome:
+      ⋮ → Add to Home screen), and open it from that icon on the day. It then runs without the
+      browser's address and tab bars, which gives the keypad about 90px more on an iPhone
 - [ ] Leave the tab open
+
+**The screen fills the phone and nothing on it scrolls.** The race's tab bar is still there,
+just above it: scroll the page up to bring it back, or use the **⋯** menu, which has the same
+links. While the screen is open it asks the phone to stay awake, so it should not dim between
+runners. A phone in low-power mode may refuse, so check the screen-lock setting too.
 
 ⚠️ **A 404 here is the roster, not the app.** A marshal holding the role and left off *this*
 race's roster gets the site's ordinary not-found page, byte for byte what a missing address
@@ -295,8 +303,11 @@ time is measured from the start and clearing it would silently re-time all of th
 ### 3.1 — what a marshal does 📱
 
 **Press first, type second.** The full-width **Crossed now** button records the time the
-instant it is pressed; the bib is typed on the keypad afterwards and **Confirm bib** queues it.
-At the line the scarce thing is the moment, not the marshal's attention.
+instant it is pressed; the bib is typed on the keypad afterwards, it shows large above the
+keys as it is typed, and **Confirm bib 214** (the button repeats the number) queues it. The key
+bottom right with the ⌫ symbol deletes a digit. **Discard this tap** is at the top of the card,
+for a press nobody can match to a runner. At the line the scarce thing is the moment, not the
+marshal's attention.
 
 **The dark bar along the top** says which race and who is signed in, how many crossings are
 **awaiting bib**, and **Online** or **Offline**. The **⋯** beside it shows how many are syncing,
@@ -306,8 +317,7 @@ empty."**
 
 **An anomaly flags and never blocks.** If the bib looks wrong — a duplicate, a number nobody
 is wearing — the screen says so *before* the marshal commits, and then lets them commit
-anyway: *"Confirm it anyway if that is what you saw — somebody will check it afterwards."*
-Somebody at a laptop resolves it later. **A marshal never stops to argue with a flag.**
+anyway: *"Confirm if that is what you saw."* Somebody at a laptop checks it later. **A marshal never stops to argue with a flag.**
 
 ### 3.2 — what the cards mean 📱
 

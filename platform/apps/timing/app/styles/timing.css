@@ -1055,23 +1055,28 @@ body:has(.timing-ui) {
 }
 
 /* -------------------------------------------------------------------------------------
- * T5: Record crossings
+ * T5: Record crossings — timing mode (10 October 2026)
  * -------------------------------------------------------------------------------------
- * Pass the Buck's layout (ADR-055): the nav, a dark status bar, the big tile, then the queue
- * on a band of its own. The screen is exactly the viewport and only the queue scrolls. The
- * wrapper is the flex container because the root layout owns `<body>`. */
-.timing-tool-page {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
-  overflow: hidden;
+ * **The screen is the whole phone and nothing scrolls.** `<main>` is exactly the viewport's
+ * height, and the race's tab bar sits above it: the screen scrolls the page to `<main>` when it
+ * mounts, so the bar is out of view, and scrolling up brings it back. Snap points on the two
+ * keep a stray drag from leaving the screen half-scrolled. Inside `<main>`: the dark status
+ * bar, **Crossed now taking whatever height is left**, and the queue. */
+html:has(.timing-tool-page) {
+  scroll-snap-type: y proximity;
+}
+
+.timing-tool-page > .timing-nav,
+.timing-tool {
+  scroll-snap-align: start;
 }
 
 .timing-tool {
-  flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100vh;
+  height: 100dvh;
   /* ⚠️ `base.css` gives a bare `main` the prose measure and a margin — the trap `CLAUDE.md`
      records against the admin pages. The capture screen is the full width of the phone or the
      laptop, flush under the nav. */
@@ -1091,13 +1096,24 @@ body:has(.timing-ui) {
   margin: 0;
 }
 
-/* The tile and the line under it, in the page's width. */
+/* The tile and the line under it, in the page's width. **A basis of zero**, so it takes only
+   what the queue leaves — the tile grows into it, and shrinks no further than its own minimum. */
 .timing-capture-body {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
   width: 100%;
   padding-block: 0.75rem;
+}
+
+.timing-capture-screen[data-mode='entry'] .timing-capture-body {
+  padding-block: 0.5rem;
+}
+
+/* Typing a bib: the line about working offline steps aside (it is in the ⋯ menu too). */
+.timing-capture-screen[data-mode='entry'] .timing-hint {
+  display: none;
 }
 
 /* The dark bar: the page's own text colour as a background, and the page's background as text
@@ -1241,9 +1257,14 @@ body:has(.timing-ui) {
   margin: 0;
 }
 
+/* The queue takes its own height, up to just under half the screen when nobody is typing (a
+   list of cards waiting for signal scrolls inside it), and as much as the open card needs
+   while somebody is — the tile gives way first. Scrolling here is the last resort for a screen
+   too short for the card, never the design. */
 .timing-queue-wrap {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 45%;
   padding-top: 1.25rem;
   border-top: 1px solid var(--club-rule);
   background: var(--club-surface-alt);
@@ -1256,12 +1277,6 @@ body:has(.timing-ui) {
   font-weight: 700;
 }
 
-/* "No bib yet" or "Bib 214" on the card being typed into: the thing the marshal is checking. */
-.timing-bib-line {
-  font: 800 1.5rem / 1.1 var(--club-font-display);
-  font-variant-numeric: tabular-nums;
-}
-
 .timing-state-line {
   font-weight: 700;
 }
@@ -1271,8 +1286,9 @@ body:has(.timing-ui) {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1 1 auto;
   width: 100%;
-  min-height: clamp(11rem, 34vh, 18rem);
+  min-height: 4.5rem;
   border: 0;
   border-radius: var(--club-radius-card);
   background: var(--club-brand);
@@ -1300,6 +1316,20 @@ body:has(.timing-ui) {
 .timing-queue-wrap {
   overflow-y: auto;
   padding-bottom: 1.25rem;
+}
+
+.timing-capture-screen[data-mode='entry'] .timing-queue-wrap {
+  max-height: none;
+  padding-block: 0.5rem 0.75rem;
+}
+
+.timing-queue-more {
+  max-width: none;
+  margin: 0.5rem 0 0;
+  color: var(--club-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 .timing-queue-wrap h2 {
@@ -1383,30 +1413,194 @@ body:has(.timing-ui) {
   color: var(--club-on-highlight);
 }
 
+/* On the card a bib is being typed into, the warning is a compact strip. */
+.timing-entry-readout .timing-warn {
+  padding: 0.4rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+/* The card a bib is typed into — 10 October 2026.
+ *
+ * One column on a phone: the time and Discard, the readout, the keys, then Confirm last where a
+ * thumb ends up. **Two on a wider card** (a laptop, a tablet held sideways): the readout and
+ * Confirm on the left, the keys on the right at a phone's own width, so the keypad never
+ * stretches into a row of slabs. The switch is a container query on the queue, because the card's
+ * own width is what matters and the queue sits inside a capped column — a viewport query would be
+ * measuring the wrong box (`CLAUDE.md`, the `/admin/people/` trap). */
+.timing-queue {
+  container-type: inline-size;
+}
+
+.timing-entry-head .timing-time {
+  white-space: nowrap;
+}
+
+.timing-entry-head .timing-danger-link {
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.timing-qcard-entry {
+  gap: clamp(0.5rem, 1.5dvh, 1rem);
+  padding: clamp(0.6rem, 1.6dvh, 1rem) 1rem;
+}
+
+.timing-entry-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+
+/* Readout, keys, Confirm — in that order on a phone, so Confirm is the last thing under the
+   thumb. Side by side on a wider card. */
+.timing-entry-body {
+  display: grid;
+  grid-template-areas:
+    'readout'
+    'keys'
+    'confirm';
+  gap: clamp(0.5rem, 1.5dvh, 1rem);
+}
+
+.timing-entry-readout {
+  grid-area: readout;
+}
+
+.timing-keypad {
+  grid-area: keys;
+}
+
+.timing-confirm {
+  grid-area: confirm;
+}
+
+.timing-entry-readout {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+}
+
+/* The number being typed, in a well: the largest thing on the card, because it is the thing the
+   marshal checks. Ink on `--club-surface-alt`, 12.9:1; the well's border is
+   `--club-rule-strong`, 3.6:1 against the card, for WCAG 1.4.11. */
+.timing-bib-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-height: clamp(3.25rem, 8dvh, 4.5rem);
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--club-rule-strong);
+  border-radius: 14px;
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font: 800 1.25rem / 1.1 var(--club-font-display);
+}
+
+.timing-bib-readout[data-empty] {
+  align-items: center;
+  color: var(--club-muted);
+  font-weight: 700;
+}
+
+.timing-bib-caption {
+  color: var(--club-muted);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.timing-bib-digits {
+  font: 800 clamp(2.25rem, 9vw, 2.75rem) / 1 var(--club-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.timing-confirm {
+  width: 100%;
+  min-height: clamp(2.75rem, 7dvh, 3.5rem);
+  font-size: 1.125rem;
+}
+
+/* A phone dialler: three columns, 0 under 8, Delete bottom right. Filled tiles with a 1px
+   `--club-rule-strong` edge (3.6:1 on the card) rather than a heavy outline, so the twelve keys
+   read as one pad and not as twelve separate boxes. */
 .timing-keypad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
+  gap: clamp(0.35rem, 1dvh, 0.5rem);
+  width: 100%;
+  max-width: 24rem;
+  margin-inline: auto;
 }
 
 .timing-key {
-  min-height: 56px;
-  border: 2px solid var(--club-rule-strong);
+  display: grid;
+  place-items: center;
+  /* Scales with the screen's height so twelve keys and Confirm fit on a short phone, and never
+     below 44px, the touch-target floor. */
+  min-height: clamp(2.75rem, 6.5dvh, 3.75rem);
+  padding: 0;
+  border: 1px solid var(--club-rule-strong);
   border-radius: 14px;
-  background: var(--club-surface);
+  background: var(--club-surface-alt);
   color: var(--club-text);
-  font: 800 1.5rem / 1 var(--club-font-body);
+  font: 700 1.75rem / 1 var(--club-font-display);
   font-variant-numeric: tabular-nums;
-  transition: transform 0.1s ease;
+  cursor: pointer;
+  transition:
+    transform 0.1s ease,
+    background-color 0.1s ease;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
+/* The press: brand fill with its own ink, 5.07:1, so a tap is seen as well as felt. */
 .timing-key:active {
-  transform: scale(0.97);
+  border-color: var(--club-brand);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+  transform: scale(0.96);
 }
 
-.timing-key-wide {
-  grid-column: span 2;
-  font-size: 1rem;
+.timing-key:focus-visible {
+  outline: 3px solid var(--club-focus);
+  outline-offset: 2px;
+}
+
+/* Delete is a different kind of key, so it is not a filled tile: the card's own white with the
+   same edge, and an icon in place of a digit. Its name is "Delete a digit". */
+.timing-key-delete {
+  background: var(--club-surface);
+}
+
+.timing-key-delete:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.timing-key-gap {
+  display: block;
+}
+
+@container (min-width: 40rem) {
+  .timing-entry-body {
+    grid-template-areas:
+      'readout keys'
+      'confirm keys';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    gap: 1rem 1.5rem;
+  }
+
+  .timing-keypad {
+    max-width: none;
+  }
 }
 
 /* -------------------------------------------------------------------------------------
@@ -1495,8 +1689,9 @@ body:has(.timing-ui) {
     max-width: 48rem;
   }
 
+  /* On a laptop the tile stays a button rather than a wall of green. */
   .timing-capture {
-    min-height: 11.25rem;
+    max-height: 18rem;
   }
 }
 
@@ -2137,4 +2332,44 @@ body:has(.timing-ui) {
 .timing-danger-card h2 {
   margin-top: 0;
   color: var(--club-danger);
+}
+
+/* **The shortest phones** — an iPhone SE in Safari leaves about 550px. Every gap and the bar
+   give a little so that the keys, which stay at the 44px floor, and Confirm stay on screen with
+   a warning showing. Nothing here touches a key's size. */
+@media (max-height: 600px) {
+  .timing-marshal-bar-inner {
+    min-height: 3rem;
+    padding-block: 0.35rem;
+  }
+
+  .timing-capture {
+    min-height: 3.5rem;
+  }
+
+  .timing-keypad {
+    gap: 0.3rem;
+  }
+
+  .timing-capture-screen[data-mode='entry'] .timing-capture-body {
+    padding-block: 0.35rem;
+  }
+
+  .timing-capture-screen[data-mode='entry'] .timing-queue-wrap {
+    padding-block: 0.35rem;
+  }
+
+  .timing-qcard-entry,
+  .timing-entry-body,
+  .timing-entry-readout {
+    gap: 0.4rem;
+  }
+
+  .timing-qcard-entry {
+    padding: 0.5rem 0.85rem;
+  }
+
+  .timing-bib-readout {
+    min-height: 2.9rem;
+  }
 }

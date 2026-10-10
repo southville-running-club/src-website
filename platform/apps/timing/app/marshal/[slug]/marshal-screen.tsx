@@ -107,6 +107,7 @@ export function MarshalScreen({
   raceName,
   marshalName,
   when,
+  menuLinks = [],
   children,
 }: {
   slug: string;
@@ -118,6 +119,11 @@ export function MarshalScreen({
   marshalName: string | null;
   /** Where the race has got to — scheduled, started or finished — in one sentence. */
   when: string;
+  /**
+   * The race's other tabs for this person — Home and Roster for a marshal — offered in the ⋯
+   * menu, because timing mode keeps the tab bar above the screen, out of view.
+   */
+  menuLinks?: readonly { label: string; href: string }[];
   /** What this element is until it has mounted, and with scripting off. Never a placeholder. */
   children: React.ReactNode;
 }) {
@@ -530,6 +536,83 @@ export function MarshalScreen({
   }, []);
 
   /**
+   * **Timing mode — the screen fills the phone and nothing scrolls** (10 October 2026).
+   *
+   * The race's tab bar is still rendered, above the screen: `<main>` is exactly the viewport's
+   * height, so once the page is scrolled to it the bar is out of view and the screen is the
+   * whole phone. Scrolling up brings the bar back, and the same links are in the ⋯ menu. This is
+   * done once, when the screen mounts; nothing re-scrolls a marshal who has scrolled up on
+   * purpose.
+   */
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    document.getElementById('main')?.scrollIntoView({ block: 'start' });
+  }, [ready]);
+
+  /**
+   * **Keep the screen awake while this page is open and visible.** A phone that dims and locks
+   * between runners costs a marshal the moment, which is the one thing this screen exists to
+   * catch. The browser drops the lock whenever the page is hidden, so it is asked for again each
+   * time the page comes back. A phone that refuses, or a browser with no Wake Lock API, simply
+   * behaves as before — nothing depends on it.
+   */
+  useEffect(() => {
+    if (!ready || !('wakeLock' in navigator)) {
+      return;
+    }
+
+    let lock: WakeLockSentinel | null = null;
+    let cancelled = false;
+    const take = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      navigator.wakeLock
+        .request('screen')
+        .then((sentinel) => {
+          if (cancelled) {
+            void sentinel.release();
+          } else {
+            lock = sentinel;
+          }
+        })
+        .catch(() => {
+          // Low battery, a power-saving mode, or a browser that says no: the screen dims as it
+          // always did.
+        });
+    };
+
+    take();
+    document.addEventListener('visibilitychange', take);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', take);
+      void lock?.release();
+    };
+  }, [ready]);
+
+  /**
+   * **A drain the moment the phone is unlocked or the tab comes back**, as well as on the
+   * thirty-second clock and the `online` event. A phone in a pocket with no signal does not
+   * always fire `online` when it finds one — iOS in particular — and a marshal who unlocks it to
+   * look should see the queue start moving then rather than up to thirty seconds later.
+   */
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void drain();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [drain, ready]);
+
+  /**
    * #244's keep-alive: `/account/keep-alive/` on the club's own Worker, which is the same
    * hostname, every five minutes **while this page is visible and somebody has done something
    * in the last twenty-five**.
@@ -645,12 +728,29 @@ export function MarshalScreen({
   const count = (state: QueueCard['state']) =>
     queue.filter((c) => c.state === state).length;
 
+  // ⚠️ **One keypad on the screen at a time: the oldest tap still waiting for its bib.** Runners
+  // are typed in the order they crossed, and three keypads stacked under each other is a screen
+  // that has to scroll — which is the thing timing mode removes. The others wait in order and
+  // open one by one as each is confirmed; the bar's "awaiting bib" count says how many.
+  const waiting = queue.filter((c) => c.state === 'awaiting-bib').reverse();
+  const open = waiting[0];
+  const entering = open !== undefined;
+  const shown = entering ? [open] : queue;
+  const offlineLine = offlineReady
+    ? 'Saved for use without signal — this screen will still open if the page reloads.'
+    : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.';
+
   return (
-    <div className="capture timing-capture-screen">
+    <div
+      className="capture timing-capture-screen"
+      data-mode={entering ? 'entry' : 'ready'}
+    >
       <StatusBar
         raceName={raceName}
         marshalName={marshalName}
         when={when}
+        menuLinks={menuLinks}
+        offlineLine={offlineLine}
         live={{
           awaiting: count('awaiting-bib'),
           syncing: count('syncing'),
@@ -688,9 +788,7 @@ export function MarshalScreen({
           className="club-small timing-hint"
           data-capture-offline-ready={offlineReady ? 'yes' : 'no'}
         >
-          {offlineReady
-            ? 'Saved for use without signal — this screen will still open if the page reloads.'
-            : 'Not yet saved for use without signal. Crossings are still kept on this phone; keep this tab open.'}
+          {offlineLine}
         </p>
 
         {/* The queue is the one part of this screen that scrolls (T5): the tile and its hints
@@ -708,11 +806,19 @@ export function MarshalScreen({
         <div className="club-wrap">
           <h2
             id="capture-queue-heading"
-            className={queue.length === 0 ? 'timing-queue-empty-title' : undefined}
+            className={
+              queue.length === 0
+                ? 'timing-queue-empty-title'
+                : entering
+                  ? 'timing-visually-hidden'
+                  : undefined
+            }
           >
             {queue.length === 0
               ? 'Queue’s empty.'
-              : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
+              : entering
+                ? 'Type the bib'
+                : `${queue.length} ${queue.length === 1 ? 'crossing' : 'crossings'} on this phone`}
           </h2>
 
           {queue.length === 0 ? (
@@ -725,7 +831,7 @@ export function MarshalScreen({
           ) : null}
 
           <ul className="timing-queue">
-            {queue.map((card) => (
+            {shown.map((card) => (
               <CardView
                 key={card.id}
                 card={card}
@@ -740,6 +846,13 @@ export function MarshalScreen({
               />
             ))}
           </ul>
+
+          {waiting.length > 1 ? (
+            <p className="timing-queue-more">
+              {waiting.length - 1} more {waiting.length === 2 ? 'tap' : 'taps'} waiting
+              for a bib — each opens when this one is confirmed.
+            </p>
+          ) : null}
         </div>
       </section>
     </div>
@@ -764,10 +877,15 @@ function StatusBar({
   marshalName,
   when,
   live,
+  menuLinks = [],
+  offlineLine,
 }: {
   raceName: string;
   marshalName: string | null;
   when: string;
+  menuLinks?: readonly { label: string; href: string }[];
+  /** Whether the page itself survives a reload without signal; mounted screen only. */
+  offlineLine?: string;
   live?: {
     awaiting: number;
     syncing: number;
@@ -824,6 +942,14 @@ function StatusBar({
                 {live.syncing} syncing · {live.queued} queued · {live.failed} failed
               </p>
             )}
+            {offlineLine === undefined ? null : (
+              <p className="club-small">{offlineLine}</p>
+            )}
+            {menuLinks.map((link) => (
+              <p key={link.href}>
+                <a href={link.href}>{link.label}</a>
+              </p>
+            ))}
             <p>
               <a href="/account/">Your account</a>
             </p>
@@ -873,58 +999,110 @@ function CardView({
         )
       : null;
 
+    const ready = validateBib(draft);
+
+    // ⚠️ **Laid out for a thumb at a finish line, 10 October 2026.** The readout is the thing the
+    // marshal checks, so it is the biggest thing on the card and sits directly above the keys
+    // that change it. The keys are a phone dialler's — 1 to 9, then 0 in the middle and Delete
+    // bottom right — because that is the grid every phone has already taught. **Confirm repeats
+    // the bib**, so the last thing read before the press is the number being sent. **Discard is
+    // at the top of the card, as far from Confirm as the card allows**, because it is the one
+    // destructive control here and a thumb heading for Confirm must not find it.
+    //
+    // The readout's text is "Bib 2145" or "No bib yet" as one string, which is what a screen
+    // reader announces from the live region and what the tests read.
     return (
-      <li className="timing-qcard" data-state="open">
-        <p className="timing-time">
-          <span className="timing-time-label">Crossed at</span> {captured}
-        </p>
-
-        <p className="timing-bib-line" aria-live="polite">
-          {draft === '' ? 'No bib yet' : `Bib ${draft}`}
-        </p>
-
-        {anomaly?.flag ? (
-          <p className="timing-warn">
-            {formatAnomalyMessage(anomaly.reason)}. Confirm it anyway if that is what you
-            saw — somebody will check it afterwards.
+      <li className="timing-qcard timing-qcard-entry" data-state="open">
+        <div className="timing-entry-head">
+          <p className="timing-time">
+            <span className="timing-time-label">Crossed at</span> {captured}
           </p>
-        ) : null}
-
-        <div className="timing-keypad">
-          {KEYS.map((digit) => (
-            <button
-              key={digit}
-              type="button"
-              className="timing-key"
-              onClick={() => onPress(card.id, digit)}
-            >
-              {digit}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="timing-key timing-key-wide"
-            onClick={() => onBackspace(card.id)}
-          >
-            Delete a digit
-          </button>
-        </div>
-
-        <div className="timing-qcard-actions">
-          <button
-            type="button"
-            className="club-btn club-btn-primary"
-            disabled={!validateBib(draft)}
-            onClick={() => onConfirm(card)}
-          >
-            Confirm bib
-          </button>
           <button
             type="button"
             className="timing-danger-link"
             onClick={() => onDiscard(card)}
           >
             Discard this tap
+          </button>
+        </div>
+
+        <div className="timing-entry-body">
+          <div className="timing-entry-readout">
+            <p
+              className="timing-bib-readout"
+              data-empty={draft === '' ? 'true' : undefined}
+              aria-live="polite"
+            >
+              {draft === '' ? (
+                'No bib yet'
+              ) : (
+                <>
+                  <span className="timing-bib-caption">Bib</span>{' '}
+                  <span className="timing-bib-digits">{draft}</span>
+                </>
+              )}
+            </p>
+
+            {anomaly?.flag ? (
+              <p className="timing-warn">
+                {/* Two lines rather than four, so the keys and Confirm stay on a short phone's
+                    screen. It still says the two things: what looks wrong, and that Confirm is
+                    still the button. */}
+                {formatAnomalyMessage(anomaly.reason)}. Confirm if that is what you saw.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="timing-keypad">
+            {KEYS.slice(0, 9).map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                className="timing-key"
+                onClick={() => onPress(card.id, digit)}
+              >
+                {digit}
+              </button>
+            ))}
+            <span className="timing-key-gap" aria-hidden="true" />
+            <button
+              type="button"
+              className="timing-key"
+              onClick={() => onPress(card.id, '0')}
+            >
+              0
+            </button>
+            <button
+              type="button"
+              className="timing-key timing-key-delete"
+              aria-label="Delete a digit"
+              disabled={draft === ''}
+              onClick={() => onBackspace(card.id)}
+            >
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Z" />
+                <path d="m17 9-6 6M11 9l6 6" />
+              </svg>
+            </button>
+          </div>
+          <button
+            type="button"
+            className="club-btn club-btn-primary timing-confirm"
+            disabled={!ready}
+            onClick={() => onConfirm(card)}
+          >
+            {ready ? `Confirm bib ${draft}` : 'Confirm bib'}
           </button>
         </div>
       </li>
