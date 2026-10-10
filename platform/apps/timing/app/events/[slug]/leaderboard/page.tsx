@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { formatLondon } from '@src/shared';
+import { formatLondon, formatLondonClock } from '@src/shared';
 import '@src/shared/styles/nn-results.css';
 import type { SortKey } from '@src/shared/timing/results';
 import { readLeaderboard } from '../../../../lib/leaderboard';
 import { LiveBoard } from './live-board';
+import { RaceClock } from '../sections/race-clock';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
 import { raceMetadata } from '../../../../lib/titles';
@@ -120,61 +121,68 @@ export default async function LeaderboardPage({
   const { event } = payload;
   const relay = event.format === 'relay';
 
+  /*
+   * ⚠️ **Plain links rather than a form**, and it is the same decision `/admin/nn/`'s filter
+   * chips took: a sorted board is a URL somebody can send, and it works with scripting off. The
+   * two leg orderings are hidden on a solo race because a solo race has no legs — see
+   * `Leaderboard.columns`.
+   */
+  const sortControl = (
+    <nav aria-label="Sort by">
+      <ul className="timing-sort">
+        <li className="timing-sort-label" aria-hidden="true">
+          Sort by
+        </li>
+        {SORTS.filter((option) => relay || !option.relayOnly).map((option) => (
+          <li key={option.key}>
+            {option.key === sort ? (
+              <span aria-current="true">{option.label}</span>
+            ) : (
+              <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
+                {option.label}
+              </Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+
   return (
-    <RaceFrame slug={slug} name={event.name} current="live" page="Live leaderboard" wide>
-      <div>
-        <div className="club-phead">
-          <h1>Leaderboard</h1>
-          <p className="club-lede">{event.name}</p>
-        </div>
+    <RaceFrame slug={slug} current="live" wide>
+      <div className="timing-live">
+        {/*
+          Pass the Buck's header band (ADR-055): the club, the race, and where it has got to —
+          "Starts at …" before the gun, "Live results" and the race clock while it runs, "Final
+          results" once it is called. Ink on the club green, 5.07:1.
+        */}
+        <header className="timing-live-band">
+          <p className="timing-hub-eyebrow">Southville Running Club</p>
+          <h1>{event.name}</h1>
+          {event.finished_at !== null ? (
+            <p className="timing-live-state">
+              <span aria-hidden="true">✓ </span>Final results
+            </p>
+          ) : event.actually_started_at !== null ? (
+            <>
+              <p className="timing-live-state">
+                <span className="timing-live-dot" aria-hidden="true" />
+                Live results
+              </p>
+              <RaceClock mode="elapsed" atIso={event.actually_started_at}>
+                The race clock needs JavaScript. The race started{' '}
+                {formatLondon(event.actually_started_at)}.
+              </RaceClock>
+            </>
+          ) : (
+            <p className="timing-live-state">
+              Starts at{' '}
+              <span className="timing-mono">{formatLondonClock(event.start_at)}</span>
+            </p>
+          )}
+        </header>
 
-        <dl className="club-meta timing-details">
-          <div>
-            <dt>Started</dt>
-            <dd>
-              {event.actually_started_at === null
-                ? 'Not started'
-                : formatLondon(event.actually_started_at)}
-            </dd>
-          </div>
-          <div>
-            <dt>Finished</dt>
-            <dd>
-              {event.finished_at === null
-                ? 'Not finished'
-                : formatLondon(event.finished_at)}
-            </dd>
-          </div>
-          <div>
-            <dt>Open captures</dt>
-            <dd>{payload.open_anomalies}</dd>
-          </div>
-        </dl>
-
-        {/* ⚠️ **Plain links rather than a form**, and it is the same decision `/admin/nn/`'s filter
-          chips took: a sorted board is a URL somebody can send, and it works with scripting off.
-          The two leg orderings are hidden on a solo race because a solo race has no legs — see
-          `Leaderboard.columns`. */}
-        <nav aria-label="Order by">
-          <ul className="timing-sort">
-            <li className="timing-sort-label" aria-hidden="true">
-              Order by
-            </li>
-            {SORTS.filter((option) => relay || !option.relayOnly).map((option) => (
-              <li key={option.key}>
-                {option.key === sort ? (
-                  <span aria-current="true">{option.label}</span>
-                ) : (
-                  <Link href={`/events/${slug}/leaderboard?sort=${option.key}`}>
-                    {option.label}
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <LiveBoard slug={slug} initial={payload} sort={sort} />
+        <LiveBoard slug={slug} initial={payload} sort={sort} sortControl={sortControl} />
 
         {payload.open_anomalies > 0 ? (
           <p>

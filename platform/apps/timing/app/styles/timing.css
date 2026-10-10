@@ -1834,3 +1834,182 @@ body:has(.timing-ui) {
     border: 1px solid #000;
   }
 }
+
+/* -------------------------------------------------------------------------------------
+ * Live — Pass the Buck's leaderboard, staff-only (ADR-038, ADR-055)
+ * -------------------------------------------------------------------------------------
+ * A club-green header band with the race and where it has got to, the top three as cards, and
+ * the board below. Ink on the green throughout, 5.07:1 — never white. */
+.timing-live-band {
+  margin: 0 0 2rem;
+  padding: 2rem 1.5rem;
+  border-radius: var(--club-radius-card);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-live-band :is(h1, p) {
+  margin: 0;
+  color: inherit;
+}
+
+.timing-live-band h1 {
+  margin-bottom: 0.75rem;
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  line-height: 1.05;
+}
+
+.timing-live-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.timing-live-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: currentcolor;
+  animation: timing-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes timing-live-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timing-live-dot {
+    animation: none;
+  }
+}
+
+.timing-live-band .timing-clock {
+  margin-top: 0.5rem;
+  font-size: clamp(2.5rem, 10vw, 4.5rem);
+}
+
+/* Top of the race: three cards across on a laptop, one under another on a phone. */
+.timing-top {
+  margin: 0 0 2rem;
+}
+
+.timing-top-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.timing-top-head h2 {
+  margin: 0;
+}
+
+.timing-top-head p {
+  margin: 0;
+}
+
+.timing-top-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  /* `main`'s lists are held to the reading measure; three cards are not a list of text. */
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 48em) {
+  .timing-top-cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.timing-top-card {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--club-rule);
+  border-radius: var(--club-radius-card);
+  background: var(--club-surface);
+}
+
+.timing-top-card p {
+  margin: 0;
+}
+
+.timing-top-place {
+  color: var(--club-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.timing-top-time {
+  margin: 0.25rem 0 !important;
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.timing-top-name {
+  font-weight: 700;
+}
+
+.timing-top-tbd {
+  margin-top: 0.5rem !important;
+  color: var(--club-muted);
+}
+
+.timing-live-board-title {
+  margin: 0 0 0.5rem;
+}
+
+/* A row's status as a pill: finished on the club green, anything ended early on the danger
+   colour with its own ink, one being checked on the highlight, still out on the course quiet. */
+.timing-live-pill {
+  display: inline-block;
+  min-width: 5.5rem;
+  text-align: center;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  background: var(--club-surface-alt);
+  color: var(--club-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.timing-live-pill[data-status='finished'] {
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-live-pill:is([data-status='dns'], [data-status='dnf'], [data-status='dq']) {
+  background: var(--club-danger);
+  color: var(--club-on-danger);
+}
+
+.timing-live-pill[data-status='suspect'] {
+  background: var(--club-highlight);
+  color: var(--club-on-highlight);
+}
+
+.timing-live-bib {
+  display: block;
+  color: var(--club-muted);
+  font-size: 0.875rem;
+}
+
+.timing-live-category {
+  white-space: nowrap;
+}
+
+.timing-live-time {
+  font-family: var(--timing-mono);
+  font-weight: 800;
+}

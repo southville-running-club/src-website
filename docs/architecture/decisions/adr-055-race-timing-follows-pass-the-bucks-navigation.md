@@ -180,3 +180,24 @@ green is 3.5:1 and is never used.
   can be cleared until somebody is timed.
 - **Updating the Start screen live when another device starts the race.** The losing press is
   already told the winning time.
+
+## Amendment, 10 October 2026: Live is Pass the Buck's board, and still staff-only
+
+**Live** has Pass the Buck's layout:
+- **A club-green header band** with the club, the race, and where it has got to: "Starts at …"
+  before the gun, "Live results" with the race clock while it runs, and "Final results" once it
+  is called.
+- **Top of the race:** the first three across the line, as cards reading "To be decided" until
+  filled.
+- **The board:** a status pill per row, a sort row, and the category worked out from the runners
+  by the results page's own `resultCategoryLabel()`.
+
+**Still staff-only (ADR-038).** Pass the Buck's Live was public; the club's rule is that nobody
+outside the staff sees a result before it is published.
+
+**Two things it deliberately does not do.**
+- **Top of the race is overall only.** Pass the Buck added category winners, but the board's read
+  carries no `result_placement` (it computes no prize band, by design), so it cannot place a
+  non-binary runner. Category winners are the prize list's, on Prizes.
+- **The same gap means a non-binary runner's Category cell reads "—"** on the board rather than a
+  guess.
