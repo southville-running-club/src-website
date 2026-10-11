@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { axeViolations } from '../axe';
 import { BOM } from '@src/shared';
 import { clearAdminFixtures, seedAdminFixtures } from '../admin-db';
@@ -36,6 +36,7 @@ import {
   PAID_NON_ASCII_LAST_NAME,
   PEOPLE_ADMIN_EMAIL,
   SUPER_ADMIN_EMAIL,
+  SECOND_AFFILIATED_LAST_NAME,
 } from '../admin-fixtures';
 
 /**
@@ -122,8 +123,13 @@ const OVERSOLD = `${NN}entries/${ADMIN_EVENT_SLUG}/`;
  *
  * Most assertions below are about *rendering* a row of a particular kind, so they use this and
  * the default is asserted on its own.
+ *
+ * **`status=all` as well since the status pills**, because the default view is the Paid pill
+ * rather than "everything but refunds and lapsed holds". Without it this address would have
+ * quietly stopped meaning what its name says, and every row-rendering test below would have
+ * gone on passing against fewer rows.
  */
-const OVERSOLD_ALL = `${OVERSOLD}?hide=none`;
+const OVERSOLD_ALL = `${OVERSOLD}?status=all&hide=none`;
 
 /** The quiet fixture — two entries against ten places, nothing wrong with it. */
 const QUIET = `${NN}entries/${CLEAN_EVENT_SLUG}/`;
@@ -183,6 +189,19 @@ async function expectNoSidewaysScroll(page: Page, note: string): Promise<void> {
  * personal data, so it is removed before anything is matched against it. The values matched are
  * derived from the fixtures rather than written out, for the same reason.
  */
+/**
+ * Open one row's "⋯" menu and choose View details.
+ *
+ * **Two steps since the actions moved into a `<details>` menu**, and the first is not
+ * ceremony: a closed `<details>` keeps its contents out of the accessibility tree, so the button
+ * is not there to find until the menu is open. That is the menu working, not a test working
+ * around it.
+ */
+async function viewDetails(row: Locator): Promise<void> {
+  await row.locator('summary').click();
+  await row.getByRole('button', { name: /View details/ }).click();
+}
+
 async function undecoratedMarkup(page: Page): Promise<string> {
   return (await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '');
 }
@@ -623,43 +642,44 @@ test.describe('the entries table', () => {
     await expect(shown(page, 'Bristol & West AC, "the Bees"')).toBeVisible();
   });
 
-  test('leaves out everybody who is not running, and says so', async ({ page }) => {
-    // **The default view, which this describe block deliberately opts out of.** Three kinds of
-    // row are hidden unless asked for — the club's own test entries, refunded entries and
-    // lapsed holds. On a race that fills those are most of the rows and none of the work.
-    //
-    // **Nothing is hidden without the page saying so**, which is the half that makes this
-    // honest rather than a trap: two lines name what is missing and link to the view that
-    // includes it.
+  test('opens on paid entries, and says how many of every other status there are', async ({
+    page,
+  }) => {
+    // **The default view is the Paid pill**, and the pills replaced a sentence — "Refunded
+    // entries and lapsed holds are not shown. Show them" — that hid two statuses without saying
+    // how many rows each held. What is asserted is the half that made the sentence honest:
+    // **nothing is hidden without the page saying so**, now as a count on every pill.
     await page.goto(OVERSOLD);
 
+    const pills = page.getByRole('navigation', { name: 'Show entries by status' });
+    await expect(pills.getByRole('link', { name: /^Paid/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+
     // **Scoped to the status chips in the table, not to the word.** `Refunded` and
-    // `Hold expired` are also the labels of two filter links, which are on the page whatever
-    // it is showing — an unscoped absence assertion would be about the controls rather than
-    // about the rows, and would fail on a page doing exactly the right thing.
+    // `Holds expired` are also pill labels, which are on the page whatever it is showing — an
+    // unscoped absence assertion would be about the controls rather than about the rows.
     await expect(
-      page.locator('.admin-chip', { hasText: /^Refunded/ }).filter({ visible: true }),
+      page.locator('.admin-chip', { hasText: /Refunded/ }).filter({ visible: true }),
     ).toHaveCount(0);
     await expect(
-      page.locator('.admin-chip', { hasText: /^Hold expired/ }).filter({ visible: true }),
+      page.locator('.admin-chip', { hasText: /Hold expired/ }).filter({ visible: true }),
     ).toHaveCount(0);
 
+    // The oversold fixture holds one refund and one expired hold, and the pills say so before
+    // anybody clicks — which is what the sentence could not.
+    await expect(pills.getByRole('link', { name: 'Refunded 1' })).toBeVisible();
+    await expect(pills.getByRole('link', { name: 'Holds expired 1' })).toBeVisible();
     await expect(page.getByText('Test entries are not shown.')).toBeVisible();
-    await expect(
-      page.getByText('Refunded entries and lapsed holds are not shown.'),
-    ).toBeVisible();
 
-    // And the link puts them back, which is what stops the default being a way of losing rows.
-    // Scoped to its own note rather than to the page: there are two of these lines, one per
-    // group, and each has a link reading "Show them".
-    await page
-      .locator('.admin-filters-note', { hasText: 'Refunded entries' })
-      .getByRole('link', { name: 'Show them' })
-      .click();
+    // And the pill puts them back, which is what stops the default being a way of losing rows.
+    await pills.getByRole('link', { name: /^Refunded/ }).click();
 
+    await expect(page).toHaveURL(/status=refunded/);
     await expect(
       page
-        .locator('.admin-chip', { hasText: /^Refunded/ })
+        .locator('.admin-chip', { hasText: /Refunded/ })
         .filter({ visible: true })
         .first(),
     ).toBeVisible();
@@ -767,11 +787,16 @@ test.describe('the entries table', () => {
 });
 
 /**
- * The filters, which are links.
+ * The filters: status pills, a category / entry type / sort form, and a search.
  *
- * The first pass used a GET form with three `<select>`s and an Apply button. That worked with
- * scripting off too — but a link gives a filtered view a URL somebody can bookmark or send to the
- * other volunteer, and makes the back button behave the way it looks like it should.
+ * **Everything but the search is a URL.** The pills and the column headers are links, and the
+ * category, entry type and sort are a GET form with an Apply button — so a filtered view is an
+ * address somebody can bookmark or send to the other volunteer, and all of it works with
+ * scripting off. This block runs in all three projects, `no-javascript` included, which is the
+ * proof of the second half.
+ *
+ * **The search is not a URL, on purpose.** A search term is a runner's name or address, so it is
+ * a POST and never reaches the address bar, a log or a `Referer`.
  */
 test.describe('the filters', () => {
   test.beforeEach(async ({ page }) => {
@@ -779,16 +804,40 @@ test.describe('the filters', () => {
     await page.goto(OVERSOLD);
   });
 
-  test('filter by clicking a link, with no form and no script', async ({ page }) => {
-    await page.getByRole('link', { name: 'Paid', exact: true }).click();
+  const pills = (page: Page) =>
+    page.getByRole('navigation', { name: 'Show entries by status' });
+
+  const runnerRows = (page: Page) => page.locator('.admin-entry-row');
+
+  async function search(page: Page, term: string): Promise<void> {
+    await page.getByRole('searchbox', { name: 'Search runners' }).fill(term);
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  }
+
+  test('filter by clicking a pill, with no form and no script', async ({ page }) => {
+    await pills(page).getByRole('link', { name: /^All/ }).click();
+    await expect(page.getByRole('rowheader', { name: /Adjei, Kwame/ })).toBeVisible();
+
+    await pills(page).getByRole('link', { name: /^Paid/ }).click();
 
     await expect(page).toHaveURL(/status=paid/);
     await expect(page.getByRole('rowheader', { name: /Nwosu, Harriet/ })).toBeVisible();
     await expect(page.getByRole('rowheader', { name: /Adjei, Kwame/ })).toHaveCount(0);
   });
 
+  test('shows only refunded rows for ?status=refunded', async ({ page }) => {
+    await page.goto(`${OVERSOLD}?status=refunded`);
+
+    const statuses = await page.locator('.admin-entry-row .admin-chip').allTextContents();
+
+    // The fixture holds exactly one refund, and nothing else may come with it.
+    expect(statuses.map((text) => text.trim())).toEqual(['Refunded']);
+  });
+
   test('returns what "needs attention" claims', async ({ page }) => {
-    await page.getByRole('link', { name: 'Needs attention' }).click();
+    await pills(page)
+      .getByRole('link', { name: /^Needs attention/ })
+      .click();
 
     await expect(
       page.getByRole('rowheader', { name: new RegExp(PAID_NON_ASCII_LAST_NAME) }),
@@ -796,10 +845,139 @@ test.describe('the filters', () => {
     await expect(page.getByRole('rowheader', { name: /Nwosu, Harriet/ })).toHaveCount(0);
   });
 
+  test('narrows by category with a GET form, so the view is still an address', async ({
+    page,
+  }) => {
+    // Exact, because the "By category" panel above is a region labelled with the same word.
+    await page.getByLabel('Category', { exact: true }).selectOption({ label: 'Vet 60' });
+    await page.getByRole('button', { name: 'Apply' }).click();
+
+    await expect(page).toHaveURL(/cat=vet60/);
+    await expect(runnerRows(page)).toHaveCount(1);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(PAID_NON_ASCII_LAST_NAME) }),
+    ).toBeVisible();
+  });
+
+  test('searches with JavaScript off, and keeps the term out of the address', async ({
+    page,
+  }) => {
+    // **The awkward name, typed the way somebody at a desk would** — no accent and a straight
+    // apostrophe — and it still finds `Inés O'Rourke`. Asked of every status, because Inés is
+    // the live hold rather than a paid entry.
+    await page.goto(`${OVERSOLD}?status=all`);
+    await search(page, "ines o'rourke");
+
+    await expect(runnerRows(page)).toHaveCount(1);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(AWKWARD_LAST_NAME) }),
+    ).toBeVisible();
+
+    // A POST to the page's own address, with nothing in the query string at all.
+    expect(new URL(page.url()).search).toBe('');
+    await expect(page.getByRole('searchbox', { name: 'Search runners' })).toHaveValue(
+      "ines o'rourke",
+    );
+  });
+
+  test('keeps the search when the view changes, and drops it only when asked', async ({
+    page,
+  }) => {
+    await page.goto(`${OVERSOLD}?status=all`);
+    await search(page, 'bristol');
+
+    // Two runners belong to the club with "Bristol" in its name.
+    await expect(runnerRows(page)).toHaveCount(2);
+
+    // **A pill on a search page is a button, so pressing it cannot lose the term.**
+    await pills(page).getByRole('button', { name: /^Paid/ }).click();
+    await expect(runnerRows(page)).toHaveCount(1);
+    await expect(page.getByText('Searching for “bristol”')).toBeVisible();
+
+    await page.getByRole('link', { name: 'Clear search' }).click();
+    await expect(page).toHaveURL(/status=paid/);
+    await expect(page.getByText(/Searching for/)).toHaveCount(0);
+  });
+
+  test('renders a search term carrying markup as text', async ({ page }) => {
+    const term = '<script>alert(1)</script>';
+    page.on('dialog', (dialog) => {
+      throw new Error(`a search term ran as script: ${dialog.message()}`);
+    });
+
+    await search(page, term);
+
+    // As text in the sentence that echoes it, and as the box's value — never as markup.
+    await expect(page.getByText(`Searching for “${term}”`)).toBeVisible();
+    await expect(page.getByRole('searchbox', { name: 'Search runners' })).toHaveValue(
+      term,
+    );
+    expect(await page.content()).not.toContain(term);
+  });
+
+  test('says when nothing matches, and offers the way back', async ({ page }) => {
+    await search(page, 'nobody-is-called-this');
+
+    await expect(page.getByText('No runners match that.')).toBeVisible();
+    await page.getByRole('link', { name: 'Clear search and filters' }).click();
+
+    await expect(page).toHaveURL(/status=all/);
+    await expect(runnerRows(page).first()).toBeVisible();
+  });
+
+  test('flips the sort when a column header is activated', async ({ page }) => {
+    // Column headers are the wide layout's; on a card the Sort select does this job.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(OVERSOLD);
+
+    const runner = page.getByRole('columnheader', { name: /Runner/ });
+    const first = () => page.getByRole('rowheader').first();
+
+    await expect(runner).toHaveAttribute('aria-sort', 'ascending');
+    await expect(first()).toContainText('Nwosu, Harriet');
+
+    await runner.getByRole('link').click();
+
+    await expect(runner).toHaveAttribute('aria-sort', 'descending');
+    await expect(first()).toContainText(`${PAID_NON_ASCII_LAST_NAME}, Lena`);
+
+    // And the category header sorts by prize band, Senior first.
+    await page
+      .getByRole('columnheader', { name: /Category/ })
+      .getByRole('link')
+      .click();
+    await expect(page.getByRole('columnheader', { name: /Category/ })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+    await expect(first()).toContainText(SECOND_AFFILIATED_LAST_NAME);
+  });
+
+  test('opens a row menu and acts from it with the keyboard alone', async ({ page }) => {
+    const row = page.getByRole('row', { name: /Nwosu, Harriet/ });
+    const toggle = row.locator('summary');
+
+    await expect(toggle).toHaveAttribute('aria-label', 'Manage entry for Harriet Nwosu');
+
+    await toggle.focus();
+    await expect(toggle).toBeFocused();
+    await page.keyboard.press('Enter');
+
+    const details = row.getByRole('button', { name: /View details/ });
+    await expect(details).toBeVisible();
+    // **Cancel is last and is still only a question** — the confirmation page is unchanged.
+    await expect(row.getByRole('button', { name: /Cancel and refund/ })).toBeVisible();
+
+    await details.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
+  });
+
   test('puts nothing personal in the address bar, or in any link it offers', async ({
     page,
   }) => {
-    await page.getByRole('link', { name: 'Paid', exact: true }).click();
+    await pills(page).getByRole('link', { name: /^Paid/ }).click();
 
     // **Every href the page offers, not only the one that was followed.** A filter added later
     // that carried a name would fail here rather than at review.
@@ -807,7 +985,20 @@ test.describe('the filters', () => {
       .locator('a[href]')
       .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
 
-    for (const value of [page.url(), ...hrefs]) {
+    // ⚠️ **`mailto:` links are checked separately rather than skipped.** The redesign makes
+    // each runner's address a `mailto:` link — the address the row already prints — and a
+    // `mailto:` never reaches a server log, a `Referer` or the address bar, which is what this
+    // rule is about. What it may carry is asserted below: one bare address, nothing else.
+    const mailto = hrefs.filter((href) => href.startsWith('mailto:'));
+    expect(mailto.length).toBeGreaterThan(0);
+
+    for (const href of mailto) {
+      expect(href, `${href} must be one bare address`).toMatch(
+        /^mailto:[^?&\s]+@[^?&\s]+$/,
+      );
+    }
+
+    for (const value of [page.url(), ...hrefs.filter((href) => !mailto.includes(href))]) {
       for (const personal of [
         AWKWARD_LAST_NAME,
         AWKWARD_FIRST_NAME,
@@ -830,8 +1021,10 @@ test.describe('a medical note', () => {
     // Not on the list.
     await expect(page.getByText('inhaler')).toHaveCount(0);
 
+    // **"Medical note" rather than "Show note"** since the redesign: the column the old label
+    // sat under is gone, so the button has to say which note it is by itself.
     await page
-      .getByRole('button', { name: /Show note/ })
+      .getByRole('button', { name: /Medical note/ })
       .first()
       .click();
 
@@ -875,10 +1068,7 @@ test.describe('one entry in full', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(CLEAN);
 
-    await page
-      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
-      .getByRole('button', { name: /Details/ })
-      .click();
+    await viewDetails(page.getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) }));
 
     // **Level 1 rather than any heading with that name.** The page heads itself with the
     // runner's name; asking for "a heading called Ferreira" is asking a question the page can
@@ -903,10 +1093,9 @@ test.describe('one entry in full', () => {
     // which folds away below 48rem — so on the device the page exists for, it could not be
     // opened at all.
     //
-    // **320px rather than merely "mobile"**, because that is where the column budget bites. The
-    // fix had to add a way in *without* adding a fourth column, and 320px is the width that
-    // fails if it did: the table starts scrolling sideways, and an absolutely positioned
-    // visually-hidden span inside a scroller drags the whole document with it.
+    // **320px rather than merely "mobile"**, because that is the narrowest card. The way in is
+    // the row's "⋯" menu now, which is in every card — and an absolutely positioned menu is
+    // exactly the kind of box that drags a 320px document sideways if it is laid out wrongly.
     //
     // **On the clean event, not the actions one.** Every entry on `zz-admin-actions` is
     // consumed by a test that cancels, transfers or assigns it, and those acts are
@@ -916,18 +1105,13 @@ test.describe('one entry in full', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(CLEAN);
 
-    await page
-      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
-      .getByRole('button', { name: /Details/ })
-      .click();
+    await viewDetails(page.getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) }));
 
     await expect(
       page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_PAID_LAST_NAME) }),
     ).toBeVisible();
 
-    // **And the two acts are on the other side of it**, which is why one button in the stacked
-    // row is the whole fix rather than three. Cancel and Transfer stay out of the phone *table*
-    // deliberately — cancelling is a desk task — but they are not out of reach.
+    // **And the two acts are on this side of it too**, as they are in the card's own menu.
     await expect(page.getByRole('button', { name: 'Cancel this entry' })).toBeVisible();
 
     await expectNoSidewaysScroll(page, 'one entry in full, reached from a 320px phone');
@@ -939,10 +1123,7 @@ test.describe('one entry in full', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(CLEAN);
 
-    await page
-      .getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) })
-      .getByRole('button', { name: /Details/ })
-      .click();
+    await viewDetails(page.getByRole('row', { name: new RegExp(CLEAN_PAID_LAST_NAME) }));
 
     // ⚠️ **Wait for the detail page before reading the markup, or read the list instead.**
     //
@@ -995,12 +1176,12 @@ test.describe('one entry in full', () => {
     // so `.first()` would open somebody else's entry and then assert the absence of a button
     // that was never going to be there. A test that picks a row by index is a test that breaks
     // when somebody adds a fixture whose name sorts earlier.
-    await page
-      .getByRole('row')
-      .filter({ has: page.getByRole('button', { name: /Show note/ }) })
-      .first()
-      .getByRole('button', { name: /Details/ })
-      .click();
+    await viewDetails(
+      page
+        .getByRole('row')
+        .filter({ has: page.getByRole('button', { name: /Medical note/ }) })
+        .first(),
+    );
 
     expect(await undecoratedMarkup(page)).not.toContain('inhaler');
     await expect(page.getByRole('button', { name: /Show note/ })).toBeVisible();
@@ -1930,10 +2111,24 @@ test.describe('accessibility and small screens', () => {
     // different document, and the second is the one an organiser sees on every day but two. Then
     // the interest list. Zero, not few — a threshold above zero becomes the new normal within a
     // month.
-    for (const path of [OVERSOLD, QUIET, `${NN}interest/`]) {
+    for (const path of [OVERSOLD, OVERSOLD_ALL, QUIET, `${NN}interest/`]) {
       await page.goto(path);
       expect(await axeViolations(page), path).toEqual([]);
     }
+
+    // **An open row menu and a search result are documents of their own.** The menu's items are
+    // out of the accessibility tree until it opens, so a pass over the closed page has never
+    // read them; and a page reached by a search renders its pills and sort headers as one-button
+    // forms rather than links, so it is different markup from every address above. On a phone
+    // (`mobile-safari`) this is the card layout, which is the third arrangement.
+    await page.goto(OVERSOLD_ALL);
+    await page.locator('.admin-entry-row summary').first().click();
+    expect(await axeViolations(page), 'a row menu open').toEqual([]);
+
+    await page.getByRole('searchbox', { name: 'Search runners' }).fill('bristol');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.getByText(/Searching for/)).toBeVisible();
+    expect(await axeViolations(page), 'a search result').toEqual([]);
   });
 
   test('has no axe violations on the printable start list @requires-js', async ({
@@ -1962,10 +2157,7 @@ test.describe('accessibility and small screens', () => {
     // attention flag and the awkward strings on it — the most markup this page can hold.
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
-    await page
-      .getByRole('button', { name: /Details/ })
-      .first()
-      .click();
+    await viewDetails(page.locator('.admin-entry-row').first());
     await expect(page.getByRole('heading', { name: 'Who paid' })).toBeVisible();
 
     expect(await axeViolations(page)).toEqual([]);
@@ -2124,37 +2316,118 @@ test.describe('accessibility and small screens', () => {
     await expectNoSidewaysScroll(page, 'the roles page at 300px');
   });
 
-  test('folds the entries table into three columns on a phone, and shows the rest in the row', async ({
+  /**
+   * **The address under the runner's name is one line, never a column of single letters.**
+   *
+   * It had a column of its own with `overflow-wrap: anywhere`, which in an auto-layout table of
+   * ten columns lets the browser make the column one character wide — and it did, so every
+   * address read downwards a letter at a time. It is the second line of the runner cell now,
+   * cut with an ellipsis and whole in `title`.
+   *
+   * **Asserted by line boxes rather than by pixels**, so the check means the same on a Mac and on
+   * a Linux runner whose font metrics differ: one client rect and a height under two lines is
+   * "one line" in every engine.
+   */
+  test("shows each runner's address on one line under their name", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    // The actions event, because its runner bought with the longest address in the fixtures —
+    // 35 characters, where the other event's are 19.
+    await page.goto(ACTIONS);
+
+    await expect(page.getByRole('columnheader', { name: 'Email' })).toHaveCount(0);
+
+    const email = page.locator('.admin-runner-email', { hasText: ENTRANT_EMAIL });
+    await expect(email).toBeVisible();
+    await expect(email).toHaveAttribute('title', ENTRANT_EMAIL);
+
+    const measured = await email.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        rects: node.getClientRects().length,
+        height: node.getBoundingClientRect().height,
+        lineHeight: parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6,
+        whiteSpace: style.whiteSpace,
+      };
+    });
+
+    expect(measured.rects).toBe(1);
+    expect(measured.whiteSpace).toBe('nowrap');
+    expect(measured.height).toBeLessThan(measured.lineHeight * 1.9);
+
+    // And nothing else in the table has been squeezed to a letter a line either: every row
+    // header is wider than the widest single character it could be reduced to.
+    const narrowest = await page
+      .locator('.admin-table tbody th[scope="row"]')
+      .evaluateAll((cells) => Math.min(...cells.map((cell) => cell.clientWidth)));
+    expect(narrowest).toBeGreaterThan(120);
+  });
+
+  test('lays each entry out as a card on a phone, with nothing out of reach', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
+    await waitForStyledLayout(page);
 
-    // The wide columns are gone rather than clipped — `display: none`, so they are out of the
-    // accessibility tree too and nothing is announced twice.
+    // **A card per row, laid out with grid areas, and no header row.** This reverses the old
+    // three-column fold, which kept the table at every width and stacked five values under the
+    // runner's name. The table roles are stated in the markup, so it is still a table to a
+    // screen reader — asserted here by finding the rows and row headers by role.
+    const row = page.getByRole('row', { name: /Nwosu, Harriet/ });
+    await expect(row).toBeVisible();
+    expect(await row.evaluate((node) => getComputedStyle(node).display)).toBe('grid');
     await expect(page.getByRole('columnheader', { name: 'Club' })).toBeHidden();
-    await expect(page.getByRole('columnheader', { name: 'Code' })).toBeHidden();
+    await expect(page.getByRole('rowheader', { name: /Nwosu, Harriet/ })).toBeVisible();
 
-    // **Email folds with them, and it is the one that would cost most if it did not.** It is
-    // the longest value in the table, and a fourth column at this width is what starts the
-    // whole page sliding sideways under a thumb. Issue #183.
-    await expect(page.getByRole('columnheader', { name: 'Email' })).toBeHidden();
+    // Club and Entry carry captions, because there is no header row to say what they are.
+    await expect(row.getByText('Club', { exact: true })).toBeVisible();
+    await expect(row.getByText('Entry', { exact: true })).toBeVisible();
+    await expect(row.getByText('Southville Running Club')).toBeVisible();
 
-    // The three that remain, and the runner cell now carrying what the others dropped. Filtered to
-    // the visible copy for the reason the table's own describe block explains — at this width the
-    // `<td>` is the hidden one and the stack is the real one.
-    await expect(page.getByRole('columnheader', { name: 'Runner' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: 'Status' })).toBeVisible();
+    // **The address wraps rather than being cut**, because a cut address at 320px is a
+    // useless one — exactly one copy, and readable whole.
     await expect(
-      page.getByText('Southville Running Club').filter({ visible: true }).first(),
-    ).toBeVisible();
-    await expect(
-      page.getByText('Vet 40').filter({ visible: true }).first(),
-    ).toBeVisible();
+      page.getByText('harriet@example.com').filter({ visible: true }),
+    ).toHaveCount(1);
 
-    // And the thing somebody is at the desk to do still works at this width.
-    await expect(page.getByRole('button', { name: /Show note/ }).first()).toBeVisible();
+    // And everything this surface may do to the entry is in the card, Cancel included.
+    await expect(row.getByRole('button', { name: /Medical note/ })).toBeVisible();
+    await row.locator('summary').click();
+    await expect(row.getByRole('button', { name: /View details/ })).toBeVisible();
+    await expect(row.getByRole('button', { name: /Cancel and refund/ })).toBeVisible();
+    await expectNoSidewaysScroll(page, 'the entries list at 320px with a row menu open');
+  });
+
+  /**
+   * **The actions are never clipped, at any width from 320px up.**
+   *
+   * The panel the list sits in used to clip to its corners, which is what made the old actions
+   * column disappear off its right edge. Measured against the table's own box at every width the
+   * layout changes near: the card breakpoint is 54rem *of table*, which is about 900px of
+   * viewport, so 880 and 920 sit either side of it and 900 is the tightest the seven-column
+   * table ever gets.
+   */
+  test('keeps every row menu inside the table at every width', async ({ page }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+
+    for (const width of [320, 375, 600, 768, 880, 900, 920, 1024, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(OVERSOLD_ALL);
+      await waitForStyledLayout(page);
+
+      const spill = await page.evaluate(() => {
+        const box = document.querySelector('.admin-entries')!.getBoundingClientRect();
+        return [...document.querySelectorAll('.admin-row-menu-button')]
+          .map((button) => button.getBoundingClientRect())
+          .filter((rect) => rect.right > box.right + 1 || rect.left < box.left - 1)
+          .length;
+      });
+
+      expect(spill, `row menus outside the table at ${width}px`).toBe(0);
+      await expectNoSidewaysScroll(page, `the entries list at ${width}px`);
+    }
   });
 
   /**
@@ -2229,9 +2502,14 @@ test.describe('accessibility and small screens', () => {
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(OVERSOLD);
 
-    for (const column of ['Club', 'Category', 'Entry', 'Code', 'Paid']) {
+    // **No Code column since the redesign**, which asked for it to go: it was a dash on almost
+    // every row. The code is a tag under the entry type now, and the Left Handed Giant question
+    // is still answered by reading down one column — the Entry one.
+    for (const column of ['Runner', 'Category', 'Club', 'Entry', 'Paid', 'Status']) {
       await expect(page.getByRole('columnheader', { name: column })).toBeVisible();
     }
+
+    await expect(page.getByRole('columnheader', { name: 'Code' })).toHaveCount(0);
   });
 });
 
@@ -2259,26 +2537,25 @@ test.describe('acting on an entry somebody paid for', () => {
   test('cancels an entry, refunds it, and leaves the row with no runner on it', async ({
     page,
   }) => {
-    // **A desktop width, because Cancel and Transfer are still desktop-only — deliberately.**
-    // They sit in an `.admin-col-wide` cell that folds away below 768px, and cancelling is a
-    // desk task with the Stripe dashboard open beside it rather than something done one-handed
-    // at a race.
-    //
-    // **That is no longer the whole story, and the half that was a defect is fixed.** #145
-    // defect 5 was that *Details* folded away with them, leaving `/admin/nn/entry/` — the page
-    // ADR-024 built for exactly the phone case — with no door on a phone. A second copy of that
-    // button now rides in the stacked row, and `reaches an entry from a phone` below is the
-    // test for it. The pin here keeps this test about cancelling rather than about the
-    // breakpoint.
+    // **A desktop width to keep this test about cancelling rather than about the layout.**
+    // Cancel was desktop-only until the redesign — it sat in a cell that folded away below
+    // 768px — and it is in every row's "⋯" menu at every width now. The confirmation step,
+    // not the width, is what makes a mistaken tap harmless.
     await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ACTIONS);
 
     // **`Lastname, Firstname`** — `runnerName()` renders the table's sort order rather than a
     // greeting, and the visually-hidden half of every row button's name is built from it.
-    await page
+    // **From the row's menu now**, where Cancel is last, below a rule, in the error colour.
+    // Its first press still only asks — the confirmation below is unchanged.
+    const cancellable = page.getByRole('row', {
+      name: new RegExp(`${CANCELLABLE_LAST_NAME}, Anita`),
+    });
+    await cancellable.locator('summary').click();
+    await cancellable
       .getByRole('button', {
-        name: `Cancel the entry for ${CANCELLABLE_LAST_NAME}, Anita`,
+        name: new RegExp(`^Cancel.* the entry for ${CANCELLABLE_LAST_NAME}, Anita`),
       })
       .click();
 
@@ -2314,21 +2591,29 @@ test.describe('acting on an entry somebody paid for', () => {
   test('transfers a place, and the previous runner’s medical note does not go with it', async ({
     page,
   }) => {
-    // A desktop width, for the reason the cancel test above gives — issue #145, defect 5.
+    // A desktop width, for the reason the cancel test above gives.
     await page.setViewportSize({ width: 1280, height: 900 });
     await signInAs(page, NN_ADMIN_EMAIL);
     await page.goto(ACTIONS);
 
     await expect(
       page.getByRole('button', {
-        name: `Show note for ${TRANSFERABLE_LAST_NAME}, Petra`,
+        name: `Medical note for ${TRANSFERABLE_LAST_NAME}, Petra`,
       }),
       'the fixture starts with a note, or this test proves nothing',
     ).toBeVisible();
 
-    await page
+    const transferable = page.getByRole('row', {
+      name: new RegExp(`${TRANSFERABLE_LAST_NAME}, Petra`),
+    });
+    await transferable.locator('summary').click();
+    await transferable
+      // **Whitespace-tolerant around the colon**, because the menu item is a flex container and
+      // engines differ on whether a flex item boundary adds a space to an accessible name.
       .getByRole('button', {
-        name: `Transfer the entry for ${TRANSFERABLE_LAST_NAME}, Petra to somebody else`,
+        name: new RegExp(
+          `^Transfer to someone else\\s*:\\s*the entry for ${TRANSFERABLE_LAST_NAME}, Petra`,
+        ),
       })
       .click();
 
@@ -2362,7 +2647,7 @@ test.describe('acting on an entry somebody paid for', () => {
     // condition under a new name, so the new runner has none until they write one.
     await expect(
       page.getByRole('button', {
-        name: `Show note for ${TRANSFER_TO_LAST_NAME}, ${TRANSFER_TO_FIRST_NAME}`,
+        name: `Medical note for ${TRANSFER_TO_LAST_NAME}, ${TRANSFER_TO_FIRST_NAME}`,
       }),
     ).toBeHidden();
   });

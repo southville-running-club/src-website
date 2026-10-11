@@ -1005,21 +1005,6 @@ body.admin {
   }
 
   /*
-   * **The Details button, which is the only way into an entry on a phone.**
-   *
-   * The actions cell is `admin-col-wide` and folds away here, so this is the copy that shows —
-   * riding in the stack rather than as a fourth column, because a fourth column is what starts
-   * the table scrolling sideways at 320px.
-   *
-   * A little air above it and nothing else: it is a control among values, so it should not read
-   * as another line of the runner's details. The button keeps `admin-linkish`, which already
-   * carries the 44px touch target this surface uses everywhere else.
-   */
-  .admin-stack-action {
-    margin-top: 0.4rem;
-  }
-
-  /*
    * **Three columns have to *fit*, not merely be fewer.** The panel clips rather than scrolls, so a
    * table still wider than the viewport hides a column instead of offering it — which is worse than
    * the sideways scroll this layout replaced, because nothing tells the reader it happened.
@@ -1041,6 +1026,560 @@ body.admin {
      being cut off does not. */
   .admin-chip {
     white-space: normal;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+ * 8. The entries list
+ * ---------------------------------------------------------------------------------------
+ * Pills that say how many, a search that stays out of the address bar, seven columns on a wide
+ * screen and a card per row on a narrow one. `nn-admin.ts`'s `entriesSection` has the reasoning
+ * for each; this is the layout.
+ *
+ * **No new colour pair.** Every surface here is one this file already mixes and
+ * `admin-contrast.test.ts` already asserts: ink on the chip washes and on `--admin-track`, the
+ * accent and the error colour on the card, muted on the card and on the page. The amber marker
+ * is the one new use of a colour, and it is an icon beside words rather than text.
+ */
+
+/*
+ * **The one panel that does not clip.** `.admin-panel` clips to its corner radius, and on this
+ * one that would cut a row's menu off at the panel's edge and turn the sticky header row into a
+ * header that never sticks — `overflow: hidden` makes the panel the scroller sticky measures
+ * against, and the panel does not scroll. Nothing inside reaches the corners: the head band and
+ * the rows are transparent over the panel's own fill. `position: relative` stays, for the
+ * visually hidden text it contains.
+ */
+.admin-panel-open {
+  overflow: visible;
+}
+
+/* "Assign a place", above the tools and inset like them. */
+.admin-assign {
+  margin: 1rem 1.25rem 0;
+}
+
+.admin-entries-tools {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--colour-rule);
+}
+
+.admin-entries-tools .admin-filters-note {
+  margin: 0;
+}
+
+.admin-pills ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A one-button form, for a pill or a header while a search is in force. */
+.admin-inline-form {
+  display: inline;
+  margin: 0;
+}
+
+/* A pill is `.admin-filter` with its count beside it. 44px tall at every width rather than only
+   on touch, because a pill row is exactly where a cold thumb lands. Not `.admin-pill`, which is
+   the event bar's mono label and a different thing. */
+.admin-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.admin-pill-count {
+  min-width: 1.5rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--admin-track);
+  color: var(--colour-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.admin-entries-forms {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.875rem 1.5rem;
+}
+
+.admin-search {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+
+.admin-search label,
+.admin-refine-field label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-search .admin-hint {
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.admin-search-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-refine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.admin-refine-field {
+  min-width: 0;
+}
+
+/* `--colour-muted` for the border rather than `--colour-rule`: a field's edge is what says it is
+   a field, and the rule colour is too faint to be one. 16px text, so iOS does not zoom. */
+.admin-search input,
+.admin-refine select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--colour-muted);
+  border-radius: var(--radius-button);
+  background: var(--colour-background);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.admin-search input {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+/* "Show them" beside the tests note: a link in a sentence, so it is sized like one. */
+.admin-linkish-inline {
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
+/*
+ * The table's own box, and the width every arrangement below is measured against.
+ *
+ * ⚠️ **A container, so the card layout asks how wide the *table* is rather than the screen.**
+ * This file has already paid for a viewport query inside a constrained box once — `/admin/
+ * people/`'s split fired on a 1440px screen for a component that had 600px. The table sits in a
+ * 70rem page with a gutter either side, so the two are not the same number.
+ */
+.admin-entries {
+  container-type: inline-size;
+  container-name: admin-entries;
+}
+
+.admin-entries-table th,
+.admin-entries-table td {
+  padding: 0.65rem 0.6rem;
+}
+
+.admin-entries-table :is(th, td):first-child {
+  padding-inline-start: 1.25rem;
+}
+
+.admin-entries-table :is(th, td):last-child {
+  padding-inline-end: 1.25rem;
+}
+
+/* The header row stays on screen while 250 rows scroll under it. Opaque, so a row does not show
+   through it, and above the rows but below an open row menu. */
+.admin-entries-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  vertical-align: bottom;
+}
+
+.admin-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.admin-runner-name {
+  display: block;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+/*
+ * **The address, on one line under the name.**
+ *
+ * ⚠️ **`white-space: nowrap` and `overflow-wrap: normal` are both load-bearing.** `base.css`
+ * gives every `mailto:` link `overflow-wrap: anywhere`, which in an auto-layout table tells the
+ * browser the column may be one character wide — exactly how this address used to read down the
+ * page a letter at a time. The cap is on the link, because a cell's `max-width` does nothing in
+ * an auto-layout table, and `cqi` is the table's width: about a quarter of it, never more than
+ * 18rem. The whole address is in `title`, and the text node is complete.
+ */
+.admin-runner-email {
+  display: block;
+  max-width: 18rem;
+  max-width: min(18rem, 24cqi);
+  margin-top: 0.15rem;
+  overflow: hidden;
+  color: var(--colour-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  overflow-wrap: normal;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.admin-runner-email:hover,
+a.admin-runner-email:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-note-form {
+  margin: 0.4rem 0 0;
+}
+
+.admin-note-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--colour-muted);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  color: var(--colour-text);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-cell-main {
+  display: block;
+}
+
+/* A race category a prize list cannot place: an amber marker and the words, in ink and bold, so
+   it reads as something to deal with without the colour having to say so. */
+.admin-gap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+  color: var(--colour-text);
+  font-weight: 600;
+}
+
+.admin-gap-icon {
+  flex: none;
+  margin-top: 0.1rem;
+  color: var(--colour-amber);
+}
+
+.admin-gap-icon-mark {
+  stroke: var(--admin-card);
+}
+
+.admin-code {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: 4px;
+  background: var(--admin-track);
+  color: var(--colour-text);
+  font-size: 0.75rem;
+}
+
+/* Only on a card, where there is no header row to say what the value is. */
+.admin-card-label {
+  display: none;
+}
+
+.admin-cell-paid {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.admin-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.admin-status-icon {
+  flex: none;
+}
+
+.admin-cell-status > .admin-sub,
+.admin-cell-status > .admin-quiet {
+  display: block;
+}
+
+/* As narrow as the button it holds. */
+.admin-cell-actions {
+  width: 1%;
+  text-align: end;
+}
+
+/*
+ * The row menu: a `<details>`, so it opens with Enter or Space and with scripting off.
+ *
+ * **Positioned against the `<details>` and anchored to its right edge**, so the panel opens
+ * leftward into the table rather than off the side of the page — the rule that keeps an
+ * absolutely positioned box from making a 320px document scroll sideways is that it is laid out
+ * inside something, and here that is the cell's own control.
+ */
+.admin-row-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.admin-row-menu-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  color: var(--colour-text);
+  list-style: none;
+  cursor: pointer;
+}
+
+.admin-row-menu-button::-webkit-details-marker {
+  display: none;
+}
+
+.admin-row-menu-button::marker {
+  content: '';
+}
+
+.admin-row-menu[open] > .admin-row-menu-button {
+  border-color: var(--colour-accent);
+}
+
+.admin-row-menu-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 3;
+  display: grid;
+  width: max-content;
+  min-width: 13.5rem;
+  max-width: min(18rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-button);
+  background: var(--admin-card);
+  text-align: start;
+}
+
+.admin-row-menu-panel form {
+  margin: 0;
+}
+
+.admin-row-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--colour-accent);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-row-menu-item:hover {
+  text-decoration: underline;
+}
+
+/* Last, below a rule, and in the error colour: the one item here that undoes something. */
+.admin-row-menu-danger {
+  color: var(--colour-error);
+}
+
+.admin-row-menu-rule {
+  margin: 0.3rem 0.25rem;
+  border: 0;
+  border-top: 1px solid var(--colour-rule);
+}
+
+.admin-empty-row td {
+  padding-block: 1.5rem;
+}
+
+.admin-empty-row p {
+  margin: 0 0 0.5rem;
+}
+
+/* 44px on touch for the two controls that are smaller with a mouse. */
+@media (pointer: coarse) {
+  .admin-note-button {
+    min-height: 2.75rem;
+  }
+}
+
+/*
+ * **Below 54rem of table, a card per row.**
+ *
+ * **54rem rather than the 48rem the rest of this file folds at, and it was measured.** Seven
+ * columns of the fixtures' own values need 750px at their narrowest on a Mac; at 48rem that is
+ * 18px of headroom, which is less than the difference between macOS and a Linux runner's font
+ * metrics — the 214px lesson in `CLAUDE.md`. 54rem leaves about ninety.
+ *
+ * ```
+ * Runner (name + email)     Status
+ * Category (+ race category)
+ * Club                      Entry
+ * Paid                      ⋯
+ * ```
+ *
+ * ⚠️ **This reverses the three-column fold described at the head of this file**, for this table
+ * only. That fold kept a real table at every width and cost a phone reader a runner cell holding
+ * five values in a stack. The semantics are kept a different way: the markup states every table
+ * role explicitly, because changing `display` on a table makes some engines drop the implicit
+ * ones. The header row goes — the Club and Entry captions say what those two are, the others
+ * say what they are by themselves — and the sort moves to the Sort select above.
+ *
+ * The address wraps at its `@` and dots here instead of being cut, because a cut address at
+ * 320px is a useless one; outside an auto-layout table `anywhere` is safe again.
+ */
+@container admin-entries (max-width: 53.99rem) {
+  .admin-entries-table,
+  .admin-entries-table tbody {
+    display: block;
+  }
+
+  .admin-entries-table thead {
+    display: none;
+  }
+
+  .admin-entry-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'runner status'
+      'category category'
+      'club entry'
+      'paid actions';
+    gap: 0.6rem 1rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid var(--colour-rule);
+  }
+
+  .admin-entry-row:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-entries-table .admin-entry-row > :is(th, td) {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .admin-cell-runner {
+    grid-area: runner;
+  }
+
+  .admin-cell-status {
+    grid-area: status;
+    justify-self: end;
+    text-align: end;
+  }
+
+  .admin-cell-category {
+    grid-area: category;
+  }
+
+  .admin-cell-club {
+    grid-area: club;
+  }
+
+  .admin-cell-entry {
+    grid-area: entry;
+    text-align: end;
+  }
+
+  .admin-cell-paid {
+    grid-area: paid;
+    align-self: center;
+    text-align: start;
+  }
+
+  .admin-cell-actions {
+    grid-area: actions;
+    justify-self: end;
+    width: auto;
+  }
+
+  .admin-card-label {
+    display: block;
+    margin-bottom: 0.1rem;
+    color: var(--colour-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .admin-runner-email {
+    max-width: none;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .admin-gap {
+    display: inline-flex;
+  }
+
+  .admin-empty-row,
+  .admin-empty-row td {
+    display: block;
+  }
+
+  .admin-empty-row td {
+    padding: 1.25rem 1rem;
   }
 }
 
