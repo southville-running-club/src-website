@@ -1858,29 +1858,61 @@ by email; the message goes when somebody acts on it.
 
 ### Admin filtering, and the runner's own record
 
-**`/admin/nn/` filters on sets, and by default leaves out everybody who is not running** —
-`fee:tester`, `status:refunded` and `status:expired`, which on a race that fills are most of the
-rows and none of the work. **An explicit `?status=` overrules the default and never overrules a
-`hide=` somebody chose**: without that split, pressing the **Hold expired** chip returned an
-empty table, which is a filter that can never match and is exactly how the Refunded filter once
-convinced a volunteer there had been no refunds. Two lines under the chips name what is missing
-and link to the view including it.
+**`/admin/nn/` opens on the Paid pill, and every status pill carries a count** — Paid, Held now,
+Holds expired, Refunded, Needs attention, Asked about, All. ⚠️ **This replaced, on 11 October
+2026, a multi-select chip row plus a sentence** — *"Refunded entries and lapsed holds are not
+shown. Show them"* — which hid two statuses without saying how many rows either held. The counts
+are worked out from the rows the page already read, with the search and the category applied, so
+a pill never promises a row the table will not show. **A filter that can never match is still the
+thing to refuse**: it is how the Refunded filter once convinced a volunteer there had been no
+refunds (#116), and it is why choosing the tester entry type shows test entries even though they
+are hidden by default. The parsing, the counts, the search and the sort are pure functions in
+`worker/nn-admin-list.ts`, read through Zod, and **an unknown value falls back to the default
+rather than erroring**.
+
+⚠️ **A search term never goes in a URL, and that is a decision rather than an oversight.** It is a
+runner's name or address, and the runbook's rule is that no filter carries personal data. The
+search box **POSTs to the page's own address** — read-only, no CSRF token, no audit row — and a
+`?q=` typed into the address bar is ignored rather than honoured. While a search is in force,
+`queryControl()` renders every pill and sort header as a one-button POST form carrying the term,
+so sorting cannot drop it; the cost is that a searched view cannot be bookmarked or sent, which is
+the point. `admin.test.ts`'s form-action list names the page's own address as its eighth endpoint,
+in the half that reads.
+
+⚠️ **The category cell's second line is the race category (`gender`), never `gender_identity`.**
+The brief that redesigned the list asked for a warning on rows "with no gender", which read the
+optional free-text question as a gap; it is not one — ADR-020 says not answering is an answer, and
+`admin.spec.ts` asserts no "not given" placeholder. What the page flags, with an amber icon *and*
+words, is the runner a prize list cannot place: `raceCategoryLine()` answers `gap` for a
+non-binary runner with no placement (ADR-031) and for a runner with no race category at all, which
+the database already refuses.
 
 **The page also counts the field by category** — the four bands, the two honest non-answers, and
 guides beside them rather than inside one. Counted off the rows rather than asked of the
 database, because the band a runner falls in is named by `packages/shared/src/age-category.ts`
 and by nothing else.
 
-**There is an Email column since 31 August 2026, and which address it shows is decided per row
+**The list shows an email address since 31 August 2026, and which address is decided per row
 rather than per purchase.** A runner's is `entry_purchases.purchaser_email`; a **guide's** is
 their own `entrants.email`, because a guide has no purchase of their own — so
 `read_entry_list()` resolves it in a `case` and the page prints what it resolved. **Showing the
 buyer's address beside a guide's name is the one wrong answer**, on the page a volunteer rings
-people from, and a null is rendered as a dash rather than filled from anywhere else. A cancelled
-entry has no entrant at all and keeps the address that paid, which is the address the refund
-notice went to. It is `admin-col-wide admin-break`, so it folds into the runner cell below 48rem
-with the other five — an address is the longest value in the table and a fourth column at 320px
-is what starts the whole page sliding sideways. ADR-024 named the address that paid as one of
+people from, and a null is rendered as "No email recorded" rather than filled from anywhere
+else. A cancelled entry has no entrant at all and keeps the address that paid, which is the
+address the refund notice went to. ⚠️ **It is not a column of its own any more, since 27 September 2026.** It
+was, as `admin-col-wide admin-break` — and `overflow-wrap: anywhere` tells an auto-layout table
+the column may be one character wide, which with ten columns it then was: every address read
+down the page a letter per line. It is the second line of the runner cell now, one line with an
+ellipsis (`.admin-runner-email`, capped by a `max-width` on the link because a cell's does
+nothing in an auto-layout table) and the whole address in `title`; on a card it wraps
+instead. ⚠️ **No `<wbr>` in it**: Chromium wraps at a `<wbr>` even under `nowrap`, and on CI's
+Linux runner that put this "one line" on two — a block reports one client rect either way, so
+only a height check sees it. **Do not give a long unbroken value `overflow-wrap: anywhere` inside an
+auto-layout table cell** — cap and cut it, or it becomes the column's minimum width. ⚠️ **It is a
+`mailto:` link now, and `base.css` gives every `mailto:` link exactly that `anywhere`**, so the
+wide-layout rule states `white-space: nowrap` and `overflow-wrap: normal` both, and the two
+"nothing personal in any link" tests check `mailto:` hrefs separately — one bare address each —
+rather than skipping them. ADR-024 named the address that paid as one of
 the facts that did not fit in a column and built `/admin/nn/entry/` for them; **this reverses
 that for one field**, because telling two runners of the same name apart is done while reading
 the list. No new column is collected and no new audience sees one — it is already on the entry
@@ -1907,13 +1939,24 @@ closed that, as a tenth argument with the nine-argument form kept as a wrapper. 
 stopped asking for numbers at all, so no fee requires one, the refusal is unreachable and the
 argument is dead weight — **both go at the contract step**, which is the one still owing.
 
-The rest of the filtering: Status and entry
-type are multi-select, carried as repeated query parameters so a filtered view is a URL
-somebody can send to the other volunteer; an empty set means every value. Exclusion is
-`hide`, namespaced — `hide=fee:tester`, `hide=status:refunded` — and `hide=none` is how
-"leave nothing out" is written, because absent and empty would otherwise mean opposite
-things. A tester's place is still real and still counted; it is simply not what somebody
-opens that page to look at.
+The rest of the filtering: **status is one pill at a time**, and an old multi-select bookmark
+opens on the first value it recognises. Category, entry type and sort are a **GET form with an
+Apply button** — so a filtered view is still a URL somebody can send — and the Runner and
+Category column headers are sort links that flip, with `aria-sort` on the `<th>`. **`hide=none`
+is the one `hide` value that still means anything**: it shows the club's own test entries, which
+are left out of every pill by default; a `hide=status:…` from before the pills is ignored. A
+tester's place is still real and still counted; it is simply not what somebody opens that page to
+look at.
+
+**Every row's actions are one "⋯" `<details>` menu**, and **below 54rem of table each row is a
+card** laid out with grid areas. Two consequences are deliberate reversals and both are recorded
+where they happen: Cancel is reachable on a phone (it folded away below 768px as "a desk task" —
+the confirmation page, not the width, is the safeguard), and the table changes `display` at that
+width (it was kept a real table at every size), so the markup states every table role explicitly
+because some engines drop the implicit ones. **54rem, not 48rem**, because seven columns need
+~750px at their narrowest and 48rem left less headroom than Mac-versus-Linux font metrics. The
+entries panel is `.admin-panel-open` — not clipped — or a row menu would be cut off at the
+panel's edge and the sticky header row would never stick.
 
 **`/account/entries/`'s open view shows confirmed places and nothing else.** A lapsed attempt
 beside a real ticket makes the page look broken, so a ticket is the only thing on that view.
