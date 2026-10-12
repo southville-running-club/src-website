@@ -1478,8 +1478,9 @@ a.admin-runner-email:focus-visible {
  * ones. The header row goes — the Club and Entry captions say what those two are, the others
  * say what they are by themselves — and the sort moves to the Sort select above.
  *
- * The address wraps at its `@` and dots here instead of being cut, because a cut address at
- * 320px is a useless one; outside an auto-layout table `anywhere` is safe again.
+ * The address wraps here instead of being cut, because a cut address at 320px is a useless
+ * one; outside an auto-layout table `anywhere` is safe again. It carries no `<wbr>` — see
+ * `entryRow()` for the Linux runner that wrapped one under `nowrap`.
  */
 @container admin-entries (max-width: 53.99rem) {
   .admin-entries-table,

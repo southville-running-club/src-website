@@ -47,7 +47,7 @@ import {
   type UnavailableCause,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
-import { breakableEmail, escapeHtml, html, raw, type Html } from './html';
+import { escapeHtml, html, raw, type Html } from './html';
 import {
   STATUS_VIEWS,
   categoryKeyLabel,
@@ -1785,9 +1785,15 @@ function entryRow(
         null here.
 
         **One line, cut with an ellipsis, and the whole address in `title`** on a wide screen;
-        on a card it wraps at the `@` and the dots instead, because a cut address at 320px is a
-        useless one. The cut is visual only — the text is complete for a screen reader and for
-        a copy. */ null
+        on a card it wraps instead, because a cut address at 320px is a useless one. The cut is
+        visual only — the text is complete for a screen reader and for a copy.
+
+        ⚠️ **Plain text, not `breakableEmail()`.** Chromium honours a `<wbr>` even under
+        `white-space: nowrap`, so on a Linux runner — whose fonts set this address a few pixels
+        wider than its cap — the "one line" broke after the `@` and the row went two lines tall.
+        The link is a block, so it still reported one client rect, and only the height check in
+        `admin.spec.ts` saw it. A card wraps it with `overflow-wrap: anywhere` instead, which is
+        safe there because a card is not an auto-layout table. */ null
       }
       ${
         entry.email === null
@@ -1796,7 +1802,7 @@ function entryRow(
               class="admin-runner-email"
               href="mailto:${entry.email}"
               title="${entry.email}"
-              >${breakableEmail(entry.email)}</a
+              >${entry.email}</a
             >`
       }
       ${

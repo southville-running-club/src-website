@@ -1904,8 +1904,10 @@ was, as `admin-col-wide admin-break` — and `overflow-wrap: anywhere` tells an 
 the column may be one character wide, which with ten columns it then was: every address read
 down the page a letter per line. It is the second line of the runner cell now, one line with an
 ellipsis (`.admin-runner-email`, capped by a `max-width` on the link because a cell's does
-nothing in an auto-layout table) and the whole address in `title`; on a card it wraps at the `@`
-and the dots instead. **Do not give a long unbroken value `overflow-wrap: anywhere` inside an
+nothing in an auto-layout table) and the whole address in `title`; on a card it wraps
+instead. ⚠️ **No `<wbr>` in it**: Chromium wraps at a `<wbr>` even under `nowrap`, and on CI's
+Linux runner that put this "one line" on two — a block reports one client rect either way, so
+only a height check sees it. **Do not give a long unbroken value `overflow-wrap: anywhere` inside an
 auto-layout table cell** — cap and cut it, or it becomes the column's minimum width. ⚠️ **It is a
 `mailto:` link now, and `base.css` gives every `mailto:` link exactly that `anywhere`**, so the
 wide-layout rule states `white-space: nowrap` and `overflow-wrap: normal` both, and the two
