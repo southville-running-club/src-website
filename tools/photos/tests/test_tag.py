@@ -191,6 +191,31 @@ class TagTest(TagCase):
                 with self.subTest(file=path.name):
                     self.assertNotIn(fixtures.SERIAL.encode(), path.read_bytes())
 
+    def test_a_short_id_never_changes_once_given(self):
+        # Short IDs are what people read out and reply with, so one given on the night must
+        # mean the same photo for ever. They are issued in the order photos are first tagged
+        # and stored; nothing recomputes them. Reordering photographers.csv and adding a
+        # folder that sorts, and is listed, before the others must not move any of them.
+        self.photo("Ross/a.jpg", recorded="2026:11:01 11:00:00")
+        self.photo("Ross/b.jpg", recorded="2026:11:01 11:00:30")
+        self.photo("Adrian/Finish/c.jpg", recorded="2026:11:01 11:01:00")
+        self.tag(SpyReader())
+        before = {photo["source"]: photo["short_id"] for photo in self.manifest().photos()}
+
+        (self.config.work / "photographers.csv").write_text(
+            "folder,credit,spot\nAaron,Aaron,Start\nRoss,Ross,On the course\nAdrian/Finish,Adrian,Finish\n"
+        )
+        self.photo("Aaron/0001.jpg", recorded="2026:11:01 10:59:00")
+        self.photo("Ross/0000.jpg", recorded="2026:11:01 10:58:00")
+        self.tag(SpyReader())
+
+        after = {photo["source"]: photo["short_id"] for photo in self.manifest().photos()}
+        self.assertEqual({source: after[source] for source in before}, before)
+        self.assertEqual(
+            {source: short for source, short in after.items() if source not in before},
+            {"Aaron/0001.jpg": "NN26-0004", "Ross/0000.jpg": "NN26-0005"},
+        )
+
     def test_reports_missing_and_unlisted_folders(self):
         self.config = fixtures.make_work(
             self.root, photographers=fixtures.PHOTOGRAPHERS + "Sam,Sam,Start\n"
