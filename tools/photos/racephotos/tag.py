@@ -13,6 +13,13 @@ For each JPEG under a listed photographer's folder, in a stable order:
 Anything that is not a JPEG is listed as skipped, per photographer, and never silently
 dropped. Afterwards, bursts and corrected times are worked out again for every photo.
 
+**A photo already in the manifest that turns up at a new path, with its old path gone, has
+been moved**, most likely because a photographer's folder was split into one folder per
+spot after a first run. It is filed under its new path and folder, so its credit and spot
+follow, and keeps its short ID, its camera's clock decision and its reads. If the old path
+is still there too, the new one is a duplicate. A photo whose path is unchanged but which a
+different row of photographers.csv now covers is filed under that row in the same way.
+
 A photo the model saw no bib in is still copied and still uploaded: a runner whose bib was
 hidden may find it another way, which is slice 4's decision.
 """
@@ -50,6 +57,8 @@ class TagRun:
     skipped: Counter = field(default_factory=Counter)
     missing_folders: list[str] = field(default_factory=list)
     uncovered: Counter = field(default_factory=Counter)
+    moved: list[tuple[str, str]] = field(default_factory=list)
+    """(old folder, new folder) for each photo filed somewhere new this run."""
 
 
 def short_id(prefix: str, sequence: int) -> str:
@@ -127,13 +136,17 @@ def _tag(config, manifest, photographers, bibs, reader, threshold, say) -> TagRu
             continue
 
         photo_fingerprint = fingerprint(path)
-        seen_as = manifest.source_of(photo_fingerprint)
-        if seen_as is not None:
-            if seen_as == relative:
-                run.already += 1
-            else:
+        filed = manifest.photo(fingerprint=photo_fingerprint)
+        if filed is not None:
+            elsewhere = filed["source"] != relative
+            if elsewhere and (config.originals / filed["source"]).exists():
                 manifest.record_skip(relative, photographer.folder, "duplicate", now)
                 run.skipped["duplicate"] += 1
+            elif elsewhere or filed["folder"] != photographer.folder:
+                manifest.move_photo(photo_fingerprint, relative, photographer.folder)
+                run.moved.append((filed["folder"], photographer.folder))
+            else:
+                run.already += 1
             continue
 
         try:

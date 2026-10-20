@@ -166,6 +166,12 @@ the first real run says otherwise.
 Every photo is saved as soon as it is done, so if the run is stopped, running it again
 carries on where it left off, and running it over the same folders adds nothing.
 
+**Splitting a folder after a first run is fine.** If Adrian's photos were tagged from
+`Adrian/` and you then move them into `Adrian/Finish/` and `Adrian/Start/` and list those in
+`photographers.csv`, the next run files each photo under its new folder, so its credit and
+spot follow, and keeps its short ID and its camera's clock. The summary lists the moves.
+Copy rather than move, and the second copy is reported as a duplicate instead.
+
 Anything that is not a JPEG is listed as skipped, per photographer, in the terminal and on
 the Start screen: RAW, video, macOS `._` files, unreadable files and duplicates, and
 **HEIC, which is what an iPhone sends by default**. Ask that photographer for JPEGs

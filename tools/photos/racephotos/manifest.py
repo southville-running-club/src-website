@@ -209,9 +209,15 @@ class Manifest:
 
     # Tagging
 
-    def source_of(self, fingerprint: str) -> str | None:
-        row = self.db.execute("select source from photos where fingerprint = ?", (fingerprint,)).fetchone()
-        return row["source"] if row else None
+    def move_photo(self, fingerprint: str, source: str, folder: str) -> None:
+        """File an already-tagged photo under a new path and folder. Nothing else about it
+        changes: not its ID, its short ID, its camera, its time or its reads."""
+        with self.db:
+            self.db.execute(
+                "update photos set source = ?, folder = ? where fingerprint = ?",
+                (source, folder, fingerprint),
+            )
+            self.db.execute("delete from skipped where source = ?", (source,))
 
     def next_sequence(self) -> int:
         return self.db.execute("select coalesce(max(sequence), 0) + 1 from photos").fetchone()[0]

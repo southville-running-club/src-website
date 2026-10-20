@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import Counter
 from pathlib import Path
 
 from .config import DEFAULT_WORK, ConfigError, load_config
@@ -37,6 +38,11 @@ def tag(args, say) -> int:
 
     say("")
     say(f"Tagged {plural(run.tagged, 'new photo')}. {run.already} {verb(run.already, 'was', 'were')} already in the manifest.")
+    if run.moved:
+        say(f"Moved {plural(len(run.moved), 'photo')}, keeping their short IDs and clock decisions:")
+        for (old, new), count in sorted(Counter(run.moved).items()):
+            where = f"within {old}" if old == new else f"from {old} to {new}"
+            say(f"  {plural(count, 'photo')} {where}")
     if run.skipped:
         say(f"Skipped {plural(sum(run.skipped.values()), 'file')} this run: {counted(run.skipped)}.")
     for folder in run.missing_folders:

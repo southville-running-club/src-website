@@ -2,6 +2,7 @@ import contextlib
 import io
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
@@ -225,6 +226,84 @@ class TagTest(TagCase):
         run = self.tag(SpyReader())
         self.assertEqual(run.missing_folders, ["Adrian/Finish", "Sam"])
         self.assertEqual(dict(run.uncovered), {"Extra": 1})
+
+
+class MovedPhotoTest(TagCase):
+    """A photographer's folder split into one folder per spot after a first tag run."""
+
+    def setUp(self):
+        super().setUp()
+        self.config = fixtures.make_work(
+            self.root, photographers="folder,credit,spot\nAdrian,Adrian,Finish\n"
+        )
+        self.photo("Adrian/a.jpg", recorded="2026:11:01 11:00:00", serial="A")
+        self.photo("Adrian/b.jpg", recorded="2026:11:01 11:30:00", serial="A")
+        self.tag(SpyReader())
+        from racephotos import clocks
+
+        manifest = self.manifest()
+        a = next(p for p in manifest.photos() if p["source"] == "Adrian/a.jpg")
+        clocks.decide_by_phone(manifest, a["camera_key"], a["fingerprint"], datetime(2026, 11, 1, 10, 0), "2026-11-01T20:00:00.000Z")
+        self.before = {p["fingerprint"]: p for p in manifest.photos()}
+
+    def split(self, *, move=True):
+        (self.originals / "Adrian/Finish").mkdir()
+        (self.originals / "Adrian/Start").mkdir()
+        for name, spot in (("a.jpg", "Start"), ("b.jpg", "Finish")):
+            source, target = self.originals / "Adrian" / name, self.originals / "Adrian" / spot / name
+            if move:
+                source.rename(target)
+            else:
+                target.write_bytes(source.read_bytes())
+        (self.config.work / "photographers.csv").write_text(
+            "folder,credit,spot\nAdrian/Finish,Adrian,Finish\nAdrian/Start,Adrian,Start\n"
+        )
+
+    def test_a_moved_photo_follows_its_folder_and_keeps_everything_else(self):
+        self.split()
+        reader = SpyReader()
+        run = self.tag(reader)
+
+        self.assertEqual((run.tagged, run.already, dict(run.skipped)), (0, 0, {}))
+        self.assertEqual(sorted(run.moved), [("Adrian", "Adrian/Finish"), ("Adrian", "Adrian/Start")])
+        self.assertEqual(reader.calls, [])
+        for photo in self.manifest().photos():
+            before = self.before[photo["fingerprint"]]
+            with self.subTest(photo=before["source"]):
+                spot = "Start" if before["source"].endswith("a.jpg") else "Finish"
+                self.assertEqual(photo["source"], before["source"].replace("Adrian/", f"Adrian/{spot}/"))
+                self.assertEqual(photo["folder"], f"Adrian/{spot}")
+                for kept in ("photo_id", "short_id", "camera_key", "taken_at", "hidden_reason"):
+                    self.assertEqual(photo[kept], before[kept], kept)
+        camera = self.manifest().camera(next(iter(self.before.values()))["camera_key"])
+        self.assertEqual(camera["decision"], "phone")
+
+    def test_a_copy_left_in_both_places_is_still_a_duplicate(self):
+        self.split(move=False)
+        run = self.tag(SpyReader())
+        self.assertEqual((run.moved, run.skipped["duplicate"]), ([], 2))
+        self.assertEqual({p["folder"] for p in self.manifest().photos()}, {"Adrian"})
+
+    def test_a_folder_listed_more_finely_without_moving_files_refiles_its_photos(self):
+        # The subfolders were there from the start and the first run listed only "Adrian".
+        self.photo("Adrian/Start/c.jpg", recorded="2026:11:01 11:45:00", serial="A")
+        self.tag(SpyReader())
+        (self.config.work / "photographers.csv").write_text(
+            "folder,credit,spot\nAdrian/Start,Adrian,Start\n"
+        )
+        run = self.tag(SpyReader())
+        self.assertEqual(run.moved, [("Adrian", "Adrian/Start")])
+        (photo,) = [p for p in self.manifest().photos() if p["source"] == "Adrian/Start/c.jpg"]
+        self.assertEqual(photo["folder"], "Adrian/Start")
+
+    def test_the_summary_lists_the_moves(self):
+        self.split()
+        lines = []
+        self.assertEqual(main(["--work", str(self.config.work), "tag"], say=lines.append), 0)
+        output = "\n".join(lines)
+        self.assertIn("Moved 2 photos, keeping their short IDs and clock decisions:", output)
+        self.assertIn("1 photo from Adrian to Adrian/Finish", output)
+        self.assertIn("1 photo from Adrian to Adrian/Start", output)
 
 
 class TagCommandTest(TagCase):
