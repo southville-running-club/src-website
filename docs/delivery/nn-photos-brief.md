@@ -92,9 +92,9 @@ Breaking one of these is a defect, not a judgement call.
 - **Private links are stored as hashes only.** The Worker hashes the token (SHA-256) and the
   database compares hashes. A token never appears in a log, a database row or an error.
 - **No personal data in logs**: no tokens, emails, names or bibs paired with either.
-- **Timestamps stored UTC, displayed `Europe/London`**, through the repo's London-time
-  helpers and nothing else *(verify the module)*. The clocks went back on 25 October; the
-  race is the Sunday after.
+- **Timestamps stored UTC, displayed `Europe/London`**, through one London-time module
+  per language: `london-time.ts` on the website, `tools/photos/racephotos/london_time.py`
+  in the laptop tool. The clocks went back on 25 October; the race is the Sunday after.
 - **Progressive enhancement.** Every runner page and form works with JavaScript disabled.
   Zero axe violations. Operable at 320 px.
 - **Race facts are data, not markup.** Spots, the event slug and photographer credits come
@@ -299,8 +299,9 @@ if its work folder is inside the git repository.
 ### `photos review`
 
 A local page served on **127.0.0.1 only**, by the standard library's HTTP server. Plain
-HTML, CSS and a little JavaScript; no framework. Fixing the camera clocks here is
-required before upload. The check screen is optional, for working offline; the team's
+HTML, CSS and a little JavaScript; no framework. It uses the BRANDING.md colours with
+system fonts only, and nothing on the page loads from the internet. Fixing the camera
+clocks here is required before upload. The check screen is optional, for working offline; the team's
 main checking happens on the website (§10). Three screens, as in the mockups:
 
 1. **Start:** counts per step, a table of photographers, and the next action.
@@ -332,6 +333,23 @@ Never print a key. Never upload a hidden photo.
 All in `apps/main`, after the freeze lifts. Follow the existing patterns: a static Astro
 shell, filled in by the Worker with `HTMLRewriter`; POST/Redirect/GET for forms;
 `trailingSlash: 'always'` *(verify)*.
+
+**Look and feel.** Every page follows BRANDING.md, through the layouts and tokens the NN
+2026 and admin pages already use (verify which). No new colours, fonts or components where
+an existing one fits. Runner pages (email, private page, one photo, lost link, results
+banner) look like the NN 2026 race page: Nosifer only for the race title, as the race page
+uses it; Inter for text; JetBrains Mono with tabular figures for bibs, times and photo IDs.
+The check and admin pages look like the existing admin, with no Nosifer. Not the new
+club-website look (Direction A, #209D50). The design canvas "NN 2026 race photos" is the
+visual reference; where it and the repo's components differ, the components win and you
+tell me.
+
+**Roles.** photo-checker and photo-admin are new rows in the role list at /admin/people/,
+in the Nightingale Nightmare group, each a bundle of permissions that code checks
+(ADR-017), named in the house pattern (verify). Both are staff roles, so /admin/ opens for
+them and shows a Race photos card (verify how cards appear). Neither carries any nn-admin
+permission: checkers see photos and bibs, never entries. super-admin holds neither, so
+Bindal grants both to himself like anyone else.
 
 | Route | What it does |
 | --- | --- |
@@ -424,8 +442,7 @@ of `cloudflare-setup.md`, and add it to the runbooks `README.md` table. Do not r
 ### Slice 4: runner pages and images (from 2 November)
 
 - **In:** the runners' image route, the private page, the one-photo page, look through a
-  spot (if agreed), the results-page banner (if results live in this repo), ADR for
-  decisions 7–8.
+  spot (if agreed), the banner on `/nn/2026/results/`, ADR for decisions 7–8.
 - **Done when:** with seeded data, a valid link shows the right photos without JavaScript,
   an invalid one shows the friendly page, and no image is served before publishing.
 
