@@ -13,8 +13,9 @@ from .manifest import Manifest, ManifestError, State
 from .matching import DEFAULT_THRESHOLD
 from .overview import build_overview, human_bytes
 from .reader import FakeReader
+from .upload import UploadRefused
 
-REFUSALS = (ConfigError, InputError, ManifestError)
+REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused)
 
 
 def counted(counter, labels=SKIP_LABELS) -> str:
@@ -63,6 +64,32 @@ def review(args, say) -> int:
     return 0
 
 
+def upload(args, say) -> int:
+    from .upload import run_upload
+
+    config = load_config(args.work)
+    run = run_upload(config, dry_run=args.dry_run)
+    say(
+        f"Dry run. Wrote {run.written} files for {run.photos} photos to {run.destination}. "
+        f"{run.already} were there from an earlier dry run."
+    )
+    if run.hidden:
+        earlier = (
+            f" {run.hidden_after_upload} of them were written by an earlier dry run; once photos "
+            "are on the website, hiding one means taking it down there."
+            if run.hidden_after_upload else ""
+        )
+        say(f"{run.hidden} hidden photos were left out.{earlier}")
+    if run.without_time:
+        say(
+            f"{run.without_time} photos are included without a time, because their corrected time "
+            "fell in the hour the clocks repeated or skipped."
+        )
+    say(f"Keys, sizes and checksums: {run.keys_file}")
+    say("Nothing has left this laptop. The real upload to R2 and the SQL file come with slice 2.")
+    return 0
+
+
 def say_overview(overview, say) -> None:
     states = overview.states
     say("")
@@ -108,6 +135,13 @@ def build_parser() -> argparse.ArgumentParser:
     review_command = commands.add_parser("review", help="the local page for camera clocks and checking")
     review_command.add_argument("--port", type=int, default=8765, help="default 8765")
     review_command.set_defaults(handler=review)
+
+    upload_command = commands.add_parser("upload", help="write the copies in the bucket's layout")
+    upload_command.add_argument(
+        "--dry-run", action="store_true",
+        help="write to dry-run/ in the work folder instead of R2 (the only kind until slice 2)",
+    )
+    upload_command.set_defaults(handler=upload)
     return parser
 
 
