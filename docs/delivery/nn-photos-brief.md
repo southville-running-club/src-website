@@ -225,7 +225,7 @@ Schema `photos`, in the project agreed in §6. RLS on every table; no table gran
 | Table | Columns (indicative) | Notes |
 | --- | --- | --- |
 | `event` | `slug` (`nn-2026`), `published_at`, `links_sent_at` | One row per event; publishing is one flag |
-| `photo` | `id` uuid, `short_id` (`NN26-0412`), `event_slug`, `photographer` (credit name), `spot`, `taken_at` UTC, `burst_id`, `check_state`, `held_by`, `held_until`, `hidden_at` | `id` is random and is the R2 key; `short_id` is for people; the hold stops two checkers getting the same photo |
+| `photo` | `id` uuid, `short_id` (`NN26-0412`), `event_slug`, `photographer` (credit name), `spot`, `taken_at` UTC, `burst_id`, `check_state`, `held_by`, `held_until`, `hidden_at` | `id` is random and is the R2 key; `short_id` is for people; the hold stops two checkers getting the same photo; short_id never changes once given, but burst_id is worked out again on every upload and the SQL overwrites it |
 | `photo_bib` | `photo_id`, `bib_text` (`123` or `12?`), `confidence`, `confirmed` boolean, `source` (`model` or `person`), `decided_by`, `decided_at` | Several rows per photo; part-read rows keep the `?`; `decided_by` is the checker's user id, so a decision can be undone |
 | `photo_link` | `token_hash` (SHA-256 hex), `event_slug`, `bib`, `created_at`, `replaced_at` | One active link per bib per event; no email, no name |
 
@@ -299,10 +299,15 @@ if its work folder is inside the git repository.
 ### `photos review`
 
 A local page served on **127.0.0.1 only**, by the standard library's HTTP server. Plain
-HTML, CSS and a little JavaScript; no framework. It uses the BRANDING.md colours with
-system fonts only, and nothing on the page loads from the internet. Fixing the camera
-clocks here is required before upload. The check screen is optional, for working offline; the team's
-main checking happens on the website (§10). Three screens, as in the mockups:
+HTML, CSS and a little JavaScript; no framework. It uses the brand's colours, with system
+fonts only, and nothing on the page loads from the internet: the values are in
+[`platform/packages/shared/styles/tokens.css`](../../platform/packages/shared/styles/tokens.css),
+what shipped is in [`docs/foundations/brand.md`](../foundations/brand.md), and the
+guidelines are in
+[`docs/foundations/race-timing-brand-guidelines.md`](../foundations/race-timing-brand-guidelines.md).
+Fixing the camera clocks here is required before upload. The check screen is optional, for
+working offline; the team's main checking happens on the website (§10). Three screens, as
+in the mockups:
 
 1. **Start:** counts per step, a table of photographers, and the next action.
 2. **Fix camera clocks:** for each camera, show its first photo (the photographer is
@@ -334,8 +339,12 @@ All in `apps/main`, after the freeze lifts. Follow the existing patterns: a stat
 shell, filled in by the Worker with `HTMLRewriter`; POST/Redirect/GET for forms;
 `trailingSlash: 'always'` *(verify)*.
 
-**Look and feel.** Every page follows BRANDING.md, through the layouts and tokens the NN
-2026 and admin pages already use (verify which). No new colours, fonts or components where
+**Look and feel.** Every page follows the club's brand: the values in
+[`platform/packages/shared/styles/tokens.css`](../../platform/packages/shared/styles/tokens.css),
+what shipped in [`docs/foundations/brand.md`](../foundations/brand.md), and the guidelines
+in
+[`docs/foundations/race-timing-brand-guidelines.md`](../foundations/race-timing-brand-guidelines.md),
+through the layouts and tokens the NN 2026 and admin pages already use (verify which). No new colours, fonts or components where
 an existing one fits. Runner pages (email, private page, one photo, lost link, results
 banner) look like the NN 2026 race page: Nosifer only for the race title, as the race page
 uses it; Inter for text; JetBrains Mono with tabular figures for bibs, times and photo IDs.
