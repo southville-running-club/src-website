@@ -101,6 +101,60 @@ class ClockMathsTest(ClockCase):
         self.assertEqual(clocks.describe_offset(timedelta(0)), "no change")
 
 
+class ClockPhotoIsHiddenTest(ClockCase):
+    """The photo a phone time is typed from shows the photographer's phone."""
+
+    def setUp(self):
+        super().setUp()
+        # A test shot first, then the phone, then a runner.
+        self.photo("test-shot.jpg", "2026:11:01 11:54:30", "A")
+        self.photo("phone.jpg", "2026:11:01 11:55:00", "A")
+        self.photo("runner.jpg", "2026:11:01 12:30:00", "A")
+        self.tag()
+        self.camera = self.camera_of("phone.jpg")
+
+    def by_phone(self, name, phone=datetime(2026, 11, 1, 10, 55)):
+        clocks.decide_by_phone(self.manifest, self.camera, self.photo_row(name)["fingerprint"], phone, NOW)
+
+    def hidden(self):
+        return {
+            photo["source"].removeprefix("Ross/"): photo["hidden_reason"]
+            for photo in self.manifest.photos()
+            if photo["hidden_at"]
+        }
+
+    def test_the_photo_a_phone_time_was_typed_from_is_hidden_and_only_that_one(self):
+        self.by_phone("phone.jpg")
+        self.assertEqual(self.hidden(), {"phone.jpg": "clock_reference"})
+
+    def test_keeping_the_recorded_time_hides_nothing(self):
+        clocks.keep_as_recorded(self.manifest, self.camera, NOW)
+        self.assertEqual(self.hidden(), {})
+
+    def test_choosing_another_photo_shows_the_first_again_and_hides_the_new_one(self):
+        self.by_phone("test-shot.jpg", datetime(2026, 11, 1, 10, 54, 30))
+        self.assertEqual(self.hidden(), {"test-shot.jpg": "clock_reference"})
+        self.by_phone("phone.jpg")
+        self.assertEqual(self.hidden(), {"phone.jpg": "clock_reference"})
+
+    def test_switching_to_keep_as_recorded_shows_the_phone_photo_again(self):
+        self.by_phone("phone.jpg")
+        clocks.keep_as_recorded(self.manifest, self.camera, NOW)
+        self.assertEqual(self.hidden(), {})
+
+    def test_a_photo_a_person_hid_stays_hidden_whatever_the_clock_decision(self):
+        self.manifest.hide(self.photo_row("phone.jpg")["fingerprint"], NOW)
+        self.by_phone("phone.jpg")
+        clocks.keep_as_recorded(self.manifest, self.camera, NOW)
+        self.assertEqual(self.hidden(), {"phone.jpg": "person"})
+
+    def test_a_person_can_show_it_again_and_it_stays_shown_when_another_photo_is_chosen(self):
+        self.by_phone("test-shot.jpg", datetime(2026, 11, 1, 10, 54, 30))
+        self.manifest.show(self.photo_row("test-shot.jpg")["fingerprint"])
+        self.by_phone("phone.jpg")
+        self.assertEqual(self.hidden(), {"phone.jpg": "clock_reference"})
+
+
 class ClocksChangeNightTest(ClockCase):
     def test_a_corrected_time_in_the_repeated_hour_flags_the_camera_and_stops_nothing(self):
         # A camera an hour fast photographs the phone at 01:30 on the night the clocks go back,

@@ -196,6 +196,27 @@ class ClocksTest(ReviewCase):
         self.assertEqual(self.row("Adrian/Finish/b.jpg")["taken_at"], "2026-11-01T11:10:00.000Z")
         self.assertIsNone(self.row("Ross/c.jpg")["taken_at"])
 
+    def test_steps_past_a_test_shot_and_hides_the_photo_that_shows_the_phone(self):
+        first = self.row("Adrian/Finish/a.jpg")
+        second = self.row("Adrian/Finish/b.jpg")
+        url = f"/clocks/{first['camera_key']}/"
+
+        _, _, html = self.get(url)
+        self.assertIn(f"Photo {first['short_id']}, 1 of 2", html)
+        self.assertIn('Not the phone? <a href="?photo=1">Later photo</a>', html)
+        _, _, html = self.get(url + "?photo=1")
+        self.assertIn(f"Photo {second['short_id']}, 2 of 2", html)
+        self.assertIn(f'name="reference" value="{second["short_id"]}"', html)
+
+        self.post(url, {"action": "phone", "reference": second["short_id"], "phone_date": "2026-11-01", "phone_time": "11:10:00"})
+        self.assertEqual(self.row("Adrian/Finish/b.jpg")["hidden_reason"], "clock_reference")
+        self.assertIsNone(self.row("Adrian/Finish/a.jpg")["hidden_at"])
+
+        # Coming back opens on the photo that was used, and says how to undo it.
+        _, _, html = self.get(url)
+        self.assertIn(f"Photo {second['short_id']}, 2 of 2", html)
+        self.assertIn(f"show {second['short_id']} again", html)
+
     def test_a_camera_can_keep_its_time_as_recorded(self):
         camera = self.row("Ross/c.jpg")["camera_key"]
         status, _, _ = self.post(f"/clocks/{camera}/", {"action": "keep"})

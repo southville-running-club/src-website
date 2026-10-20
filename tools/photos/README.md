@@ -187,9 +187,16 @@ with their photos, their skipped files and their photos with no bib seen.
 **Camera clocks** is required before upload. Photographers are asked to photograph a phone
 clock before anything else. For each camera, the page shows that photo beside the time the
 camera recorded; type the time the phone shows, as London time, and every photo from that
-camera, and only that camera, moves by the difference. If a camera has no phone photo,
-choose **Keep this camera's time as recorded** instead. Upload waits until every camera has
-one or the other.
+camera, and only that camera, moves by the difference. If the first photo is a test shot,
+**Later photo** steps on to the one that shows the phone.
+
+**The photo you typed the time from is then hidden**, so a phone screen, and whatever is on
+it, is never uploaded. If it was the wrong photo, step to the right one and type its time:
+the first is shown again and the new one hidden. H on the check screen shows any hidden
+photo again too.
+
+If a camera has no phone photo, choose **Keep this camera's time as recorded** instead. That
+hides nothing. Upload waits until every camera has one or the other.
 
 A camera left on summer time reads an hour ahead on race day, because the clocks went back
 the Sunday before. The phone photo is what catches it. A corrected time that lands in the

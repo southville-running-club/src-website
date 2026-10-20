@@ -236,6 +236,8 @@ class CameraView:
     reference: object | None  # the photo row on screen
     position: int
     first_taken_at: str | None
+    clock_photo: object | None = None
+    """The photo this camera's clock was set from, if a phone time was typed."""
 
 
 def camera_page(view: CameraView, token: str, event_slug: str, errors: list[str] | None = None,
@@ -246,6 +248,21 @@ def camera_page(view: CameraView, token: str, event_slug: str, errors: list[str]
     if camera.decided:
         then = f" Its first photo is now {format_london(from_utc_iso(view.first_taken_at))}." if view.first_taken_at else ""
         current = f'<p class="next"><strong>Decided:</strong> {e(decision_words(camera))}.{e(then)}</p>'
+        clock = view.clock_photo
+        if camera.decision == PHONE and clock is not None:
+            if clock["hidden_reason"] == "clock_reference":
+                where = urlencode({"filter": "hidden"})
+                current += (
+                    f'<p>The phone\'s time was read from photo {e(clock["short_id"])}, which is hidden so '
+                    "the phone is never uploaded. If that was the wrong photo, step to the right one "
+                    f'below and type its time, or <a href="/check/{e(clock["short_id"])}/?{e(where)}">show '
+                    f"{e(clock['short_id'])} again</a>.</p>"
+                )
+            else:
+                current += (
+                    f"<p>The phone's time was read from photo {e(clock['short_id'])}, which a person has "
+                    "chosen to show, so it will be uploaded.</p>"
+                )
 
     if view.reference is None:
         picture = "<p>No photo from this camera has a recorded time, so there is nothing to compare a phone with.</p>"
@@ -259,12 +276,13 @@ def camera_page(view: CameraView, token: str, event_slug: str, errors: list[str]
             steps.append(f'<a href="?photo={view.position - 1}">Earlier photo</a>')
         if view.position < total - 1:
             steps.append(f'<a href="?photo={view.position + 1}">Later photo</a>')
+        stepping = f"Not the phone? {' · '.join(steps)}" if steps else ""
         picture = f"""<figure class="photo">
 <img src="/img/{e(photo["photo_id"])}/medium.jpg" alt="Photo {e(photo["short_id"])} from this camera">
 <figcaption>Photo {e(photo["short_id"])}, {view.position + 1} of {total} with a time. The camera
 recorded <strong>{e(format_wall(recorded))}</strong>.</figcaption>
 </figure>
-<p class="steps">{" · ".join(steps)}</p>"""
+<p class="steps">{stepping}</p>"""
         date_value = typed.get("phone_date", f"{recorded:%Y-%m-%d}")
         time_value = typed.get("phone_time", f"{recorded:%H:%M:%S}")
         phone_form = f"""<form method="post" class="panel">
@@ -272,7 +290,8 @@ recorded <strong>{e(format_wall(recorded))}</strong>.</figcaption>
 <input type="hidden" name="reference" value="{e(photo["short_id"])}">
 <fieldset>
 <legend>What time does the phone in this photo show?</legend>
-<p class="hint">As London time on the day. Seconds are optional.</p>
+<p class="hint">As London time on the day. Seconds are optional. This photo is then hidden,
+so the phone is never uploaded.</p>
 <div class="field"><label for="phone_date">Date</label>
 <input id="phone_date" name="phone_date" type="date" required value="{e(date_value)}"></div>
 <div class="field"><label for="phone_time">Time</label>

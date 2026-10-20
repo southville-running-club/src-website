@@ -63,7 +63,10 @@ class UploadTest(unittest.TestCase):
         a = self.photo("a.jpg")
         clocks.decide_by_phone(self.manifest, a["camera_key"], a["fingerprint"], datetime(2026, 11, 1, 11, 0), NOW)
         clocks.keep_as_recorded(self.manifest, self.photo("c.jpg")["camera_key"], NOW)
-        self.assertEqual(run_upload(self.config, dry_run=True).photos, 3)
+        run = run_upload(self.config, dry_run=True)
+        # a.jpg shows the phone the time was read from, so it is hidden and not uploaded.
+        self.assertEqual((run.photos, run.hidden), (2, 1))
+        self.assertFalse((self.config.dry_run_dir / "nn-2026" / a["photo_id"]).exists())
 
     def test_writes_the_bucket_s_key_layout_with_the_copies_unchanged(self):
         self.decide_every_camera()

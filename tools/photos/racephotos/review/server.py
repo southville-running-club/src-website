@@ -234,23 +234,31 @@ class Handler(BaseHTTPRequestHandler):
             manifest.close()
         self.html(pages.clocks_page(cameras, self.slug))
 
-    def camera_view(self, manifest: Manifest, camera_key: str, position: int) -> pages.CameraView | None:
+    def camera_view(self, manifest: Manifest, camera_key: str, position: int | None) -> pages.CameraView | None:
         camera = next((c for c in clocks.summaries(manifest) if c.camera_key == camera_key), None)
         if camera is None:
             return None
-        reference = None
+        record = manifest.camera(camera_key)
+        clock_photo = (
+            manifest.photo(fingerprint=record["reference_fingerprint"]) if record["reference_fingerprint"] else None
+        )
+        shown = None
         if camera.timed:
-            if position < 0 or position >= len(camera.timed):
+            # With no photo asked for, open on the photo the clock was set from, so a
+            # second look shows what was decided rather than the first frame again.
+            if position is None and clock_photo is not None and clock_photo["fingerprint"] in camera.timed:
+                position = camera.timed.index(clock_photo["fingerprint"])
+            if position is None or position < 0 or position >= len(camera.timed):
                 position = 0
-            reference = manifest.photo(fingerprint=camera.timed[position])
+            shown = manifest.photo(fingerprint=camera.timed[position])
         first = manifest.photo(fingerprint=camera.timed[0]) if camera.timed else None
-        return pages.CameraView(camera, reference, position, first["taken_at"] if first else None)
+        return pages.CameraView(camera, shown, position or 0, first["taken_at"] if first else None, clock_photo)
 
     def camera(self, camera_key: str, query: dict) -> None:
         try:
-            position = int(query.get("photo", "0"))
+            position = int(query["photo"]) if "photo" in query else None
         except ValueError:
-            position = 0
+            position = None
         manifest = self.manifest()
         try:
             view = self.camera_view(manifest, camera_key, position)

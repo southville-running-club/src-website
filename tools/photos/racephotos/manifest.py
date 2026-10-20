@@ -322,12 +322,37 @@ class Manifest:
 
     def set_camera_decision(self, camera_key: str, decision: str, offset_us: int,
                             reference: str | None, now: str) -> None:
+        """Record a camera's clock decision, and keep the photo it was read from hidden.
+
+        The photo a phone time was typed from shows the photographer's phone, so it is
+        hidden as ``clock_reference``. A previous reference that the tool hid is shown again
+        when the decision moves off it, to another photo or to "keep as recorded". A photo a
+        person hid stays hidden whatever happens here, and one a person showed again stays
+        shown unless it is chosen as the reference again. One transaction, so the decision and
+        what it hides cannot disagree.
+        """
         with self.db:
+            before = self.db.execute(
+                "select reference_fingerprint from cameras where camera_key = ?", (camera_key,)
+            ).fetchone()
+            previous = before["reference_fingerprint"] if before else None
             self.db.execute(
                 "update cameras set decision = ?, offset_us = ?, reference_fingerprint = ?, "
                 "decided_at = ? where camera_key = ?",
                 (decision, offset_us, reference, now, camera_key),
             )
+            if previous and previous != reference:
+                self.db.execute(
+                    "update photos set hidden_at = null, hidden_reason = null "
+                    "where fingerprint = ? and hidden_reason = ?",
+                    (previous, HIDDEN_AS_CLOCK_REFERENCE),
+                )
+            if reference:
+                self.db.execute(
+                    "update photos set hidden_at = ?, hidden_reason = ? "
+                    "where fingerprint = ? and hidden_at is null",
+                    (now, HIDDEN_AS_CLOCK_REFERENCE, reference),
+                )
 
     def set_times(self, times: list[tuple[str, str | None, str | None]]) -> None:
         """(fingerprint, taken_at, time_problem) for each photo."""

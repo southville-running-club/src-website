@@ -6,9 +6,15 @@ recorded is the camera's offset, and **every photo from that camera, and only th
 shifts by it**. The shifted wall clock is then read as ``Europe/London`` and converted to
 UTC, in that order, through london_time.py.
 
+**The photo the phone's time was read from is hidden**, because it shows the photographer's
+phone, and a lock screen can show their messages. A person can show it again with H, and
+choosing a different photo (photographers often take a test shot first) shows the old one
+and hides the new one; manifest.py's ``set_camera_decision()`` does both in one transaction.
+
 A camera with no phone-clock photo must not block upload for ever, so the other decision is
-**"keep this camera's time as recorded"**, an offset of zero that a person chose. Upload
-refuses only while a camera has neither.
+**"keep this camera's time as recorded"**, an offset of zero that a person chose. It hides
+nothing, and shows again a photo an earlier phone decision hid. Upload refuses only while a
+camera has neither.
 
 A corrected time that lands in the hour that happens twice, or the one that never happens,
 **flags the camera** and leaves those photos without a time. It never stops a tag run and it
