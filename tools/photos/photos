@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""The race photos tool. Run it from tools/photos/ with the virtual environment active:
+
+    source .venv/bin/activate
+    ./photos tag
+
+README.md beside this file has the rest.
+"""
+
+import sys
+from pathlib import Path
+
+if sys.version_info < (3, 11):
+    sys.exit("The race photos tool needs Python 3.11 or newer. This is " + sys.version.split()[0] + ".")
+
+try:
+    import PIL  # noqa: F401
+except ImportError:
+    sys.exit(
+        "Pillow is not installed for this Python. From tools/photos/, run:\n"
+        "  python3 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt\n"
+        "then: source .venv/bin/activate"
+    )
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from racephotos.cli import main  # noqa: E402
+
+sys.exit(main())

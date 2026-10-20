@@ -101,3 +101,49 @@ def marked_srgb_profile() -> bytes:
     profile[48:56] = b"CAMXMODL"
     profile[84:100] = bytes(16)  # the profile ID is a checksum; zero means "not computed"
     return bytes(profile)
+
+
+# A work folder
+
+PHOTOGRAPHERS = "folder,credit,spot\nAdrian/Finish,Adrian,Finish\nRoss,Ross,On the course\n"
+BIBS = ("120", "121", "125", "129", "130", "311", "0311")
+
+
+def make_work(root: Path, *, photographers: str = PHOTOGRAPHERS, bibs=BIBS, extra_config: str = ""):
+    """A work folder with a config, a photographers file and a bib list, and its Config."""
+    from racephotos.config import load_config
+
+    work = root / "nn-photos"
+    (work / "originals").mkdir(parents=True, exist_ok=True)
+    (work / "config.toml").write_text(
+        'event_slug = "nn-2026"\nshort_id_prefix = "NN26"\n' + extra_config + '[reader]\nkind = "fake"\n'
+    )
+    (work / "photographers.csv").write_text(photographers)
+    (work / "bibs.csv").write_text("bib\n" + "\n".join(bibs) + "\n")
+    return load_config(work)
+
+
+def answer(*bibs: tuple[str, float]) -> str:
+    import json
+
+    return json.dumps({"bibs": [{"text": text, "confidence": confidence} for text, confidence in bibs]})
+
+
+class SpyReader:
+    """A reader that answers from a table keyed by fingerprint and remembers what it was
+    sent. ``interrupt_on`` raises KeyboardInterrupt on that call, like somebody pressing
+    Ctrl-C; ``fail_with`` raises that exception on every call."""
+
+    def __init__(self, answers=None, *, interrupt_on=None, fail_with=None):
+        self.answers = dict(answers or {})
+        self.calls: list[tuple[str, bytes]] = []
+        self.interrupt_on = interrupt_on
+        self.fail_with = fail_with
+
+    def read(self, medium_jpeg: bytes, fingerprint: str) -> str:
+        self.calls.append((fingerprint, medium_jpeg))
+        if self.interrupt_on is not None and len(self.calls) == self.interrupt_on:
+            raise KeyboardInterrupt
+        if self.fail_with is not None:
+            raise self.fail_with
+        return self.answers.get(fingerprint, '{"bibs": []}')
