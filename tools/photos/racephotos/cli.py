@@ -51,6 +51,18 @@ def tag(args, say) -> int:
     return 0
 
 
+def review(args, say) -> int:
+    from .review.server import serve
+
+    config = load_config(args.work)
+    load_photographers(config.photographers_csv)  # refuse a broken file now, not on first page load
+    try:
+        serve(config, args.port, say)
+    except RuntimeError as error:
+        raise ConfigError(str(error)) from None
+    return 0
+
+
 def say_overview(overview, say) -> None:
     states = overview.states
     say("")
@@ -91,6 +103,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"reads below this go to a person (default {DEFAULT_THRESHOLD}, provisional)",
     )
     tag_command.set_defaults(handler=tag)
+
+    # No --host, deliberately: the page binds to 127.0.0.1 and only there (review/server.py).
+    review_command = commands.add_parser("review", help="the local page for camera clocks and checking")
+    review_command.add_argument("--port", type=int, default=8765, help="default 8765")
+    review_command.set_defaults(handler=review)
     return parser
 
 

@@ -1,0 +1,291 @@
+/* The review page: a tool on one laptop, so plain, high-contrast and large enough to read
+   at arm's length. Every text colour here is at least 7:1 against the background it sits
+   on, worked out by hand: --muted on --panel is the lowest, at about 8:1. */
+
+:root {
+  color-scheme: light;
+  --text: #1a1a1a;
+  --muted: #4a4a4a;
+  --background: #ffffff;
+  --panel: #f3f3f1;
+  --line: #8a8a8a;
+  --accent: #0b4f8a;
+  --accent-text: #ffffff;
+  --danger: #8a1c12;
+  --warning-wash: #fff4d6;
+  --focus: #1a1a1a;
+  --focus-halo: #ffd23f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 1.0625rem/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--background);
+}
+
+.skip {
+  position: absolute;
+  left: -10000px;
+}
+
+.skip:focus {
+  position: static;
+  display: inline-block;
+  padding: 0.5rem 1rem;
+}
+
+.masthead {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.masthead ul,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--accent);
+}
+
+a[aria-current="page"] {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+}
+
+main {
+  padding: 1rem;
+  max-width: 90rem;
+}
+
+h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px var(--focus-halo);
+}
+
+.next {
+  padding: 0.75rem 1rem;
+  border-left: 6px solid var(--accent);
+  background: var(--panel);
+}
+
+.notice,
+.problem {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--danger);
+  background: var(--warning-wash);
+}
+
+.notice h2,
+.problem h2 {
+  margin-top: 0;
+}
+
+.problem-inline {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.counts div {
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+}
+
+.counts dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.counts dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.photo {
+  margin: 0 0 1rem;
+}
+
+.photo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  border: 1px solid var(--line);
+}
+
+.photo.large img {
+  max-height: 85vh;
+}
+
+.panel {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--panel);
+}
+
+fieldset {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.hint {
+  color: var(--muted);
+}
+
+.field {
+  display: inline-flex;
+  flex-direction: column;
+  margin: 0.5rem 1rem 0.5rem 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  min-height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--text);
+  font: inherit;
+}
+
+button {
+  min-height: 2.75rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.secondary,
+button.choice {
+  background: var(--background);
+  color: var(--accent);
+}
+
+button.danger {
+  border-color: var(--danger);
+  background: var(--background);
+  color: var(--danger);
+}
+
+kbd {
+  margin-left: 0.25rem;
+  padding: 0 0.3rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: 0.8125rem ui-monospace, monospace;
+}
+
+.check {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 64rem) {
+  .check {
+    grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
+    align-items: start;
+  }
+}
+
+.decide h2 {
+  margin-top: 0;
+}
+
+.meta {
+  color: var(--muted);
+}
+
+.reads {
+  padding-left: 1.25rem;
+}
+
+.correct {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
