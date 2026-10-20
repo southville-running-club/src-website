@@ -26,7 +26,6 @@ import {
   medicalRetentionClause,
   outboxAttemptsWords,
   plural,
-  ENTRY_STATUSES,
   type AdminDiscountCode,
   type AdminEntry,
   type AdminEntryDetail,
@@ -37,7 +36,6 @@ import {
   type AdminInterestList,
   type AdminMedicalNote,
   type AdminResult,
-  type AgeCategoryCode,
   type EntryRequest,
   type ExportKind,
   type Gender,
@@ -49,7 +47,24 @@ import {
   type UnavailableCause,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
-import { html, raw, type Html } from './html';
+import { escapeHtml, html, raw, type Html } from './html';
+import {
+  STATUS_VIEWS,
+  categoryKeyLabel,
+  categoryKeyOf,
+  categoryOptions,
+  clubName,
+  minutesLeft,
+  needsAHuman,
+  parseEntryQuery,
+  queryParams,
+  raceCategoryLine,
+  statusCounts,
+  viewEntries,
+  type EntryQuery,
+  type Sort,
+  type StatusView,
+} from './nn-admin-list';
 import { can, masthead, notFound, page, type AdminViewer } from './admin-shell';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
 import { cookieValue } from './cookies';
@@ -195,11 +210,45 @@ export async function handleNnSection(
   // `/admin/nn/entries/<slug>/` is how a past running or a fixture is looked at. One page, two
   // ways in, so publishing 2027 is a row rather than an edit here.
   if (request.method === 'GET' && segments.length === 0) {
-    return dashboardResponse(reader, viewer, null, url);
+    return dashboardResponse(
+      reader,
+      viewer,
+      null,
+      url,
+      parseEntryQuery(url.searchParams, 'url'),
+    );
   }
 
   if (request.method === 'GET' && segments.length <= 2 && segments[0] === 'entries') {
-    return dashboardResponse(reader, viewer, segments[1] ?? null, url);
+    return dashboardResponse(
+      reader,
+      viewer,
+      segments[1] ?? null,
+      url,
+      parseEntryQuery(url.searchParams, 'url'),
+    );
+  }
+
+  // **A search is a POST to the page's own address, and it only reads.** A search term is a
+  // runner's name or address, and the runbook's rule is that no filter carries personal data —
+  // a URL reaches logs, `Referer` headers and browser history. So the term travels in the body,
+  // exactly as a purchase id does for `entry` and an entrant id does for `medical`. It changes
+  // nothing, so it needs no CSRF token and mints none; a body that is not a form is the
+  // ordinary page. Same address, same renderer, same read as the GET above.
+  if (request.method === 'POST' && segments.length === 0) {
+    const form = await readForm(request);
+    return dashboardResponse(reader, viewer, null, url, queryFromBody(form));
+  }
+
+  if (request.method === 'POST' && segments.length <= 2 && segments[0] === 'entries') {
+    const form = await readForm(request);
+    return dashboardResponse(
+      reader,
+      viewer,
+      segments[1] ?? null,
+      url,
+      queryFromBody(form),
+    );
   }
 
   if (request.method === 'GET' && segments.length === 1 && segments[0] === 'interest') {
@@ -301,255 +350,14 @@ export async function handleNnSection(
 // The dashboard
 // -----------------------------------------------------------------------------------------
 
-/** The sorts on offer. Enumerated, because a sort key from a query string is an injection. */
-const SORTS = ['name', 'entered', 'category', 'status'] as const;
-
-type Sort = (typeof SORTS)[number];
-
 /**
- * The statuses a filter link may name.
+ * The query a POST carries, or the ordinary page for a body that is not a form.
  *
- * `attention` is not one of the table's own statuses and is the reason this list exists
- * separately: "needs a human" is a flag on a purchase rather than a state of one, and it is the
- * filter somebody actually wants on the morning they find out the field is oversold.
+ * Parsed by the same function a GET's search parameters are, so a search can never reach a view
+ * the links could not — see `nn-admin-list.ts` for the rules and the fallbacks.
  */
-// **`requested` is a view, not a status**, exactly as `attention` is. A row it matches has a
-// real status of its own — almost always `paid` — and the filter answers a different question:
-// which entries has somebody asked the club to do something about, and nobody has yet.
-const STATUS_FILTERS = ['all', ...ENTRY_STATUSES, 'attention', 'requested'] as const;
-
-type StatusFilter = (typeof STATUS_FILTERS)[number];
-
-/**
- * **What is out of the default view, and why each of them is a default rather than a rule.**
- *
- * The page is opened to look at *the field* — who is running on 1 November. Everything here is
- * a row about somebody who is not:
- *
- *   * `fee:tester` — a tester's place is a real place, and the capacity predicate counts it;
- *     excluding it from the thing being tested would make the test worthless. It is simply not
- *     what somebody opens this page to look at, and a race director scanning 250 names should
- *     not have the club's own probes among them.
- *   * `status:refunded` — a cancelled entry with its runner deleted, kept on the page so a
- *     volunteer can see the place came back. Useful once; noise every other time.
- *   * `status:expired` — a hold that lapsed. By the time it is on screen it has already
- *     released its place and there is nothing to do about it.
- *
- * On a race that fills, the last two together are the majority of the rows and none of the
- * work. **Nothing is filtered away permanently**: the line under the chips says what is being
- * left out and links to the view that includes it, which is the rule this page follows about
- * never hiding anything without saying so.
- *
- * Expressed as *hidden* codes rather than by pre-selecting the statuses and fees that remain,
- * because those are not all known here: fee codes come from the rows, so a fourth fee is a
- * migration and not a deploy.
- */
-const HIDDEN_BY_DEFAULT: readonly string[] = [
-  'fee:tester',
-  'status:refunded',
-  'status:expired',
-];
-
-/**
- * The two things the note offers to put back, each toggled as a unit.
- *
- * **Two lines rather than three chips.** A chip row would have to show a selection nobody made
- * in order to be honest about the default; a sentence says what is missing in the place
- * somebody reads. The refunded and expired rows move together because they are one question —
- * *do you want to see places that came back?* — and separating them would be two controls for
- * one decision.
- */
-const HIDE_GROUPS = [
-  {
-    values: ['fee:tester'] as const,
-    hidden: 'Test entries are not shown.',
-    shown: 'Test entries are shown.',
-  },
-  {
-    values: ['status:refunded', 'status:expired'] as const,
-    hidden: 'Refunded entries and lapsed holds are not shown.',
-    shown: 'Refunded entries and lapsed holds are shown.',
-  },
-] as const;
-
-/**
- * **Every filter is a set now, and an empty set means "all".**
- *
- * Single-select could not answer the ordinary question — "paid and held" is what *who has a
- * place right now* means, and the page could not be asked it. Repeated query parameters carry
- * it (`?status=paid&status=pending`), which works with no JavaScript and leaves the state
- * legible in the address bar.
- *
- * **Exclusion is `hide`**, namespaced so one parameter covers both rows: `hide=fee:tester`,
- * `hide=status:refunded`. It is separate from the include sets rather than a third chip state,
- * because a link that cycles through three meanings cannot say what it does in its own text —
- * and this page is read by two volunteers a few times a year, not learned.
- *
- * `hide=none` is how "show me everything" is written, and it exists because the *absence* of
- * the parameter is not neutral: it means the default above.
- */
-interface EntryFilters {
-  /** Empty means every status. */
-  status: ReadonlySet<string>;
-  /** Empty means every entry type. */
-  fee: ReadonlySet<string>;
-  /** Namespaced `fee:` / `status:` values to leave out, whatever the include sets say. */
-  hide: ReadonlySet<string>;
-  /**
-   * Whether `hide` is the default rather than something somebody asked for.
-   *
-   * ⚠️ **This distinction is a defect's worth of difference.** "Hidden beats included" is right
-   * for a hide somebody *chose* — a volunteer who has asked not to see test entries should not
-   * have a status chip quietly bring them back. It is wrong for the default: with `expired`
-   * hidden out of the box, pressing the **Hold expired** chip returned an empty table and "0 of
-   * 6 shown", which is a filter that can never match — the exact shape of #116, where the
-   * Refunded filter could not match a refunded row and a volunteer concluded there had been no
-   * refunds.
-   *
-   * So an *explicit* include overrules the default and never overrules a chosen hide.
-   */
-  hideIsDefault: boolean;
-  sort: Sort;
-}
-
-function readFilters(url: URL): EntryFilters {
-  const sort = url.searchParams.get('sort') ?? 'name';
-
-  const status = new Set(
-    url.searchParams
-      .getAll('status')
-      .filter((value) => value !== 'all')
-      .filter((value) => (STATUS_FILTERS as readonly string[]).includes(value)),
-  );
-
-  // Not validated against a list written here — see the note the old reader carried: fee codes
-  // come from the rows, so a fourth one is a migration and not also a deploy. An unknown code
-  // simply matches nothing, which is the honest answer to a hand-typed address.
-  const fee = new Set(url.searchParams.getAll('fee').filter((value) => value !== 'all'));
-
-  const hidden = url.searchParams.getAll('hide');
-
-  return {
-    status,
-    fee,
-    hideIsDefault: hidden.length === 0,
-    hide: new Set(
-      hidden.length === 0
-        ? HIDDEN_BY_DEFAULT
-        : hidden.filter((value) => value !== 'none'),
-    ),
-    sort: (SORTS as readonly string[]).includes(sort) ? (sort as Sort) : 'name',
-  };
-}
-
-/** Whether this row is flagged and nobody has cleared the flag. */
-export function needsAHuman(entry: AdminEntry): boolean {
-  return entry.attention !== null && !entry.attentionResolved;
-}
-
-/**
- * Filter and sort in the Worker rather than in SQL.
- *
- * A couple of hundred rows, four enumerated sorts and two enumerated filters. Every variant done
- * in the function would be a branch somebody has to read before they can trust what the page is
- * showing them, and the data is already in memory.
- */
-export function viewEntries(entries: AdminEntry[], filters: EntryFilters): AdminEntry[] {
-  const includedByStatus = (entry: AdminEntry): boolean =>
-    filters.status.size === 0 ||
-    [...filters.status].some((wanted) => {
-      if (wanted === 'attention') {
-        return needsAHuman(entry);
-      }
-
-      // **Outstanding only.** A request a volunteer has already dealt with is history, and a
-      // filter that kept showing it would fill up with rows there is nothing left to do about
-      // — which is how a filter stops being looked at.
-      if (wanted === 'requested') {
-        return entry.requestedAction !== null && !entry.requestResolved;
-      }
-
-      return entry.status === wanted;
-    });
-
-  // **Hidden beats included for a hide somebody chose, and never for the default.** See
-  // `hideIsDefault`: a volunteer who has asked not to see test entries should not have a chip
-  // quietly bring them back, but pressing **Hold expired** on a page that hides lapsed holds by
-  // default has to show lapsed holds — otherwise it is a filter that can never match, which is
-  // #116 in a new place.
-  //
-  // **A `pending` row whose hold has lapsed counts as expired here**, and that is not a
-  // shortcut. It *is* an expired hold — the place is already back in the pool — and it stays
-  // `pending` only until the five-minute sweep reaches it. Matching on the stored word alone
-  // would leave the page's busiest kind of dead row on screen for anybody who asked not to see
-  // dead rows, which is the whole of what this default is for.
-  const lapsed = (entry: AdminEntry): boolean =>
-    entry.status === 'pending' && (minutesLeft(entry.holdExpiresAt) ?? 1) <= 0;
-
-  const askedFor = (value: string, set: ReadonlySet<string>): boolean =>
-    filters.hideIsDefault && set.has(value);
-
-  const hidden = (entry: AdminEntry): boolean => {
-    if (askedFor(entry.feeCode, filters.fee) || askedFor(entry.status, filters.status)) {
-      return false;
-    }
-
-    // The same escape for a lapsed hold, which is `pending` in the column and `expired` to
-    // everybody looking at it.
-    if (lapsed(entry) && askedFor('expired', filters.status)) {
-      return false;
-    }
-
-    return (
-      filters.hide.has(`fee:${entry.feeCode}`) ||
-      filters.hide.has(`status:${entry.status}`) ||
-      (filters.hide.has('status:expired') && lapsed(entry))
-    );
-  };
-
-  const kept = entries.filter(
-    (entry) =>
-      includedByStatus(entry) &&
-      (filters.fee.size === 0 || filters.fee.has(entry.feeCode)) &&
-      !hidden(entry),
-  );
-
-  // **A cancelled entry has no name, and it sorts last in every order rather than in some
-  // arbitrary place.** It is the one row on this page that is about a place which came back
-  // rather than about somebody who is running, so a volunteer scanning for runners should not
-  // meet it in the middle of the alphabet. Deterministic either way, which is what stops two
-  // refunds swapping places between two loads of the same page.
-  const byName = (a: AdminEntry, b: AdminEntry): number => {
-    if (a.lastName === null || b.lastName === null) {
-      return Number(a.lastName === null) - Number(b.lastName === null);
-    }
-
-    return (
-      a.lastName.localeCompare(b.lastName, 'en-GB') ||
-      (a.firstName ?? '').localeCompare(b.firstName ?? '', 'en-GB')
-    );
-  };
-
-  // Same reason, for the age sort: an age derived from a date of birth that was deleted with
-  // the entrant is null, and a null must not read as a newborn at the top of the list.
-  const ageOf = (entry: AdminEntry): number => entry.age ?? Number.MAX_SAFE_INTEGER;
-
-  return [...kept].sort((a, b) => {
-    if (filters.sort === 'entered') {
-      // Newest first: the interesting end of a list somebody is watching fill up.
-      return b.createdAt.localeCompare(a.createdAt) || byName(a, b);
-    }
-
-    if (filters.sort === 'category') {
-      return ageOf(a) - ageOf(b) || byName(a, b);
-    }
-
-    if (filters.sort === 'status') {
-      return a.status.localeCompare(b.status) || byName(a, b);
-    }
-
-    return byName(a, b);
-  });
+function queryFromBody(form: FormData | null): EntryQuery {
+  return parseEntryQuery(form ?? new FormData(), 'body');
 }
 
 async function dashboardResponse(
@@ -557,6 +365,7 @@ async function dashboardResponse(
   viewer: AdminViewer,
   requestedSlug: string | null,
   url: URL,
+  query: EntryQuery,
 ): Promise<Response> {
   let slug = requestedSlug;
 
@@ -580,7 +389,7 @@ async function dashboardResponse(
   const interest = await reader.interestList();
 
   return listResponse(list, viewer, 'Race admin', (value) =>
-    dashboardPage(viewer, value, interest, readFilters(url), url),
+    dashboardPage(viewer, value, interest, query, url),
   );
 }
 
@@ -858,7 +667,7 @@ function dashboardPage(
   viewer: AdminViewer,
   list: AdminEntryList,
   interest: AdminResult<AdminInterestList>,
-  filters: EntryFilters,
+  query: EntryQuery,
   url: URL,
 ): Html {
   const figures = list.event.figures;
@@ -869,7 +678,7 @@ function dashboardPage(
       ${attentionSection(list, flagged)} ${raceStandsSection(list, figures, interest)}
       ${categoriesSection(list)} ${raceMorningSection(list)}
       ${medicalAndAffiliationSection(list, figures)} ${discountCodesSection(list)}
-      ${entriesSection(list, filters, url, viewer)} ${interestSection(interest)}
+      ${entriesSection(list, query, url, viewer)} ${interestSection(interest)}
     </main>`;
 }
 
@@ -1198,7 +1007,7 @@ function categoriesSection(list: AdminEntryList): Html {
   const rows: { label: string; count: number }[] = [
     ...AGE_CATEGORY_CODES.map((code) => ({
       label: ageCategoryLabel(code),
-      count: runners.filter((entry) => bandOf(entry) === code).length,
+      count: runners.filter((entry) => categoryKeyOf(entry) === code).length,
     })),
     {
       // `ageCategoryFor()` answers `gender-has-no-categories` for a non-binary runner, because
@@ -1207,15 +1016,15 @@ function categoriesSection(list: AdminEntryList): Html {
       // dropped — a band nobody can be placed in is exactly the number that should be visible
       // when somebody asks whether to make one.
       label: 'No category yet',
-      count: runners.filter((entry) => bandOf(entry) === 'no-category').length,
+      count: runners.filter((entry) => categoryKeyOf(entry) === 'no-category').length,
     },
     {
       label: 'Under 18',
-      count: runners.filter((entry) => bandOf(entry) === 'under-18').length,
+      count: runners.filter((entry) => categoryKeyOf(entry) === 'under-18').length,
     },
     {
       label: 'No runner recorded',
-      count: runners.filter((entry) => bandOf(entry) === null).length,
+      count: runners.filter((entry) => categoryKeyOf(entry) === null).length,
     },
   ];
 
@@ -1264,29 +1073,6 @@ function categoriesSection(list: AdminEntryList): Html {
         </p>
       </div>
     </section>`;
-}
-
-/**
- * Which line of the panel above a row belongs on.
- *
- * Null for a cancelled entry, whose age and race category were deleted with the entrant — it is
- * a purchase with nobody on it, and counting it as a person would inflate the field.
- */
-function bandOf(entry: AdminEntry): AgeCategoryCode | 'no-category' | 'under-18' | null {
-  if (entry.age === null || entry.gender === null) {
-    return null;
-  }
-
-  const category = ageCategoryFor(
-    entry.age,
-    effectiveCategory(entry.gender, entry.resultPlacement),
-  );
-
-  if (category.known) {
-    return category.code;
-  }
-
-  return category.reason === 'not-placed' ? 'no-category' : 'under-18';
 }
 
 /**
@@ -1469,47 +1255,63 @@ function retentionWords(interval: string): string {
 /**
  * 8. The entries.
  *
- * ## The filters are links
+ * ## Status is a row of pills, and each says how many
  *
- * Not a form, not a `<select>`, and no script. Each is an `<a>` carrying a query parameter, so
- * the page works with scripting off, every filtered view is a URL somebody can bookmark or send
- * to the other volunteer, and the back button does what it looks like it does.
+ * Paid · Held now · Holds expired · Refunded · Needs attention · Asked about · All. **They
+ * replaced a sentence**, "Refunded entries and lapsed holds are not shown. Show them", which was
+ * honest about what it hid and still made somebody read a paragraph to learn which statuses
+ * existed and how many of each there were. A count on every pill answers both before anybody
+ * clicks. Paid is the default, because the page is opened to look at the field.
  *
- * **No filter carries a name.** The values are enumerated words — a status, a fee code, a sort
- * key — and a query string is the last place personal data should be, because it reaches server
- * logs, browser history and anything sitting in front of the origin.
+ * The counts are worked out from the rows this page already read, with the search, the
+ * category and the entry type applied — so a pill never promises a row the table will not then
+ * show. No query of their own.
  *
- * ## 320px: restructured, not scrolled
+ * ## Every view is a URL, except a search
  *
- * **The table used to scroll sideways inside a focusable region and it no longer does.** That
- * arrangement worked and cost three things: a second scrolling region inside a page that already
- * scrolls, on a surface where 70% of visitors are on a phone; a `position: relative` on the
- * scroller that existed solely to stop absolutely-positioned hidden text escaping it and dragging
- * the whole document sideways; and a table nobody could read without dragging it.
+ * Status, category, entry type and sort are GET parameters, so a filtered view can be bookmarked
+ * or sent to the other volunteer, and everything works with scripting off — the pills and the
+ * column headers are links, and the category, entry type and sort are a GET form with an Apply
+ * button.
  *
- * So below 48rem the table **drops to three columns** — runner, status, note — and the five it
- * drops reappear inside the runner cell, which is the only cell wide enough to hold them. Each
- * version is `display: none` at the width where the other is showing, so exactly one is in the
- * accessibility tree at any size and nothing is announced twice. The markup stays a real
- * `<table>` with real `<th scope="col">` and `<th scope="row">` at every width — no `display:
- * block` reflow, so the table semantics that make it navigable are never traded away.
+ * **A search term is a runner's name or address, so it never goes in a URL.** The search box
+ * posts to this page's own address; on the page that comes back, every control that would
+ * otherwise be a link is a small POST form carrying the term, so sorting or changing status does
+ * not silently drop the search. `queryControl()` is the one place that decides which.
+ *
+ * ## Phone: the rows become cards
+ *
+ * Below 54rem of the table's own width each row is a card laid out with grid areas, and the
+ * header row goes. **This reverses the earlier decision to keep a three-column table at every
+ * width**, which kept the semantics and cost a phone reader a runner cell carrying five values
+ * in a stack. The semantics are kept a different way: every element carries its table role
+ * explicitly, because some engines drop a table's implicit roles the moment its `display`
+ * changes. See `nn-admin.css`.
  */
 function entriesSection(
   list: AdminEntryList,
-  filters: EntryFilters,
+  query: EntryQuery,
   url: URL,
   viewer: AdminViewer,
 ): Html {
-  const shown = viewEntries(list.entries, filters);
+  const shown = viewEntries(list.entries, query);
+  const counts = statusCounts(list.entries, query);
   const fees = [...new Set(list.entries.map((entry) => entry.feeCode))].sort();
+  const ctx: ListContext = { path: url.pathname, query };
 
   return html`<h2 class="admin-h2">Entries</h2>
-    <section class="admin-panel" aria-labelledby="all-entries">
+    <section class="admin-panel admin-panel-open" aria-labelledby="all-entries">
       <div class="admin-panel-head">
         <h3 id="all-entries">All entries</h3>
-        <p class="admin-panel-note">
-          <span class="admin-mono">${shown.length}</span> of
-          <span class="admin-mono">${list.entries.length}</span> shown
+        ${
+          /* **Polite and live**, so the count is announced when it changes. With scripting
+          off the whole page reloads and this is simply read in its place; it is here for the
+          day the list filters as somebody types. */ null
+        }
+        <p class="admin-panel-note" aria-live="polite">
+          <span class="admin-mono">${shown.length}</span>
+          ${plural(shown.length, 'entry', 'entries')} shown, of
+          <span class="admin-mono">${list.entries.length}</span>
         </p>
       </div>
 
@@ -1526,34 +1328,46 @@ function entriesSection(
               `${NN_SECTION}/assign/`,
               list.event.slug,
               'Assign a place',
-              'admin-button-quiet',
+              'admin-button admin-button-quiet admin-assign',
             )
           : null
       }
 
-      <nav class="admin-filters" aria-label="Filter the entries">
-        <p class="admin-filters-label" id="filter-status">Status</p>
-        <ul aria-labelledby="filter-status">
-          ${STATUS_FILTERS.map((status) =>
-            toggleLink(url, 'status', status, statusFilterLabel(status), filters.status),
-          )}
-        </ul>
-        ${
-          fees.length < 2
-            ? null
-            : html`<p class="admin-filters-label" id="filter-fee">Entry type</p>
-                <ul aria-labelledby="filter-fee">
-                  ${['all', ...fees].map((fee) =>
-                    toggleLink(url, 'fee', fee, feeFilterLabel(fee, list), filters.fee),
+      <div class="admin-entries-tools">
+        <nav class="admin-pills" aria-label="Show entries by status">
+          <ul>
+            ${STATUS_VIEWS.map(
+              (view) =>
+                html`<li>
+                  ${queryControl(
+                    ctx,
+                    { status: view },
+                    html`${statusViewLabel(view)}
+                      <span class="admin-pill-count admin-mono">${counts[view]}</span>`,
+                    {
+                      className: `admin-filter admin-status-pill${query.status === view ? ' admin-filter-on' : ''}`,
+                      current: query.status === view,
+                    },
                   )}
-                </ul>`
+                </li>`,
+            )}
+          </ul>
+        </nav>
+
+        <div class="admin-entries-forms">
+          ${searchForm(ctx)} ${refineForm(ctx, list, fees)}
+        </div>
+
+        ${
+          query.q === ''
+            ? null
+            : html`<p class="admin-filters-note">
+                Searching for “<strong>${query.q}</strong>”.
+                <a href="${queryHref(ctx.path, query)}">Clear search</a>
+              </p>`
         }
-        <p class="admin-filters-label" id="filter-sort">Sort by</p>
-        <ul aria-labelledby="filter-sort">
-          ${SORTS.map((sort) => sortLink(url, sort, sortLabel(sort), filters.sort))}
-        </ul>
-        ${hideToggle(url, filters)}
-      </nav>
+        ${testsNote(ctx)}
+      </div>
 
       ${
         list.returned < list.total
@@ -1565,70 +1379,296 @@ function entriesSection(
           : null
       }
 
-      <table class="admin-table">
-        <caption class="admin-visually-hidden">
-          Entries for ${list.event.displayName}
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Runner</th>
+      <div class="admin-entries">
+        ${
+          /* **The explicit roles are not decoration.** Below 54rem this table, its rows and
+          its cells change `display` to lay out as cards, and some engines drop a table's
+          implicit roles when that happens — a screen reader would then meet a run of loose
+          text where a table was. Stating every role keeps it a table to assistive technology
+          at every width. */ null
+        }
+        <table class="admin-table admin-entries-table" role="table">
+          <caption class="admin-visually-hidden">
+            ${list.event.displayName} entrants, ${sortCaption(query.sort)}
+          </caption>
+          <thead role="rowgroup">
+            <tr role="row">
+              ${
+                /* The address is inside this column, not a column of its own, since 27
+                September 2026 — `overflow-wrap: anywhere` in its own cell made the browser
+                lay it out one character wide. #183's reason for showing it at all stands. */ null
+              }
+              <th
+                scope="col"
+                role="columnheader"
+                class="admin-cell-runner"
+                ${ariaSort(query.sort, 'name')}
+              >
+                ${sortHeader(ctx, 'Runner', 'name')}
+              </th>
+              <th
+                scope="col"
+                role="columnheader"
+                class="admin-cell-category"
+                ${ariaSort(query.sort, 'category')}
+              >
+                ${sortHeader(ctx, 'Category', 'category')}
+              </th>
+              <th scope="col" role="columnheader" class="admin-cell-club">Club</th>
+              <th scope="col" role="columnheader" class="admin-cell-entry">Entry</th>
+              <th scope="col" role="columnheader" class="admin-cell-paid">Paid</th>
+              <th scope="col" role="columnheader" class="admin-cell-status">Status</th>
+              <th scope="col" role="columnheader" class="admin-cell-actions">
+                <span class="admin-visually-hidden">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody role="rowgroup">
             ${
-              /* **`admin-col-wide`, like the other five, so the narrow layout still keeps
-                 three columns.** A fourth at 320px is what starts the table scrolling
-                 sideways, which drags the whole page with it — and an address is the longest
-                 string on this page: the club's own is 47 characters, which is the exact
-                 value that overflowed a 320px document in the sideways-scroll investigation.
-                 It folds into `admin-stack` under the runner's name with `admin-break`, the
-                 same pair the interest table's Email column has always used.
-
-                 ADR-024 built `/admin/nn/entry/` because the facts a volunteer needs on the
-                 phone were the ones that did not fit in a column, and named the address that
-                 paid as one of them. **This reverses that for one field**, because telling two
-                 runners of the same name apart is done while reading the list rather than
-                 after opening a row. Issue #183. */ null
+              shown.length === 0
+                ? html`<tr role="row" class="admin-empty-row">
+                    <td role="cell" colspan="7">
+                      <p>No runners match that.</p>
+                      <p>
+                        <a href="${ctx.path}?status=all">Clear search and filters</a>
+                      </p>
+                    </td>
+                  </tr>`
+                : shown.map((entry) =>
+                    entryRow(entry, viewer, list.entries, list.event.slug),
+                  )
             }
-            <th scope="col" class="admin-col-wide">Email</th>
-            <th scope="col" class="admin-col-wide">Club</th>
-            <th scope="col" class="admin-col-wide">Category</th>
-            <th scope="col" class="admin-col-wide">Entry</th>
-            <th scope="col" class="admin-col-wide">Code</th>
-            <th scope="col" class="admin-col-wide">Paid</th>
-            <th scope="col">Status</th>
-            <th scope="col">Note</th>
-            ${
-              /* **`admin-col-wide`, so it folds away with Club, Category, Entry, Code
-                 and Paid at 320px.** The phone layout keeps three columns on purpose — a
-                 fourth is what starts the table scrolling sideways, and an absolutely
-                 positioned visually-hidden span inside a scroller drags the whole page with
-                 it, which is the trap CLAUDE.md spends a paragraph on.
-
-                 Losing *Cancel* on a phone is the deliberate half of that, and it still is:
-                 cancelling is a desk task with the Stripe dashboard open in another tab, not
-                 something done one-handed at a race. The medical note, which *is* wanted on
-                 race morning, keeps its column.
-
-                 **What was not deliberate was losing Details with it** — issue #145 defect 5.
-                 `/admin/nn/entry/` exists because ADR-024 found that the facts a volunteer
-                 needs on a phone are exactly the ones that do not fit in a table, and folding
-                 this cell away left that page with no door on the devices it was built for.
-                 A second copy of the Details button rides in `admin-stack`, under the runner's
-                 name, so the column count does not move. Cancel and Transfer are on that page
-                 anyway, which is why one button is enough. */ null
-            }
-            <th scope="col" class="admin-col-wide">Cancel</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${
-            shown.length === 0
-              ? html`<tr>
-                  <td colspan="11">Nothing matches that filter.</td>
-                </tr>`
-              : shown.map((entry) => entryRow(entry, viewer, list.entries))
-          }
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </section>`;
+}
+
+/** Where the list is, and what it was asked — the two things every control is built from. */
+interface ListContext {
+  path: string;
+  query: EntryQuery;
+}
+
+/** A GET address for a view. **Never carries the search term** — see `queryParams`. */
+function queryHref(path: string, query: EntryQuery): string {
+  return `${path}?${new URLSearchParams(queryParams(query)).toString()}`;
+}
+
+/** The view as hidden inputs, for a form that has to carry it. */
+function hiddenQueryFields(
+  query: EntryQuery,
+  options: { search: boolean; skip?: readonly string[] },
+): Html {
+  const skip = new Set(options.skip ?? []);
+
+  return html`${queryParams(query)
+    .filter(([name]) => !skip.has(name))
+    .map(
+      ([name, value]) => html`<input type="hidden" name="${name}" value="${value}" />`,
+    )}${
+    options.search && query.q !== ''
+      ? html`<input type="hidden" name="q" value="${query.q}" />`
+      : null
+  }`;
+}
+
+/**
+ * A control that changes the view: a link, unless a search is in force.
+ *
+ * **The one place that decides it.** With no search the control is an `<a>`, which is linkable
+ * and is what a status or a sort should be. With a search it is a one-button POST form carrying
+ * the term, because a link would have to put the term in its address — and a link that quietly
+ * dropped it would lose somebody's search the moment they sorted.
+ *
+ * `aria-current` on the link that is the current view; `aria-pressed` on the button form of the
+ * same thing, which is what a screen reader expects of a button.
+ */
+function queryControl(
+  ctx: ListContext,
+  change: Partial<EntryQuery>,
+  content: Html,
+  options: { className: string; current?: boolean },
+): Html {
+  const next: EntryQuery = { ...ctx.query, ...change };
+  const current = options.current ?? false;
+
+  if (ctx.query.q === '') {
+    return html`<a
+      href="${queryHref(ctx.path, next)}"
+      class="${options.className}"
+      ${current ? raw('aria-current="true"') : null}
+      >${content}</a
+    >`;
+  }
+
+  return html`<form method="post" action="${ctx.path}" class="admin-inline-form">
+    ${hiddenQueryFields(next, { search: true })}
+    <button
+      type="submit"
+      class="${options.className}"
+      ${options.current === undefined ? null : raw(`aria-pressed="${current}"`)}
+    >
+      ${content}
+    </button>
+  </form>`;
+}
+
+/**
+ * The search box.
+ *
+ * **A POST, so the term never reaches a URL** — see the note at the head of `entriesSection`.
+ * The rest of the view travels with it as hidden fields, so searching keeps the status, the
+ * category and the sort somebody had already chosen.
+ *
+ * The term is echoed back into the box, through the template's escaping like every other value
+ * on this page: a term of `"><script>` comes back as text in an attribute.
+ */
+function searchForm(ctx: ListContext): Html {
+  return html`<form
+    class="admin-search"
+    method="post"
+    action="${ctx.path}"
+    role="search"
+    aria-label="Entries"
+  >
+    <label for="entry-search">Search runners</label>
+    <p class="admin-hint" id="entry-search-hint">
+      Name, email address or club. Not saved in the page address.
+    </p>
+    <div class="admin-search-row">
+      <input
+        id="entry-search"
+        type="search"
+        name="q"
+        value="${ctx.query.q}"
+        maxlength="100"
+        autocomplete="off"
+        spellcheck="false"
+        aria-describedby="entry-search-hint"
+      />
+      ${hiddenQueryFields(ctx.query, { search: false })}
+      <button type="submit" class="admin-button">Search</button>
+    </div>
+  </form>`;
+}
+
+/**
+ * Category, entry type and order, applied together.
+ *
+ * **A GET form, so the view it produces is a URL** — unless a search is in force, when it posts
+ * and carries the term for `queryControl`'s reason. With scripting off a `<select>` changes
+ * nothing until it is submitted, which is what the Apply button is for.
+ */
+function refineForm(ctx: ListContext, list: AdminEntryList, fees: string[]): Html {
+  const { query } = ctx;
+  const searching = query.q !== '';
+
+  const option = (value: string, label: string, selected: string): Html =>
+    html`<option value="${value}" ${value === selected ? raw('selected') : null}>
+      ${label}
+    </option>`;
+
+  return html`<form
+    class="admin-refine"
+    method="${searching ? 'post' : 'get'}"
+    action="${ctx.path}"
+  >
+    <div class="admin-refine-field">
+      <label for="entry-cat">Category</label>
+      <select id="entry-cat" name="cat">
+        ${option('', 'All categories', query.cat)}
+        ${categoryOptions(list.entries).map((key) =>
+          option(key, categoryKeyLabel(key), query.cat),
+        )}
+      </select>
+    </div>
+    ${
+      fees.length < 2
+        ? null
+        : html`<div class="admin-refine-field">
+            <label for="entry-fee">Entry type</label>
+            <select id="entry-fee" name="fee">
+              ${option('', 'All entry types', query.fee)}
+              ${fees.map((fee) => option(fee, feeFilterLabel(fee, list), query.fee))}
+            </select>
+          </div>`
+    }
+    <div class="admin-refine-field">
+      <label for="entry-sort">Sort</label>
+      <select id="entry-sort" name="sort">
+        ${(['name', 'name-desc', 'category', 'category-desc', 'entered'] as const).map(
+          (sort) => option(sort, sortLabel(sort), query.sort),
+        )}
+      </select>
+    </div>
+    ${hiddenQueryFields(query, { search: searching, skip: ['cat', 'fee', 'sort'] })}
+    <button type="submit" class="admin-button admin-button-quiet">Apply</button>
+  </form>`;
+}
+
+/**
+ * The one default that is not a status: the club's own test entries are left out.
+ *
+ * **Still a sentence rather than a pill**, because it is about the entry type rather than the
+ * status, and a pill row would have to show a selection nobody made to be honest about it.
+ */
+function testsNote(ctx: ListContext): Html {
+  const shown = ctx.query.showTests;
+
+  return html`<p class="admin-filters-note">
+    ${shown ? 'Test entries are shown.' : 'Test entries are not shown.'}
+    ${queryControl(
+      ctx,
+      { showTests: !shown },
+      html`${shown ? 'Hide them' : 'Show them'}`,
+      {
+        className: 'admin-linkish admin-linkish-inline',
+      },
+    )}
+  </p>`;
+}
+
+/**
+ * A column header that sorts, and flips when it is already the sort.
+ *
+ * The arrow is decoration; `aria-sort` on the `<th>` is what says which way the column is
+ * sorted, and it is the column header a screen reader announces.
+ */
+function sortHeader(ctx: ListContext, label: string, base: 'name' | 'category'): Html {
+  const sort = ctx.query.sort;
+  const next: Sort = sort === base ? `${base}-desc` : base;
+  const direction = sort === base ? 'up' : sort === `${base}-desc` ? 'down' : null;
+
+  return queryControl(
+    ctx,
+    { sort: next },
+    html`${label}${
+      direction === null
+        ? null
+        : raw(
+            `<svg class="admin-sort-arrow" aria-hidden="true" focusable="false" width="10" height="10" viewBox="0 0 10 10"><path d="${direction === 'up' ? 'M5 2 9 8H1z' : 'M5 8 1 2h8z'}" fill="currentColor"/></svg>`,
+          )
+    }`,
+    { className: 'admin-sort' },
+  );
+}
+
+/** `aria-sort` for a sortable column, or nothing for a column that is not the sort. */
+function ariaSort(sort: Sort, base: 'name' | 'category'): Html | null {
+  if (sort === base) return raw('aria-sort="ascending"');
+  if (sort === `${base}-desc`) return raw('aria-sort="descending"');
+
+  return null;
+}
+
+function sortCaption(sort: Sort): string {
+  if (sort === 'name-desc') return 'sorted by surname, Z to A';
+  if (sort === 'category') return 'sorted by category, Senior first';
+  if (sort === 'category-desc') return 'sorted by category, Vet 60 first';
+  if (sort === 'entered') return 'newest first';
+
+  return 'sorted by surname';
 }
 
 /**
@@ -1679,231 +1719,328 @@ function runnerName(entrant: {
  *
  * So the amount is rendered against the runner and the guide's row says what it is. Nothing
  * is subtracted or divided: the number is still exactly what `entries.fees` charged.
+ *
+ * **A refunded amount is struck through and the word is there too.** A strikethrough is not
+ * announced by most screen readers, so a visually hidden "refunded" says the same thing to
+ * somebody who cannot see the line.
  */
-function amountCell(entry: AdminEntry): string {
-  return entry.role === 'guide' ? 'Guide — no charge' : formatPence(entry.amountPence);
+function amountCell(entry: AdminEntry): Html {
+  if (entry.role === 'guide') {
+    return html`<span class="admin-quiet">Guide — no charge</span>`;
+  }
+
+  const amount = formatPence(entry.amountPence);
+
+  if (entry.status === 'refunded') {
+    return html`<s class="admin-quiet">${amount}</s
+      ><span class="admin-visually-hidden"> refunded</span>`;
+  }
+
+  return html`${amount}`;
 }
 
-function entryRow(entry: AdminEntry, viewer: AdminViewer, all: AdminEntry[]): Html {
-  // Null together, for the same reason the name is: the category is computed from a date of
-  // birth that was deleted with the entrant.
-  // **A guide is in no category, so naming one would be inventing a result.** They are not
-  // timed and are not placed; the row says what they are instead of what band they would be
-  // in if they were. Null stays null for a cancelled entry, for the reason below.
-  const category =
-    entry.role === 'guide'
-      ? 'Guide'
-      : entry.age === null || entry.gender === null
-        ? null
-        : categoryLabel(entry.age, entry.gender, entry.resultPlacement);
+/**
+ * "No club" said to everybody: a dash to the eye and the words to a screen reader.
+ *
+ * `aria-label` on a bare `<span>` is not announced reliably and axe refuses it, so the words are
+ * a visually hidden span beside a dash that is hidden from assistive technology instead.
+ */
+function noneCell(words: string): Html {
+  return html`<span class="admin-quiet" aria-hidden="true">—</span
+    ><span class="admin-visually-hidden">${words}</span>`;
+}
 
-  // **The England Athletics number was rendered here until 29 August 2026**, as a cell and as
-  // a loud "EA number missing" in the stacked phone summary. The club stopped asking for it,
-  // so there is nothing to render and nothing to warn about: every affiliated entry is a
-  // runner's word, which is what the committee decided it should be. The entry type column
-  // still says which price was paid, which is the part a volunteer actually acts on.
+/** A discount code, with a break opportunity after each hyphen so it never sets a width. */
+function codeTag(code: string): Html {
+  return html`<span class="admin-code admin-mono"
+    ><span class="admin-visually-hidden">Discount code </span>${raw(
+      escapeHtml(code).replace(/-/g, '-<wbr>'),
+    )}</span
+  >`;
+}
 
-  // **Only where there is something to cancel.** An `expired` hold has already released its
-  // place and has no entrant to remove, and a `refunded` row is the outcome of having pressed
-  // this once already — offering the button on either would be offering a no-op that reads as
-  // a destructive act.
-  const cancellable =
-    can(viewer, 'nn.entry.cancel') &&
-    (entry.status === 'paid' || entry.status === 'pending');
+function entryRow(
+  entry: AdminEntry,
+  viewer: AdminViewer,
+  all: AdminEntry[],
+  eventSlug: string,
+): Html {
+  const key = categoryKeyOf(entry);
+  const raceCategory = raceCategoryLine(entry);
+  const club = clubName(entry.club);
 
-  // **Transfer is narrower than cancel, and the difference is the guide.**
-  // `entries.transfer_entry()` refuses a purchase with more than one entrant on it —
-  // "transfer it" does not say which of a visually impaired runner and their guide is leaving
-  // — so offering the button on such a row would be offering a refusal. A guide's own row is
-  // the same purchase seen from the other side, so it is not offered there either. Cancelling
-  // *is* offered on both, because cancelling the purchase is unambiguous: the place and both
-  // people on it go.
-  //
-  // The database refuses it regardless; this stops the page promising something it cannot do.
-  const transferable = cancellable && entry.role !== 'guide' && !hasGuide(entry, all);
+  // The England Athletics number was rendered here until 29 August 2026. The club stopped
+  // asking for it, so there is nothing to render and nothing to warn about; the Entry column
+  // still says which price was paid, which is the part a volunteer acts on.
 
-  return html`<tr>
-    <th scope="row">
-      ${runnerName(entry)}
-      <span class="admin-stack">
-        ${
-          /* First in the stack, because on a phone this is the whole reason the column was
-          added: two runners with the same name, and one of them is the person on the other end
-          of the call. */ null
-        }
-        <span class="admin-mono admin-break">${entry.email ?? 'No email recorded'}</span>
-        <span>${entry.club ?? 'No club'}</span>
-        <span>${category ?? 'No category'}</span>
-        ${
-          /* **Under the category, and only here.** The gender somebody recorded is not the
-          category and must not read as one — it is a note about the runner, shown on this
-          page because a field the club collects and never surfaces is a field collected for
-          no purpose, and shown *nowhere else* because a start list or an export is read by
-          people who have no business with it. Absent for most entries: not answering is an
-          answer. See ADR-020. */ null
-        }
-        ${entry.genderIdentity === null ? null : html`<span>${entry.genderIdentity}</span>`}
-        <span>${entry.feeLabel}</span>
-        <span class="admin-mono">${amountCell(entry)}</span>
-        ${
-          entry.discountCode === null
-            ? null
-            : html`<span class="admin-mono">${entry.discountCode}</span>`
-        }
-        ${
-          /* **The way in on a phone, and it costs no column.** The actions cell is
-          `admin-col-wide`, so below 768px Details, Cancel and Transfer all fold away — and
-          `/admin/nn/entry/` was built by ADR-024 precisely because the facts a volunteer needs
-          at race HQ do not fit in a table. Its only door was a button a phone could not show.
-
-          Un-hiding that cell is the wrong fix: the narrow layout keeps three columns because a
-          fourth starts the table scrolling sideways, which drags the whole page with it. This
-          rides in the stack that is already under the runner's name, so the column count does
-          not move.
-
-          **Details alone, not all three.** The detail page carries Cancel and Transfer itself,
-          so one button reaches every act this surface allows — and reading before acting is
-          the order these belong in anyway. `display: none` on the stack above 768px keeps
-          exactly one copy of this button in the accessibility tree, the same arrangement every
-          other value in here uses. */ null
-        }
-        <span class="admin-stack-action">
-          <form method="post" action="${NN_SECTION}/entry/">
-            <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
-            <button type="submit" class="admin-linkish">
-              Details
-              <span class="admin-visually-hidden"
-                >of the entry for ${runnerName(entry)}</span
-              >
-            </button>
-          </form>
-        </span>
-      </span>
-    </th>
-    ${
-      /* ⚠️ **Whose address this is was decided by the database, per row.** A runner's is the
-      purchase's `purchaser_email`; a **guide's** is their own `entrants.email`, because a guide
-      has no purchase of their own. Printing the buyer's address beside a guide's name would be
-      wrong on the page a volunteer rings people from, so `read_entry_list()` resolves it and
-      this cell prints what it resolved. Never substitute another field for a null here. */ null
-    }
-    <td class="admin-col-wide admin-mono admin-break">${entry.email ?? '—'}</td>
-    <td class="admin-col-wide">${entry.club ?? '—'}</td>
-    <td class="admin-col-wide">
-      ${category}
+  return html`<tr role="row" class="admin-entry-row">
+    <th scope="row" role="rowheader" class="admin-cell-runner">
+      <span class="admin-runner-name">${runnerName(entry)}</span>
       ${
-        entry.genderIdentity === null
-          ? null
-          : html`<span class="admin-sub">${entry.genderIdentity}</span>`
+        /* ⚠️ **Whose address this is was decided by the database, per row.** A runner's is the
+        purchase's `purchaser_email`; a **guide's** is their own `entrants.email`, because a
+        guide has no purchase of their own. Printing the buyer's address beside a guide's name
+        would be wrong on the page a volunteer rings people from, so `read_entry_list()`
+        resolves it and this prints what it resolved. Never substitute another field for a
+        null here.
+
+        **One line, cut with an ellipsis, and the whole address in `title`** on a wide screen;
+        on a card it wraps instead, because a cut address at 320px is a useless one. The cut is
+        visual only — the text is complete for a screen reader and for a copy.
+
+        ⚠️ **Plain text, not `breakableEmail()`.** Chromium honours a `<wbr>` even under
+        `white-space: nowrap`, so on a Linux runner — whose fonts set this address a few pixels
+        wider than its cap — the "one line" broke after the `@` and the row went two lines tall.
+        The link is a block, so it still reported one client rect, and only the height check in
+        `admin.spec.ts` saw it. A card wraps it with `overflow-wrap: anywhere` instead, which is
+        safe there because a card is not an auto-layout table. */ null
       }
-    </td>
-    <td class="admin-col-wide">${entry.feeLabel}</td>
-    ${
-      /* **The code this entry was bought with, and a dash for the many that used none.**
-      Beside the amount rather than in the stacked summary alone, because the question a
-      volunteer opens this page with is "who used the Left Handed Giant allocation" and the answer
-      is a column you can read down. */ null
-    }
-    <td class="admin-col-wide admin-mono">${entry.discountCode ?? '—'}</td>
-    <td class="admin-col-wide admin-mono">${amountCell(entry)}</td>
-    <td>${statusCell(entry)}</td>
-    <td>
       ${
-        entry.hasMedical
-          ? html`<form method="post" action="${NN_SECTION}/medical/">
+        entry.email === null
+          ? html`<span class="admin-runner-email admin-quiet">No email recorded</span>`
+          : html`<a
+              class="admin-runner-email"
+              href="mailto:${entry.email}"
+              title="${entry.email}"
+              >${entry.email}</a
+            >`
+      }
+      ${
+        /* **The medical note is a deliberate act, not something that unfolds.** Reading one
+        writes an audit row (`entries.admin_entrant_medical()`), and the list never holds a
+        note — only whether there is one. So this is a small POST button to the page that
+        shows it, not a disclosure over text the list would have had to fetch for everybody. */ null
+      }
+      ${
+        entry.hasMedical && entry.entrantId !== null
+          ? html`<form
+              method="post"
+              action="${NN_SECTION}/medical/"
+              class="admin-note-form"
+            >
               <input type="hidden" name="entrantId" value="${entry.entrantId}" />
-              <button type="submit" class="admin-linkish">
-                Show note
-                <span class="admin-visually-hidden"> for ${runnerName(entry)} </span>
-              </button>
-            </form>`
-          : '—'
-      }
-    </td>
-    <td class="admin-col-wide">
-      ${
-        /* **Offered on every row without exception, including a cancelled one.** The page
-        behind it is a read, it needs only `nn.entry.read`, and a refunded purchase is exactly
-        the row somebody most often needs the history of. It is first in the cell because it is
-        the safe one: reading before acting is the order these three belong in. */ null
-      }
-      <form method="post" action="${NN_SECTION}/entry/">
-        <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
-        <button type="submit" class="admin-linkish">
-          Details
-          <span class="admin-visually-hidden">of the entry for ${runnerName(entry)}</span>
-        </button>
-      </form>
-      ${
-        cancellable
-          ? html`<form method="post" action="${NN_SECTION}/cancel/">
-              <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
-              ${
-                /* No CSRF token, and no need for one: this POST changes nothing. It renders
-                 the confirmation, which mints the token the second POST has to echo. */ null
-              }
-              <button type="submit" class="admin-linkish">
-                Cancel
-                <span class="admin-visually-hidden">
-                  the entry for ${runnerName(entry)}
-                </span>
-              </button>
-            </form>`
-          : /* **Null rather than a dash, since Details arrived.** The dash was there because
-               the cell would otherwise have been empty, and it never is now — a row with a
-               dash beside a working control reads as something broken rather than as
-               something absent. */ null
-      }
-      ${
-        /* **Transfer sits beside Cancel and only where Cancel does.** Both need a place that
-        exists, and the two together are the whole of what this surface may do to an entry
-        somebody paid for. Same two-step shape: this POST only asks. */ null
-      }
-      ${
-        transferable
-          ? html`<form method="post" action="${NN_SECTION}/transfer/">
-              <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
-              <button type="submit" class="admin-linkish">
-                Transfer
-                <span class="admin-visually-hidden">
-                  the entry for ${runnerName(entry)} to somebody else
-                </span>
+              <button type="submit" class="admin-note-button">
+                Medical note<span class="admin-visually-hidden">
+                  for ${runnerName(entry)}</span
+                >
               </button>
             </form>`
           : null
       }
+    </th>
+    <td role="cell" class="admin-cell-category">
+      <span class="admin-cell-main"
+        >${key === null ? noneCell('No category') : categoryKeyLabel(key)}</span
+      >
+      ${
+        /* **The race category — what the prizes are awarded in — and a flag where a prize
+        list cannot place somebody.** Icon and words, never colour alone. See
+        `raceCategoryLine()` for why this is `gender` and never `gender_identity`. */ null
+      }
+      ${
+        raceCategory === null
+          ? null
+          : raceCategory.gap
+            ? html`<span class="admin-sub admin-gap"
+                >${raw(WARNING_ICON)}${raceCategory.words}</span
+              >`
+            : html`<span class="admin-sub">${raceCategory.words}</span>`
+      }
+      ${
+        /* **How the runner described their gender, under the category it is not.** Shown on
+        this page and nowhere else — ADR-020 — and absent for most entries, because not
+        answering is an answer. It is never flagged when blank. */ null
+      }
+      ${
+        entry.genderIdentity === null
+          ? null
+          : html`<span class="admin-sub">Gender identity: ${entry.genderIdentity}</span>`
+      }
+    </td>
+    <td role="cell" class="admin-cell-club">
+      <span class="admin-card-label">Club</span>
+      ${club === null ? noneCell('No club') : html`<span>${club}</span>`}
+    </td>
+    <td role="cell" class="admin-cell-entry">
+      <span class="admin-card-label">Entry</span>
+      <span>${entry.feeLabel}</span>
+      ${
+        /* **The code this entry was bought with, under the entry type it discounted.** It was
+        a column of its own that was a dash on almost every row; the question it answers —
+        "who used the Left Handed Giant allocation" — is still answered by reading down this
+        one. */ null
+      }
+      ${entry.discountCode === null ? null : codeTag(entry.discountCode)}
+    </td>
+    <td role="cell" class="admin-cell-paid admin-mono">${amountCell(entry)}</td>
+    <td role="cell" class="admin-cell-status">${statusCell(entry)}</td>
+    <td role="cell" class="admin-cell-actions">
+      ${rowMenu(entry, viewer, all, eventSlug)}
     </td>
   </tr>`;
 }
 
 /**
+ * The "⋯" menu: everything this surface may do to one entry.
+ *
+ * **A `<details>`, so it opens and is operated with the keyboard and with scripting off** —
+ * every spec here runs in a `no-javascript` project. It is a disclosure, not an ARIA menu:
+ * `role="menu"` promises arrow-key handling that only a script could keep.
+ *
+ * **What is offered is exactly what was offered before**, by the same rules:
+ *
+ *   * *View details* on every row, including a refunded one — reading is the safe act, and a
+ *     cancelled entry is the row somebody most often needs the history of;
+ *   * *Transfer* only where `entries.transfer_entry()` can do it — a place that exists, and no
+ *     guide on the purchase, because "transfer it" does not say which of two people is leaving;
+ *   * *Cancel* only on a paid entry or a live hold, and only for `nn.entry.cancel`. It is last,
+ *     below a rule and in the error colour, and it still only *asks*: the POST renders the
+ *     confirmation page, which mints the CSRF token the second POST has to echo.
+ *
+ * **Cancel is reachable on a phone now, which it deliberately was not.** It used to fold away
+ * below 768px as "a desk task". The confirmation step is unchanged and is what makes a mistaken
+ * tap harmless; hiding a control by width was never the safeguard.
+ */
+function rowMenu(
+  entry: AdminEntry,
+  viewer: AdminViewer,
+  all: AdminEntry[],
+  eventSlug: string,
+): Html {
+  const name = runnerName(entry);
+  const named = entry.firstName !== null && entry.lastName !== null;
+
+  // Only where there is something to cancel. An `expired` hold has already released its place,
+  // and a `refunded` row is the outcome of having pressed this once already.
+  const cancellable =
+    can(viewer, 'nn.entry.cancel') &&
+    (entry.status === 'paid' || entry.status === 'pending');
+
+  // The database refuses a transfer it cannot do regardless; this stops the page promising one.
+  const transferable = cancellable && entry.role !== 'guide' && !hasGuide(entry, all);
+
+  const label = named
+    ? `Manage entry for ${entry.firstName} ${entry.lastName}`
+    : `Manage entry ${entryReference(entry, eventSlug)}`;
+
+  return html`<details class="admin-row-menu">
+    <summary class="admin-row-menu-button" aria-label="${label}">
+      ${raw(MORE_ICON)}
+    </summary>
+    <div class="admin-row-menu-panel">
+      <form method="post" action="${NN_SECTION}/entry/">
+        <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+        <button type="submit" class="admin-row-menu-item">
+          View details<span class="admin-visually-hidden"> of the entry for ${name}</span>
+        </button>
+      </form>
+      ${
+        transferable
+          ? html`<form method="post" action="${NN_SECTION}/transfer/">
+              <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+              <button type="submit" class="admin-row-menu-item">
+                ${
+                  /* One span for the visible words: the item is a flex container, which
+                  drops the whitespace between loose text runs — "Transferto". */ null
+                }
+                <span>Transfer to someone else</span
+                ><span class="admin-visually-hidden">: the entry for ${name}</span>
+              </button>
+            </form>`
+          : null
+      }
+      ${
+        entry.email === null
+          ? null
+          : html`<a class="admin-row-menu-item" href="mailto:${entry.email}"
+              >Email ${named ? entry.firstName : 'the buyer'}</a
+            >`
+      }
+      ${
+        cancellable
+          ? html`<hr class="admin-row-menu-rule" />
+              <form method="post" action="${NN_SECTION}/cancel/">
+                <input type="hidden" name="purchaseId" value="${entry.purchaseId}" />
+                ${
+                  /* No CSRF token, and no need for one: this POST changes nothing. It renders
+                  the confirmation, which mints the token the second POST has to echo. */ null
+                }
+                <button type="submit" class="admin-row-menu-item admin-row-menu-danger">
+                  ${entry.status === 'paid' ? 'Cancel and refund' : 'Cancel'}<span
+                    class="admin-visually-hidden"
+                  >
+                    the entry for ${name}</span
+                  >…
+                </button>
+              </form>`
+          : null
+      }
+    </div>
+  </details>`;
+}
+
+/**
  * What a status cell says.
  *
- * **Every one carries its own word, and the colour is on top of that rather than instead of it.**
- * A printed start list is black ink, a colour-blind reader gets no hue at all, and a phone in
- * November sunlight is close to monochrome — so "Over capacity" is the signal and the red is
- * emphasis. WCAG 1.4.1, and the practical version of it.
+ * **Every one carries its own word, and the colour and the icon are on top of that rather than
+ * instead of it.** A printed start list is black ink, a colour-blind reader gets no hue at all,
+ * and a phone in November sunlight is close to monochrome — so "Over capacity" is the signal
+ * and the red is emphasis. WCAG 1.4.1, and the practical version of it.
  */
 function statusCell(entry: AdminEntry): Html {
   const flagged = needsAHuman(entry);
   const words = statusWords(entry);
 
-  return html`<span class="admin-chip ${chipClass(entry)}">${words}</span>${
-      entry.revived ? html` <span class="admin-quiet">paid late</span>` : null
-    }${
+  return html`<span class="admin-chip admin-status ${chipClass(entry)}"
+      >${raw(statusIcon(entry))}${words}</span
+    >${entry.revived ? html` <span class="admin-sub">paid late</span>` : null}${
       flagged && entry.attention !== 'over_capacity'
-        ? html` <strong class="admin-error">${attentionWords(entry.attention)}</strong>`
+        ? html` <strong class="admin-error admin-sub"
+            >${attentionWords(entry.attention)}</strong
+          >`
         : null
     }${
       /* **What the entrant has asked for, beside the status and not instead of it.** A paid
       entry with a cancellation request against it is still paid and still holds a place — the
       request changes nothing until a volunteer acts, and showing it as a status would be a
-      fifth value the capacity predicate cannot see.
-
-      Struck through once dealt with rather than removed, because "somebody asked and it was
-      handled" is what a volunteer needs to see on the row they are about to touch. */ null
+      fifth value the capacity predicate cannot see. */ null
     }${requestWording(entry)}`;
 }
+
+/**
+ * The status pill's icon. Decoration — `aria-hidden`, and the word beside it carries the
+ * meaning — drawn in the text colour so it never needs a contrast pair of its own.
+ */
+function statusIcon(entry: AdminEntry): string {
+  const svg = (path: string): string =>
+    `<svg class="admin-status-icon" aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`;
+
+  if (needsAHuman(entry)) {
+    return svg('<path d="M8 2 15 14H1z"/><path d="M8 6.5v3.5M8 12h.01"/>');
+  }
+
+  if (entry.status === 'paid') {
+    return svg('<path d="m3 8.5 3.2 3.2L13 5"/>');
+  }
+
+  if (entry.status === 'refunded') {
+    return svg('<path d="M3 4v4h4"/><path d="M3.5 8A5 5 0 1 0 5 4.5L3 6.5"/>');
+  }
+
+  if (entry.status === 'pending' && (minutesLeft(entry.holdExpiresAt) ?? 1) > 0) {
+    return svg('<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>');
+  }
+
+  return svg('<path d="M4 8h8"/>');
+}
+
+/** The amber marker beside a race category a prize list cannot place. */
+const WARNING_ICON =
+  '<svg class="admin-gap-icon" aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 16 16"><path d="M8 1.5 15.2 14H.8z" fill="currentColor"/><path class="admin-gap-icon-mark" d="M8 6v3.6M8 11.6v.4" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+/** Three dots for the row menu's button. Its name comes from `aria-label`, never from this. */
+const MORE_ICON =
+  '<svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><circle cx="3.5" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/><circle cx="14.5" cy="9" r="1.6"/></svg>';
 
 /**
  * Every ask on one row, beside the status and not instead of it.
@@ -1997,20 +2134,6 @@ function statusWords(entry: AdminEntry): string {
   }
 
   return left <= 0 ? 'Hold lapsed' : `Held · ${left} min left`;
-}
-
-/** Whole minutes until a hold runs out, or `null` if there is no hold to speak of. */
-export function minutesLeft(
-  holdExpiresAt: string | null,
-  now = Date.now(),
-): number | null {
-  if (holdExpiresAt === null) {
-    return null;
-  }
-
-  const at = Date.parse(holdExpiresAt);
-
-  return Number.isNaN(at) ? null : Math.floor((at - now) / 60_000);
 }
 
 function chipClass(entry: AdminEntry): string {
@@ -3147,161 +3270,36 @@ export function categoryLabel(
   return category.reason === 'not-placed' ? 'No category yet' : 'Under 18';
 }
 
-function statusFilterLabel(status: StatusFilter): string {
-  if (status === 'all') return 'All';
-  if (status === 'paid') return 'Paid';
-  if (status === 'pending') return 'Held';
-  if (status === 'expired') return 'Hold expired';
-  if (status === 'refunded') return 'Refunded';
-  // **"Needs attention" here and "Needs a human" on the panel, deliberately different.** The panel
-  // is an alarm and the filter is a view of the table; giving them the same words made a page with
-  // nothing wrong with it contain the alarm's wording, which is exactly what the test asserting
-  // the panel's *absence* is there to catch.
-  if (status === 'requested') return 'Asked about';
+/**
+ * What each status pill is called.
+ *
+ * **"Needs attention" here and "Needs a human" on the panel, deliberately different.** The panel
+ * is an alarm and the pill is a view of the table; giving them the same words made a page with
+ * nothing wrong with it contain the alarm's wording, which is exactly what the test asserting
+ * the panel's *absence* is there to catch.
+ */
+function statusViewLabel(view: StatusView): string {
+  if (view === 'all') return 'All';
+  if (view === 'paid') return 'Paid';
+  if (view === 'pending') return 'Held now';
+  if (view === 'expired') return 'Holds expired';
+  if (view === 'refunded') return 'Refunded';
+  if (view === 'requested') return 'Asked about';
 
   return 'Needs attention';
 }
 
 function feeFilterLabel(fee: string, list: AdminEntryList): string {
-  if (fee === 'all') {
-    return 'All';
-  }
-
   return list.entries.find((entry) => entry.feeCode === fee)?.feeLabel ?? fee;
 }
 
 function sortLabel(sort: Sort): string {
-  if (sort === 'entered') return 'Newest';
-  if (sort === 'category') return 'Age';
-  if (sort === 'status') return 'Status';
-  return 'Name';
-}
+  if (sort === 'name-desc') return 'Surname, Z to A';
+  if (sort === 'category') return 'Category, Senior first';
+  if (sort === 'category-desc') return 'Category, Vet 60 first';
+  if (sort === 'entered') return 'Newest first';
 
-/**
- * One filter link, carrying the other two parameters forward.
- *
- * **Built from the request's own URL** so choosing a status keeps the sort somebody had already
- * chosen. `aria-current="true"` rather than a class alone, so the selected one is announced as
- * selected and not merely coloured.
- */
-/**
- * Everything on this page's address except one parameter, preserved.
- *
- * **`append`, not `set`.** Every filter is multi-valued now, and `set` collapses repeated
- * parameters to the last one — so rebuilding a URL with it would silently drop every selection
- * but one on the *other* rows. That is the kind of defect that looks like a filter "not
- * sticking" and gets diagnosed for an hour.
- */
-function withoutParameter(url: URL, parameter: string): URL {
-  const next = new URL(url.toString());
-  next.search = '';
-
-  for (const [key, existing] of url.searchParams) {
-    if (key !== parameter) {
-      next.searchParams.append(key, existing);
-    }
-  }
-
-  return next;
-}
-
-function chip(href: string, label: string, on: boolean): Html {
-  return html`<li>
-    <a
-      href="${href}"
-      class="admin-filter ${on ? 'admin-filter-on' : ''}"
-      ${on ? raw('aria-current="true"') : null}
-      >${label}</a
-    >
-  </li>`;
-}
-
-/**
- * One chip in a multi-select row: clicking adds the value, clicking again takes it away.
- *
- * **"All" is the empty set rather than a value.** It clears the parameter entirely, so the
- * address of an unfiltered page carries nothing — which is what makes a bookmarked or pasted
- * URL mean the same thing next month, and what lets `readFilters` treat *absent* as "every".
- */
-function toggleLink(
-  url: URL,
-  parameter: string,
-  value: string,
-  label: string,
-  selected: ReadonlySet<string>,
-): Html {
-  const next = withoutParameter(url, parameter);
-  const on = value === 'all' ? selected.size === 0 : selected.has(value);
-
-  if (value !== 'all') {
-    const after = new Set(selected);
-
-    if (after.has(value)) {
-      after.delete(value);
-    } else {
-      after.add(value);
-    }
-
-    for (const kept of [...after].sort()) {
-      next.searchParams.append(parameter, kept);
-    }
-  }
-
-  return chip(`${next.pathname}${next.search}`, label, on);
-}
-
-/** Sort is the one control that is still one-of, because a list has one order. */
-function sortLink(url: URL, value: string, label: string, selected: string): Html {
-  const next = withoutParameter(url, 'sort');
-  next.searchParams.append('sort', value);
-
-  return chip(`${next.pathname}${next.search}`, label, value === selected);
-}
-
-/**
- * The control that turns the default off, and the reason it is a sentence rather than a chip.
- *
- * **The absence of `hide` is not neutral** — it means `fee:tester`, so a row of chips would have
- * to show a selection nobody made, in a row nobody looked at, to be honest about it. A line
- * saying what is being left out, with the link that stops it, says the same thing in the place
- * somebody will actually read it.
- *
- * `hide=none` is how "leave nothing out" is written. It has to be written down rather than
- * implied by an empty parameter, because empty and absent would otherwise mean opposite things.
- */
-function hideToggle(url: URL, filters: EntryFilters): Html {
-  return html`${HIDE_GROUPS.map((group) => {
-    const hiding = group.values.every((value) => filters.hide.has(value));
-    const after = new Set(filters.hide);
-
-    // **The group moves as a unit and the other group is carried forward untouched**, which is
-    // what makes two lines two independent controls rather than two ways of writing over each
-    // other. Same reasoning as `toggleLink`'s `append` over `set`.
-    for (const value of group.values) {
-      if (hiding) {
-        after.delete(value);
-      } else {
-        after.add(value);
-      }
-    }
-
-    const next = withoutParameter(url, 'hide');
-
-    if (after.size === 0) {
-      next.searchParams.append('hide', 'none');
-    } else {
-      for (const kept of [...after].sort()) {
-        next.searchParams.append('hide', kept);
-      }
-    }
-
-    const href = `${next.pathname}${next.search}`;
-
-    return html`<p class="admin-filters-note">
-      ${hiding ? group.hidden : group.shown}
-      <a href="${href}">${hiding ? 'Show them' : 'Hide them'}</a>
-    </p>`;
-  })}`;
+  return 'Surname, A to Z';
 }
 
 function exportButton(

@@ -804,13 +804,11 @@ describe('the race section, reached at its own address', () => {
 
 describe('the entries list', () => {
   it('shows every status, one row per entrant', async () => {
-    // **`hide=none`, because the default view is not every status any more.** Test entries,
-    // refunded entries and lapsed holds are left out unless asked for — on a race that fills
-    // those are most of the rows and none of the work. This assertion is about *rendering* a
-    // row of each kind, so it asks for the view that has them all; the default has its own
-    // test below.
+    // **`status=all&hide=none`, because the default view is the Paid pill.** This assertion is
+    // about *rendering* a row of each kind, so it asks for the view that has them all — test
+    // entries included — and the default has its own test below.
     const body = await pageText(
-      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?hide=none`, nnAdmin),
+      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?status=all&hide=none`, nnAdmin),
     );
 
     expect(body).toContain('Nwosu, Harriet');
@@ -819,41 +817,48 @@ describe('the entries list', () => {
     expect(body).toContain('Toms, Marek');
   });
 
-  it('leaves out everybody who is not running, unless asked', async () => {
+  it('opens on paid entries, and counts every other status on its pill', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    // The lapsed hold is gone, the paid runner is not.
+    // The paid runner is there; the lapsed hold and the live one are not.
     expect(body).toContain('Nwosu, Harriet');
     expect(body).not.toContain('Adjei, Kwame');
+    expect(body).not.toContain(
+      `${AWKWARD_LAST_NAME.replace("'", '&#39;')}, ${AWKWARD_FIRST_NAME}`,
+    );
 
-    // **And the page says so.** Hiding rows without saying which is the half that would turn
-    // a sensible default into a way of losing entries.
-    expect(body).toContain('Refunded entries and lapsed holds are not shown.');
+    // **And the page says what it left out — as a count on every pill** rather than the
+    // sentence that used to hide two statuses without saying how many rows each held. One
+    // refund and one expired hold, which is the fixture's arithmetic.
+    expect(body).toMatch(/Refunded <span class="admin-pill-count admin-mono">1<\/span>/);
+    expect(body).toMatch(
+      /Holds expired <span class="admin-pill-count admin-mono">1<\/span>/,
+    );
+    expect(body).not.toContain('Refunded entries and lapsed holds are not shown.');
     expect(body).toContain('Test entries are not shown.');
   });
 
-  it('lets an explicit status beat the default, so no chip is a dead end', async () => {
-    // ⚠️ **#116 in a new place, and the reason `hideIsDefault` exists.** "Hidden beats
-    // included" is right for a hide somebody *chose*; applied to the default it made the
-    // **Hold expired** chip return an empty table and "0 of 6 shown" — a filter that can never
-    // match, which is exactly how the Refunded filter convinced a volunteer there had been no
-    // refunds.
+  it('shows a status when its pill asks, and ignores a retired status hide', async () => {
+    // ⚠️ **#116 in a new place is why this exists.** A filter that can never match is how the
+    // Refunded filter once convinced a volunteer there had been no refunds.
     const body = await pageText(
       await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?status=expired`, nnAdmin),
     );
 
     expect(body).toContain('Adjei, Kwame');
 
-    // **And a hide somebody asked for still wins.** The default yields to a chip; a choice
-    // does not.
-    const chosen = await pageText(
+    // **This asserted the opposite until the pills**: a `hide=status:expired` somebody chose
+    // used to beat a status chip. Statuses are the pills' job now and a pill is one choice, so
+    // an old address still carrying a status hide gets what its pill asked for rather than an
+    // empty table — the empty table being the #116 shape this file exists to refuse.
+    const old = await pageText(
       await get(
         `${NN}entries/${ADMIN_EVENT_SLUG}/?status=expired&hide=status:expired`,
         nnAdmin,
       ),
     );
 
-    expect(chosen).not.toContain('Adjei, Kwame');
+    expect(old).toContain('Adjei, Kwame');
   });
 
   it('escapes a name and a club that would otherwise be markup', async () => {
@@ -861,7 +866,10 @@ describe('the entries list', () => {
     // Every other page here is painted by `HTMLRewriter` in its escaping text mode; these
     // pages are built in the Worker, so the escaping is `worker/html.ts`'s and this is what
     // proves it on a real response.
-    const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
+    // Every status, because the awkward entrant is the live hold rather than a paid entry.
+    const body = await pageText(
+      await get(`${NN}entries/${ADMIN_EVENT_SLUG}/?status=all`, nnAdmin),
+    );
 
     expect(body).toContain(
       `${AWKWARD_LAST_NAME.replace("'", '&#39;')}, ${AWKWARD_FIRST_NAME}`,
@@ -929,16 +937,20 @@ describe('the entries list', () => {
       await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)),
     );
 
-    // The column, and the value in it. Both, because the header alone passes on a page with an
-    // empty column and the value alone passes on a page printing addresses with no label.
-    expect(body).toContain('Email');
+    // **Under the runner's name rather than in a column of its own** since 27 September 2026 —
+    // a column of its own with `overflow-wrap: anywhere` was laid out one character wide. The
+    // value is asserted, and so is the absence of the old header, so a page that went back to
+    // the column would have to change this test to do it.
     expect(body).toContain('harriet@example.com');
+    expect(body).not.toMatch(/<th scope="col"[^>]*>\s*Email\s*<\/th>/);
   });
 
   it('says a note exists and never what it says', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
-    expect(body).toContain('Show note');
+    // "Medical note" rather than "Show note" since the redesign: the column whose header said
+    // which note it was is gone, so the button says it by itself.
+    expect(body).toContain('Medical note');
     expect(body).not.toContain('inhaler');
     expect(body).not.toContain('ibuprofen');
   });
@@ -1042,14 +1054,29 @@ describe('the entries list', () => {
         // act and a cancelled entry is exactly the row somebody most often needs the history
         // of. It needs only `nn.entry.read`, which is what opens this whole section.
         '/admin/nn/entry/',
+        // **The eighth, and it reads — the page's own address.** The search box posts here,
+        // because a search term is a runner's name or address and no personal data goes in a
+        // URL; the category, entry type and sort form GETs here, because those are enumerated
+        // words and a filtered view should be an address somebody can send. Neither writes,
+        // mints a CSRF token or writes an audit row: it is the same read the page itself is.
+        `/admin/nn/entries/${ADMIN_EVENT_SLUG}/`,
       ]),
     );
 
-    // And nothing that takes input beyond the hidden fields those seven need.
+    // **What takes input is the search box and the three filters, and nothing else.** This
+    // asserted no `<select>` at all until the redesign put the category, entry type and sort in
+    // one; the guard it kept is the one that matters — no free-text field but the search, and
+    // nothing that could carry a change to an entry.
     expect(body).not.toContain('type="checkbox"');
     expect(body).not.toContain('type="text"');
     expect(body.toLowerCase()).not.toContain('<textarea');
-    expect(body.toLowerCase()).not.toContain('<select');
+    expect([...body.matchAll(/<input(?![^>]*type="hidden")[^>]*>/g)]).toHaveLength(1);
+    expect(body).toMatch(/<input[^>]*type="search"[^>]*name="q"/);
+    expect([...body.matchAll(/<select[^>]*name="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      'cat',
+      'fee',
+      'sort',
+    ]);
   });
 });
 
@@ -1175,15 +1202,70 @@ describe('the panel for anything needing a human', () => {
  * somebody can send to the other volunteer, and the back button behaves.
  */
 describe('the filters', () => {
-  it('are anchors carrying a query parameter, with no form and no script', async () => {
+  it('are anchors and a GET form carrying query parameters, with no script', async () => {
     const body = await pageText(await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin));
 
+    // The status pills and the column headers are links.
     expect(body).toContain('?status=paid');
     expect(body).toContain('?status=attention');
-    // The first pass used a GET form with three selects and an Apply button.
-    expect(body).not.toContain('Apply');
-    expect(body.toLowerCase()).not.toContain('<select');
+    expect(body).toContain('?status=paid&amp;sort=name-desc');
+
+    // **The category, entry type and sort are a GET form with Apply.** This asserted the
+    // opposite until the redesign, when a category select was asked for; a GET form gives a
+    // filtered view an address exactly as a link does, which was the old argument's point.
+    expect(body).toMatch(/<form class="admin-refine" method="get"/);
+    expect(body).toContain('Apply');
     expect(body.toLowerCase()).not.toContain('<script');
+  });
+
+  it('searches by POST, and never reads a search term out of a URL', async () => {
+    const path = `${NN}entries/${ADMIN_EVENT_SLUG}/`;
+
+    const searched = await pageText(
+      await post(
+        path,
+        [
+          ['status', 'all'],
+          ['q', "ines o'rourke"],
+        ],
+        nnAdmin,
+      ),
+    );
+    expect(searched).toContain(
+      `${AWKWARD_LAST_NAME.replace("'", '&#39;')}, ${AWKWARD_FIRST_NAME}`,
+    );
+    expect(searched).not.toContain('Nwosu, Harriet');
+
+    // **On a search page every control that would be a link is a form carrying the term**, so
+    // sorting or changing status cannot drop it — and no link on the page carries it either.
+    expect(searched).toMatch(
+      /<input type="hidden" name="q" value="ines o&#39;rourke" \/>/,
+    );
+    expect([...searched.matchAll(/href="([^"]*)"/g)].map((m) => m[1])).not.toContainEqual(
+      expect.stringContaining('rourke'),
+    );
+
+    // **And a `?q=` somebody typed is ignored rather than honoured**, so the address bar is
+    // never a supported way to send a name.
+    const typed = await pageText(await get(`${path}?status=all&q=Nwosu`, nnAdmin));
+    expect(typed).toContain('Adjei, Kwame');
+    expect(typed).not.toContain('Searching for');
+  });
+
+  it('echoes a search term carrying markup as text', async () => {
+    const body = await pageText(
+      await post(
+        `${NN}entries/${ADMIN_EVENT_SLUG}/`,
+        [['q', '"><script>alert(1)</script>']],
+        nnAdmin,
+      ),
+    );
+
+    expect(body).not.toContain('<script>alert(1)</script>');
+    expect(body).toContain(
+      'Searching for “<strong>&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</strong>”',
+    );
+    expect(body).toContain('value="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"');
   });
 
   it('marks the current one with aria-current rather than with a colour alone', async () => {
@@ -1220,8 +1302,21 @@ describe('the filters', () => {
     // page offers is checked, so a filter added later that carried a name would fail here.
     const body = await (await get(`${NN}entries/${ADMIN_EVENT_SLUG}/`, nnAdmin)).text();
 
-    const hrefs = [...body.matchAll(/href="([^"]*)"/g)].map((match) => match[1] ?? '');
-    expect(hrefs.length).toBeGreaterThan(4);
+    const all = [...body.matchAll(/href="([^"]*)"/g)].map((match) => match[1] ?? '');
+    expect(all.length).toBeGreaterThan(4);
+
+    // ⚠️ **A `mailto:` is checked rather than skipped.** Each runner's address is a `mailto:`
+    // link since the redesign — the address the row already prints — and a `mailto:` never
+    // reaches a log, a `Referer` or the address bar, which is what this rule is about. What it
+    // may carry is pinned: one bare address and nothing else, no subject, no body.
+    const mailto = all.filter((href) => href.startsWith('mailto:'));
+    expect(mailto.length).toBeGreaterThan(0);
+
+    for (const href of mailto) {
+      expect(href).toMatch(/^mailto:[^?&\s]+@[^?&\s]+$/);
+    }
+
+    const hrefs = all.filter((href) => !href.startsWith('mailto:'));
 
     for (const href of hrefs) {
       for (const personal of [

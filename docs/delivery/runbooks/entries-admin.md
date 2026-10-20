@@ -153,7 +153,7 @@ in the route** and publishing 2027 needs no edit here.
 | **Where the race stands** | Places taken against capacity, the breakdown (paid, over capacity, held right now, holds expired and returned), fees taken, and the interest-list count |
 | **Race morning** | The start list, to print or to download. The thing somebody actually opens under pressure |
 | **Medical notes** and **the affiliation check** | Side by side. The medical panel is deliberately heavier than everything else on the page, and states the date the notes are deleted |
-| **The entries** | A real table, with filters that are links |
+| **The entries** | A real table on a wide screen and a card per entry on a phone, with status pills, a search and a "⋯" menu on every row |
 | **The interest list** | A count and the promise. The addresses are on their own page |
 
 The addresses, and the ones that write an audit row are `POST` for that reason — a `GET` would let
@@ -164,12 +164,13 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 | `GET /admin/` | The dashboard, and what this account may open |
 | `GET /admin/nn/` | The page, for the current running |
 | `GET /admin/nn/entries/<event-slug>/` | The same page, for a named running — how a past race is looked at |
+| `POST /admin/nn/` and `POST /admin/nn/entries/<event-slug>/` | **The same page, searched.** The search box posts here so a name or address never reaches a URL. Reads and changes nothing, so no CSRF token and no audit row |
 | `GET /admin/nn/interest/` | The interest sign-ups, with their addresses |
 | `POST /admin/nn/medical/` | One entrant's note. **A `POST` so no entrant id reaches a URL**, and audited |
 | `POST /admin/nn/start-list/` | The start list as a printable page. Audited, exactly as the CSV is — printing is taking a copy |
 | `POST /admin/nn/medical-sheet/` | The medical notes as a printable page. Audited as `medical_export`, the same row the CSV writes, because it is the same disclosure in a different wrapper |
 | `POST /admin/nn/export/` | One of the three CSVs. Audited |
-| `POST /admin/nn/entry/` | **One entry in full** — the payment, the people, every ask, the emails owed and what has been done to it. Reached from the *Details* button on any row. A `POST` so no purchase id reaches a URL. **Not audited**, because it discloses what the list and the exports already do — [ADR-024](../../architecture/decisions/adr-024-one-entry-in-full.md) |
+| `POST /admin/nn/entry/` | **One entry in full** — the payment, the people, every ask, the emails owed and what has been done to it. Reached from **View details** in any row's "⋯" menu. A `POST` so no purchase id reaches a URL. **Not audited**, because it discloses what the list and the exports already do — [ADR-024](../../architecture/decisions/adr-024-one-entry-in-full.md) |
 | `GET`/`POST` `/admin/emails/` | The email queue — what the club has told people and what it still owes them. Reading needs `nn.email.read`; `POST` sends a failed message again and needs `nn.email.resend`. [The email runbook](entries-email.md) is what to read beside it |
 | `GET`/`POST` `/admin/people/` | Who holds what, and the two acts that change it |
 
@@ -177,11 +178,13 @@ a prefetch, a scanner or a link pasted into a chat client file an export against
 method and the body survive. They were published in this runbook and a runbook that 404s is
 worse than one that is out of date.
 
-**The default view leaves out everybody who is not running.** Test entries, refunded entries and
-lapsed holds are hidden unless asked for — on a race that fills those are most of the rows and
-none of the work — and two lines under the chips say what is missing and link to the view that
-includes it. **Pressing a status chip overrules the default**, so no chip is ever a dead end;
-`?hide=none` is how *leave nothing out* is written, and a `hide=` somebody chose still wins.
+**The default view is the Paid pill.** The row of pills above the table — Paid, Held now, Holds
+expired, Refunded, Needs attention, Asked about, All — each carries a count, so nothing is hidden
+without the page saying how many. The counts follow the search and the category, so a pill never
+promises rows the table will not show. **Test entries are left out of every pill** unless the line
+under the search says *Show them*, or you choose the tester entry type; `?hide=none` is how an
+address asks for them. An old bookmark with several `status=` values opens on the first one, and a
+`hide=status:…` from before the pills is ignored.
 
 **Print the medical sheet rather than opening the CSV.** *Print the medical sheet* renders the
 notes as a document and is what a first aider should be handed; *Download the notes as CSV* is
@@ -196,14 +199,38 @@ refuse on an affiliated entry — so **every affiliated transfer failed, and fai
 the form said the club's database could not be reached, on a database that was perfectly healthy.
 If you ever see that message again it is a real outage rather than this defect.
 
-**Filters are links with query parameters, not a form and not a script.** Every filtered view is a
-URL somebody can send to the other volunteer, and **no filter carries personal data** — the values
-are enumerated words, which is asserted in both the Worker and the browser suites.
+**Every view is an address except a search, and nothing works only with a script.** The pills
+and the Runner and Category column headers are links; Category, Entry type and Sort are a GET
+form with an **Apply** button. So a filtered view is a URL somebody can send to the other
+volunteer, and **no filter carries personal data** — the values are enumerated words, which is
+asserted in both the Worker and the browser suites.
 
-**At 320px the table restructures rather than scrolling.** Below 48rem it drops to three columns and
-the five it drops reappear inside the runner cell; nothing on the surface scrolls sideways at any
-width. The first pass scrolled it inside a focusable region instead, and the note at the head of
-`packages/shared/styles/nn-admin.css` records why that was reversed.
+**The search box is the exception, on purpose.** It matches a name, an address or a club —
+accents and curly apostrophes ignored, every word in any order — and it **posts** rather than
+going in the address, because a search term is a person. While a search is in force, every pill
+and header on the page is a small form that carries it, so sorting does not lose it; **Clear
+search** drops it. The flip side is that a searched view cannot be bookmarked or sent.
+
+**Each row's "⋯" menu holds everything you can do to that entry**: View details, Transfer to
+someone else (paid or held, and no guide on the entry), Email the runner, and — last, in red —
+Cancel and refund. It is a plain disclosure that opens with Enter or a tap and works with
+scripting off. **Cancel is on a phone now as well**, which it deliberately was not; the
+confirmation page is unchanged, and that page is what makes a stray tap harmless.
+
+**The Category cell says what the prizes are awarded in.** Line one is the band — Senior, Vet 40,
+Vet 50, Vet 60 — and line two is the **race category** (Female, Male, or a non-binary runner's
+chosen placement). **An amber marker and the words "Non-binary, not placed"** flag the one runner a
+prize list cannot place. How somebody described their own gender, if they did, is a third line
+and is never flagged when blank — not answering is an answer (ADR-020).
+
+**A club typed as "None" shows as a dash**, the same as an empty box — on this page only; the
+exports carry what was typed.
+
+**Below 54rem of table — about 900px of screen — each entry is a card** rather than a row, with
+the header row gone and small captions on Club and Entry; sort with the Sort select there.
+Nothing on the surface scrolls sideways at any width. **54rem rather than the 48rem the rest of
+the surface folds at** because seven columns of real values need about 750px at their narrowest,
+and 48rem left less headroom than the difference between a Mac's fonts and a Linux runner's.
 
 ---
 
@@ -377,7 +404,8 @@ notice's other open decisions.
 has not also been granted `nn-admin` cannot see the entry list at all, which is #58's *a grant is
 not an inheritance* and is deliberate.
 
-- [ ] Find the row on `/admin/nn/` and press **Cancel** on it
+- [ ] Find the row on `/admin/nn/`, open its **⋯** menu and press **Cancel and refund…** (just
+      **Cancel…** on a held place, which has no payment to give back)
 - [ ] Read the confirmation page. It names the amount and whether there is a card payment behind
       it
 - [ ] Press **Cancel this entry and refund it**
@@ -392,8 +420,8 @@ What happens, in this order:
 
 ### If it says "Refunded, but not recorded"
 
-The money is back and the club's record still says `paid`. **Press Cancel on the same row
-again.** The refund is idempotent on the purchase id, so the second attempt returns the first
+The money is back and the club's record still says `paid`. **Press Cancel and refund on the
+same row again.** The refund is idempotent on the purchase id, so the second attempt returns the first
 refund rather than issuing another, and the record then completes. That ordering is deliberate —
 the alternative leaves the club holding money for an entry it has already deleted.
 
@@ -426,8 +454,8 @@ page.
 **It is the only place a code is written down.** A code is minted when the database is built and
 is deliberately never put in the repository, which anybody can read — so this panel is how
 somebody finds out what to tell the club it belongs to. The panel shows what it takes off, which
-entry type it applies to, and how many have gone; the entries table has a **Code** column so you
-can see which entries used it.
+entry type it applies to, and how many have gone; the entries table shows the code under
+the entry type on every entry that used one, so you can read down the Entry column for it.
 
 **`used of 25` goes down as well as up.** A use is spent when a place is held and given back when
 a hold lapses or an entry is refunded, so a figure that looks wrong mid-rush is most likely a
