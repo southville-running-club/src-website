@@ -19,6 +19,16 @@ from ..matching import Outcome
 from ..overview import Overview, human_bytes
 from ..words import plural, verb
 
+# States still waiting on somebody, shown with the brand's "in progress" amber as well as
+# their words.
+IN_PROGRESS = {State.NEEDS_CHECK, State.PART_READ, State.NO_BIB_SEEN}
+
+
+def state_badge(state: State) -> str:
+    label = e(STATE_LABELS[state])
+    return f'<span class="badge in-progress">{label}</span>' if state in IN_PROGRESS else label
+
+
 STATE_LABELS = {
     State.TAGGED: "Tagged",
     State.CHECKED: "Checked",
@@ -201,10 +211,11 @@ def clocks_page(cameras: list[CameraSummary], event_slug: str) -> str:
             flags.append(f"{camera.timeless} with no recorded time")
         action = "Change" if camera.decided else "Fix this clock"
         row_class = "" if camera.decided else ' class="undecided"'
+        decision_cell = e(decision_words(camera)) if camera.decided else '<span class="badge in-progress">Not decided yet</span>'
         rows.append(
             f"<tr{row_class}>"
             f'<th scope="row">{e(camera.label)}</th><td>{e(", ".join(camera.folders))}</td>'
-            f"<td>{camera.photos}</td><td>{e(span)}</td><td>{e(decision_words(camera))}</td>"
+            f"<td>{camera.photos}</td><td>{e(span)}</td><td>{decision_cell}</td>"
             f'<td>{e("; ".join(flags)) or "None"}</td>'
             f'<td><a href="/clocks/{e(camera.camera_key)}/">{action}<span class="visually-hidden"> for {e(camera.label)}</span></a></td></tr>'
         )
@@ -445,7 +456,7 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
 </figure>
 <div class="decide">
 <h2>{e(photo["short_id"])}</h2>
-<p class="meta">{e(view.credit)} · {e(view.spot)} · {e(taken)} · {e(STATE_LABELS[view.state])}</p>
+<p class="meta">{e(view.credit)} · {e(view.spot)} · {e(taken)} · {state_badge(view.state)}</p>
 {offer}
 {problem}
 <ul class="reads">{reads}</ul>

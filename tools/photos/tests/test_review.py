@@ -164,6 +164,24 @@ class ServerBoundaryTest(ReviewCase):
             with self.subTest(path=path):
                 self.assertEqual(self.request("GET", path)[0], 404)
 
+    def test_nothing_loads_from_the_internet_and_the_look_is_the_brand_s(self):
+        photo = self.row("Adrian/Finish/b.jpg")
+        for path in ("/", "/clocks/", f"/clocks/{photo['camera_key']}/", f"/check/{photo['short_id']}/?filter=all"):
+            with self.subTest(page=path):
+                _, _, html = self.get(path)
+                for value in re.findall(r'(?:src|href|action)="([^"]*)"', html):
+                    self.assertRegex(value, r"^(/|\?|#)", "every address on the page is this server's")
+        _, _, css = self.get("/static/review.css")
+        _, _, script = self.get("/static/review.js")
+        rules = re.sub(r"/\*.*?\*/", "", css, flags=re.S)  # the comments may name what is banned
+        for banned in ("url(", "@import", "@font-face", "http:", "https:", "box-shadow", "-gradient("):
+            self.assertNotIn(banned, rules)
+        for banned in ("http:", "https:", "fetch(", "XMLHttpRequest", "import "):
+            self.assertNotIn(banned, script)
+        # The brand's six (packages/shared/styles/tokens.css), and its two corner radii.
+        for value in ("#2c2c2c", "#4a5568", "#ffffff", "#f4f6f2", "#00c85a", "#ffb020", "8px", "12px"):
+            self.assertIn(value, css)
+
     def test_escapes_what_it_shows(self):
         _, _, html = self.get("/")
         self.assertNotIn("<script>Adrian", html)
