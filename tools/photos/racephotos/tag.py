@@ -30,6 +30,7 @@ import re
 import shutil
 import uuid
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -48,6 +49,43 @@ from .reader import BibReader, parse_reads
 
 PHOTO_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 PROGRESS_EVERY = 25
+LOCK_NAME = "tag.lock"
+BUSY = "Another tag run is using this work folder. Wait for it to finish."
+
+try:
+    import fcntl
+except ImportError:  # Windows has no flock; see only_one_tag_run()
+    fcntl = None
+
+
+class TagBusy(ValueError):
+    pass
+
+
+@contextmanager
+def only_one_tag_run(work: Path):
+    """Refuse a second ``photos tag`` on the same work folder while one is running.
+
+    Two runs at once would both take the next short ID and the second would fail on the
+    manifest's unique constraint, with a database error in the middle of somebody's evening.
+    This takes an exclusive lock on ``tag.lock`` in the work folder instead, and says so in
+    words. The operating system drops the lock when the process ends, however it ends, so a
+    run that was stopped or crashed never leaves the folder locked. The review page and the
+    dry-run upload do not take it.
+
+    On Windows there is no flock and no lock is taken; the unique constraint still refuses
+    the clash, less politely. Both volunteers are on macOS.
+    """
+    if fcntl is None:
+        yield
+        return
+    work.mkdir(parents=True, exist_ok=True)
+    with (work / LOCK_NAME).open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise TagBusy(BUSY) from None
+        yield
 
 
 @dataclass
@@ -97,13 +135,15 @@ def ask(reader: BibReader, medium: bytes, photo_fingerprint: str) -> tuple[str |
 def run_tag(config: Config, reader: BibReader, threshold: float,
             say: Callable[[str], None] = print) -> TagRun:
     check_threshold(threshold)
-    bibs = load_bibs(config.bibs_csv).bibs
-    photographers = load_photographers(config.photographers_csv)
-    manifest = Manifest.open(config.manifest_path, config.event_slug)
-    try:
-        return _tag(config, manifest, photographers, bibs, reader, threshold, say)
-    finally:
-        manifest.close()
+    with only_one_tag_run(config.work):
+        say(f"Tagging the photos in {config.originals}")
+        bibs = load_bibs(config.bibs_csv).bibs
+        photographers = load_photographers(config.photographers_csv)
+        manifest = Manifest.open(config.manifest_path, config.event_slug)
+        try:
+            return _tag(config, manifest, photographers, bibs, reader, threshold, say)
+        finally:
+            manifest.close()
 
 
 def _candidates(config: Config, photographers: tuple[Photographer, ...], run: TagRun):

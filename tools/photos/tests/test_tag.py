@@ -1,5 +1,7 @@
 import contextlib
 import io
+import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime
@@ -11,7 +13,7 @@ from racephotos.cli import main
 from racephotos.files import fingerprint
 from racephotos.jpeg import check_copy
 from racephotos.manifest import Manifest, State
-from racephotos.tag import run_tag
+from racephotos.tag import TagBusy, run_tag
 
 from . import fixtures
 from .fixtures import SpyReader, answer, make_jpeg
@@ -304,6 +306,51 @@ class MovedPhotoTest(TagCase):
         self.assertIn("Moved 2 photos, keeping their short IDs and clock decisions:", output)
         self.assertIn("1 photo from Adrian to Adrian/Finish", output)
         self.assertIn("1 photo from Adrian to Adrian/Start", output)
+
+
+class OneRunAtATimeTest(TagCase):
+    """Two tag runs on one work folder: the second stops, in words."""
+
+    def hold_the_lock(self):
+        # A second process, as on the night: somebody starts ./photos tag in another
+        # terminal while the first is still going.
+        holder = subprocess.Popen(
+            [sys.executable, "-c", (
+                "import fcntl, sys, time\n"
+                "handle = open(sys.argv[1], 'a')\n"
+                "fcntl.flock(handle, fcntl.LOCK_EX)\n"
+                "print('locked', flush=True)\n"
+                "time.sleep(60)\n"
+            ), str(self.config.work / "tag.lock")],
+            stdout=subprocess.PIPE, text=True,
+        )
+        self.addCleanup(holder.stdout.close)
+        self.addCleanup(holder.wait)
+        self.addCleanup(holder.kill)
+        self.assertEqual(holder.stdout.readline().strip(), "locked")
+        return holder
+
+    def test_a_second_run_stops_with_a_plain_message_and_touches_nothing(self):
+        self.photo("Ross/a.jpg")
+        holder = self.hold_the_lock()
+
+        with self.assertRaises(TagBusy) as caught:
+            self.tag(SpyReader())
+        self.assertEqual(str(caught.exception), "Another tag run is using this work folder. Wait for it to finish.")
+        self.assertFalse(self.config.manifest_path.exists())
+
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            code = main(["--work", str(self.config.work), "tag"], say=lambda line: None)
+        self.assertEqual(code, 2)
+        self.assertEqual(
+            errors.getvalue().strip(),
+            "Stopped: Another tag run is using this work folder. Wait for it to finish.",
+        )
+
+        holder.kill()
+        holder.wait()
+        self.assertEqual(self.tag(SpyReader()).tagged, 1, "a run that ended leaves nothing locked")
 
 
 class TagCommandTest(TagCase):

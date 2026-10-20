@@ -245,6 +245,8 @@ Every refusal says why, and none prints a value from `bibs.csv`. The usual ones:
   Move it, or pass `--work` with a folder outside one.
 - **"must have exactly one column, named bib"**: export the bib column on its own.
 - **"Upload waits until every camera's clock is decided"**: finish Camera clocks.
+- **"Another tag run is using this work folder"**: one `./photos tag` at a time per work
+  folder. Wait for the other to finish, then run it again; it carries on from there.
 - **"could not be used"**, about a port: another program has it. Use
   `./photos review --port 8766`.
 

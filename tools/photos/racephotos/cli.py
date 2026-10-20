@@ -14,10 +14,11 @@ from .manifest import Manifest, ManifestError, State
 from .matching import DEFAULT_THRESHOLD
 from .overview import build_overview, human_bytes
 from .reader import FakeReader
+from .tag import TagBusy
 from .upload import UploadRefused
 from .words import plural, verb
 
-REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused)
+REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused, TagBusy)
 
 
 def counted(counter, labels=SKIP_LABELS) -> str:
@@ -33,7 +34,6 @@ def tag(args, say) -> int:
     except (OSError, ValueError) as error:
         raise ConfigError(f"The fake reads file could not be used: {error}") from None
 
-    say(f"Tagging the photos in {config.originals}")
     run = run_tag(config, reader, args.confidence_threshold, say)
 
     say("")
