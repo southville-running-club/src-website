@@ -16,6 +16,7 @@ from .copies import SIZE_NAMES
 from .files import uncovered
 from .inputs import Photographer
 from .manifest import Manifest, State
+from .words import plural, verb
 
 
 @dataclass(frozen=True)
@@ -54,11 +55,14 @@ class Overview:
             return "Tag the photos: ./photos tag"
         if self.cameras_left:
             return (
-                f"Fix the camera clocks: {self.cameras_left} of {self.cameras} cameras still "
-                "need a phone time or a decision to keep their time as recorded."
+                f"Fix the camera clocks: {self.cameras_left} of {plural(self.cameras, 'camera')} still "
+                f"{verb(self.cameras_left, 'needs', 'need')} a phone time or a decision to keep the time as recorded."
             )
         unsure = self.states[State.NEEDS_CHECK]
-        then = f" {unsure} photos still need checking, here or on the website." if unsure else ""
+        then = (
+            f" {plural(unsure, 'photo')} still {verb(unsure, 'needs', 'need')} checking, here or on the website."
+            if unsure else ""
+        )
         return f"Ready for ./photos upload --dry-run.{then}"
 
 

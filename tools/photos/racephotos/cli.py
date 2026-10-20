@@ -14,6 +14,7 @@ from .matching import DEFAULT_THRESHOLD
 from .overview import build_overview, human_bytes
 from .reader import FakeReader
 from .upload import UploadRefused
+from .words import plural, verb
 
 REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused)
 
@@ -35,13 +36,13 @@ def tag(args, say) -> int:
     run = run_tag(config, reader, args.confidence_threshold, say)
 
     say("")
-    say(f"Tagged {run.tagged} new photos. {run.already} were already in the manifest.")
+    say(f"Tagged {plural(run.tagged, 'new photo')}. {run.already} {verb(run.already, 'was', 'were')} already in the manifest.")
     if run.skipped:
-        say(f"Skipped {sum(run.skipped.values())} files this run: {counted(run.skipped)}.")
+        say(f"Skipped {plural(sum(run.skipped.values()), 'file')} this run: {counted(run.skipped)}.")
     for folder in run.missing_folders:
         say(f"Listed in photographers.csv but not in the originals folder yet: {folder}")
     for folder, count in sorted(run.uncovered.items()):
-        say(f"Not tagged, because no row of photographers.csv covers it: {folder} ({count} files)")
+        say(f"Not tagged, because no row of photographers.csv covers it: {folder} ({plural(count, 'file')})")
 
     manifest = Manifest.open(config.manifest_path, config.event_slug)
     try:
@@ -70,19 +71,19 @@ def upload(args, say) -> int:
     config = load_config(args.work)
     run = run_upload(config, dry_run=args.dry_run)
     say(
-        f"Dry run. Wrote {run.written} files for {run.photos} photos to {run.destination}. "
-        f"{run.already} were there from an earlier dry run."
+        f"Dry run. Wrote {plural(run.written, 'file')} for {plural(run.photos, 'photo')} to {run.destination}. "
+        f"{run.already} {verb(run.already, 'was', 'were')} there from an earlier dry run."
     )
     if run.hidden:
         earlier = (
-            f" {run.hidden_after_upload} of them were written by an earlier dry run; once photos "
+            f" {run.hidden_after_upload} of them {verb(run.hidden_after_upload, 'was', 'were')} written by an earlier dry run; once photos "
             "are on the website, hiding one means taking it down there."
             if run.hidden_after_upload else ""
         )
-        say(f"{run.hidden} hidden photos were left out.{earlier}")
+        say(f"{plural(run.hidden, 'hidden photo')} {verb(run.hidden, 'was', 'were')} left out.{earlier}")
     if run.without_time:
         say(
-            f"{run.without_time} photos are included without a time, because their corrected time "
+            f"{plural(run.without_time, 'photo')} {verb(run.without_time, 'is', 'are')} included without a time, because the corrected time "
             "fell in the hour the clocks repeated or skipped."
         )
     say(f"Keys, sizes and checksums: {run.keys_file}")
@@ -94,7 +95,7 @@ def say_overview(overview, say) -> None:
     states = overview.states
     say("")
     say(
-        f"All {overview.photos} photos: {states[State.TAGGED]} tagged, {states[State.CHECKED]} checked, "
+        f"{plural(overview.photos, 'photo')} in all: {states[State.TAGGED]} tagged, {states[State.CHECKED]} checked, "
         f"{states[State.PART_READ]} part read, {states[State.NEEDS_CHECK]} to check, "
         f"{states[State.NO_BIB_SEEN]} with no bib seen, {states[State.HIDDEN]} hidden."
     )
@@ -105,11 +106,11 @@ def say_overview(overview, say) -> None:
         if row.skipped:
             notes.append(f"skipped {counted(row.skipped)}")
         detail = f" ({'; '.join(notes)})" if notes else ""
-        say(f"  {row.folder}: {row.photos} photos{detail}")
+        say(f"  {row.folder}: {plural(row.photos, 'photo')}{detail}")
     if overview.photos:
         sizes = ", ".join(f"{name} {human_bytes(size)}" for name, size in overview.average_bytes.items())
         say(f"Average copy sizes: {sizes}. The targets are about 1 MB, 300 KB and 50 KB.")
-    say(f"Cameras: {overview.cameras}, {overview.cameras_decided} with their clock decided.")
+    say(f"{plural(overview.cameras, 'camera')}, {overview.cameras_decided} with the clock decided.")
     say(f"Next: {overview.next_step}")
 
 

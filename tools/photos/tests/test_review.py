@@ -176,7 +176,7 @@ class StartTest(ReviewCase):
         ross = re.search(r"<tr><th scope=\"row\">Ross</th>.*?</tr>", html, re.S).group(0)
         self.assertIn("1 HEIC (iPhone)", ross)
         self.assertIn('filter=nobib&amp;folder=Ross">3</a>', ross)
-        self.assertIn("HEIC files were skipped", html)
+        self.assertIn("1 HEIC file was skipped", html)
         self.assertIn("Fix the camera clocks", html)
 
 

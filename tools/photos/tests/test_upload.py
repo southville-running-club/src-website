@@ -55,7 +55,7 @@ class UploadTest(unittest.TestCase):
         clocks.keep_as_recorded(self.manifest, self.photo("a.jpg")["camera_key"], NOW)
         with self.assertRaises(UploadRefused) as caught:
             run_upload(self.config, dry_run=True)
-        self.assertIn("1 still need", str(caught.exception))
+        self.assertIn("1 still needs a phone time", str(caught.exception))
         self.assertIn("FakeCam Model X in Ross", str(caught.exception))
         self.assertFalse(self.config.dry_run_dir.exists())
 

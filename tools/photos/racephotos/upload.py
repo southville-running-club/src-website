@@ -28,6 +28,7 @@ from .copies import SIZE_NAMES
 from .jpeg import MetadataLeft, check_copy
 from .london_time import to_utc_iso, utc_now
 from .manifest import Manifest
+from .words import verb
 
 CONTENT_TYPE = "image/jpeg"
 
@@ -74,7 +75,8 @@ def _dry_run(config: Config, manifest: Manifest) -> UploadRun:
     if waiting:
         names = "; ".join(f"{camera.label} in {', '.join(camera.folders)}" for camera in waiting)
         raise UploadRefused(
-            f"Upload waits until every camera's clock is decided. {len(waiting)} still need a "
+            f"Upload waits until every camera's clock is decided. {len(waiting)} still "
+            f"{verb(len(waiting), 'needs', 'need')} a "
             f"phone time or a decision to keep their time as recorded: {names}. "
             "Use ./photos review, Camera clocks."
         )

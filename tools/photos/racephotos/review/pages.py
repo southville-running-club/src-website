@@ -17,6 +17,7 @@ from ..london_time import format_london, format_wall, from_utc_iso
 from ..manifest import State, wall_value
 from ..matching import Outcome
 from ..overview import Overview, human_bytes
+from ..words import plural, verb
 
 STATE_LABELS = {
     State.TAGGED: "Tagged",
@@ -105,7 +106,7 @@ def start_page(overview: Overview, event_slug: str) -> str:
     warnings = []
     if overview.skipped.get("heic"):
         warnings.append(
-            f"{overview.skipped['heic']} HEIC files were skipped. They usually come from an "
+            f"{plural(overview.skipped['heic'], 'HEIC file')} {verb(overview.skipped['heic'], 'was', 'were')} skipped. HEIC files usually come from an "
             "iPhone; ask the photographer to send JPEGs (Settings, Camera, Formats, Most "
             "Compatible), or export them as JPEG, and run ./photos tag again."
         )
@@ -115,10 +116,10 @@ def start_page(overview: Overview, event_slug: str) -> str:
         if not row.listed:
             warnings.append(f"{row.folder} has photos in the manifest but is no longer in photographers.csv.")
     for folder, count in sorted(overview.uncovered.items()):
-        warnings.append(f"{folder} holds {count} files that no row of photographers.csv covers, so they were not tagged.")
+        warnings.append(f"{folder} holds {plural(count, 'file')} that no row of photographers.csv covers, so not tagged.")
     if overview.cameras_flagged:
         warnings.append(
-            f"{overview.cameras_flagged} cameras have photos whose corrected time is in the hour the "
+            f"{plural(overview.cameras_flagged, 'camera')} {verb(overview.cameras_flagged, 'has', 'have')} photos whose corrected time is in the hour the "
             "clocks repeated or skipped. Those photos have no time. See Camera clocks."
         )
     warning_html = (
@@ -202,7 +203,7 @@ def clocks_page(cameras: list[CameraSummary], event_slug: str) -> str:
         )
     left = sum(1 for camera in cameras if not camera.decided)
     status = (
-        f"<p class=\"next\"><strong>{left} of {len(cameras)} cameras</strong> still need a phone time or a "
+        f"<p class=\"next\"><strong>{left} of {plural(len(cameras), 'camera')}</strong> still {verb(left, 'needs', 'need')} a phone time or a "
         "decision to keep their time as recorded. Upload waits until none do.</p>"
         if left else "<p class=\"next\">Every camera's clock is decided.</p>"
     )
@@ -274,7 +275,7 @@ recorded <strong>{e(format_wall(recorded))}</strong>.</figcaption>
 </form>"""
 
     body = f"""<h1>{e(camera.label)}</h1>
-<p>{camera.photos} photos, in {e(", ".join(camera.folders))}.</p>
+<p>{plural(camera.photos, "photo")}, in {e(", ".join(camera.folders))}.</p>
 {error_summary(errors or [])}
 {current}
 {picture}
@@ -395,9 +396,9 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
         bib, others = view.offer
         offer = f"""<section class="panel offer" aria-labelledby="offer-heading">
 <h2 id="offer-heading">Apply {e(bib)} to the rest of this burst?</h2>
-<p>{others} other photos were taken within two seconds of each other by the same camera.</p>
+<p>{plural(others, "other photo")} from the same camera {verb(others, "was", "were")} taken within two seconds of this one or of each other.</p>
 <form method="post">{hidden_fields}<input type="hidden" name="bib" value="{e(bib)}">
-<button type="submit" name="action" value="apply_burst" autofocus>Apply {e(bib)} to {others} photos</button>
+<button type="submit" name="action" value="apply_burst" autofocus>Apply {e(bib)} to {plural(others, "photo")}</button>
 <button type="submit" name="action" value="skip" class="secondary">No, next photo</button>
 </form></section>"""
 
