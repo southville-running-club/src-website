@@ -426,7 +426,7 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
     buttons.append('<button type="submit" name="action" value="hide" class="danger" data-key="H">Hide this photo <kbd>H</kbd></button>')
 
     question = (
-        f"Which bib is <strong>{e(view.current_read['text'])}</strong>?"
+        f"Read as <strong>{e(view.current_read['text'])}</strong>. Which bib is it?"
         if view.current_read is not None
         else "Type any bib you can see, or say there is none."
     )
