@@ -54,7 +54,11 @@ SECURITY_HEADERS = {
     ),
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
+    # same-origin, not no-referrer: under no-referrer Chromium sends "Origin: null" with this
+    # page's own form posts, and the origin check below then refuses every one of them. Found
+    # by submitting the clock form in a browser; nothing in a unit test sends a real Origin.
+    # The page links nowhere else, so same-origin discloses nothing either.
+    "Referrer-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
 

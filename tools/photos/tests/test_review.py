@@ -134,11 +134,20 @@ class ServerBoundaryTest(ReviewCase):
         status, _, _ = self.post(f"/clocks/{camera}/", {"action": "keep"}, headers={"Origin": "https://elsewhere.example"})
         self.assertEqual(status, 403)
 
+    def test_accepts_a_post_from_its_own_origin_and_refuses_a_null_one(self):
+        # A browser sends the page's own origin with its own forms, as long as the referrer
+        # policy lets it; under no-referrer it sends "null", and every real post was refused.
+        camera = self.row("Ross/c.jpg")["camera_key"]
+        status, _, _ = self.post(f"/clocks/{camera}/", {"action": "keep"}, headers={"Origin": "null"})
+        self.assertEqual(status, 403)
+        status, _, _ = self.post(f"/clocks/{camera}/", {"action": "keep"}, headers={"Origin": self.server.origin})
+        self.assertEqual(status, 303)
+
     def test_every_response_carries_the_protective_headers(self):
         _, headers, _ = self.request("GET", "/")
         self.assertIn("default-src 'none'", headers["Content-Security-Policy"])
         self.assertEqual(headers["Cache-Control"], "no-store")
-        self.assertEqual(headers["Referrer-Policy"], "no-referrer")
+        self.assertEqual(headers["Referrer-Policy"], "same-origin")
 
     def test_serves_images_by_known_id_only(self):
         photo = self.row("Ross/c.jpg")
