@@ -274,6 +274,25 @@ class CheckTest(ReviewCase):
         hidden = self.row("Ross/d.jpg")
         self.post(f"/check/{hidden['short_id']}/", {"action": "hide", "filter": "nobib"})
         self.assertEqual(self.manifest().state(hidden["fingerprint"]), State.HIDDEN)
+        self.assertEqual(self.row("Ross/d.jpg")["hidden_reason"], "person")
+
+    def test_h_shows_a_hidden_photo_again(self):
+        photo = self.row("Ross/d.jpg")
+        self.post(f"/check/{photo['short_id']}/", {"action": "hide", "filter": "nobib"})
+
+        status, headers, _ = self.request("GET", "/check/?filter=hidden")
+        self.assertEqual(status, 303)
+        self.assertIn(photo["short_id"], headers["Location"])
+        _, page, html = self.page("Ross/d.jpg", "filter=hidden")
+        keyed = {button.get("data-key"): button["text"] for button in page.buttons if button.get("data-key")}
+        self.assertEqual(set(keyed), {"H", "S"})
+        self.assertIn("Show this photo again", keyed["H"])
+        self.assertIn("Hidden by a person", html)
+
+        self.post(f"/check/{photo['short_id']}/", {"action": "show", "filter": "hidden"})
+        row = self.row("Ross/d.jpg")
+        self.assertEqual((row["hidden_at"], row["hidden_reason"]), (None, None))
+        self.assertEqual(self.manifest().state(photo["fingerprint"]), State.NO_BIB_SEEN)
 
     def test_s_skips_to_the_next_photo_without_deciding_anything(self):
         photo = self.row("Adrian/Finish/a.jpg")

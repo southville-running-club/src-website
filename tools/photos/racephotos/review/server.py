@@ -429,7 +429,10 @@ class Handler(BaseHTTPRequestHandler):
             elif action == "no_bib":
                 manifest.no_bib_visible(photo["fingerprint"], when)
             elif action == "hide":
-                manifest.hide(photo["fingerprint"], when)
+                if not photo["hidden_at"]:
+                    manifest.hide(photo["fingerprint"], when)
+            elif action == "show":
+                manifest.show(photo["fingerprint"])
             elif action == "apply_burst":
                 bib = form.get("bib", "")
                 if not BIB.fullmatch(bib) or bib not in bibs:

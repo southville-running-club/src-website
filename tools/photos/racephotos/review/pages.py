@@ -37,6 +37,7 @@ FILTERS = (
     ("needs", "To check", State.NEEDS_CHECK),
     ("part", "Part read", State.PART_READ),
     ("nobib", "No bib seen", State.NO_BIB_SEEN),
+    ("hidden", "Hidden", State.HIDDEN),
     ("all", "All", None),
 )
 
@@ -91,17 +92,23 @@ def skipped_words(counter) -> str:
 
 def start_page(overview: Overview, event_slug: str) -> str:
     states = overview.states
+    # (label, value, the check-screen filter it opens when there is anything in it)
     steps = [
-        ("Photos tagged", overview.photos),
-        ("Files skipped", sum(overview.skipped.values())),
-        ("Cameras with their clock decided", f"{overview.cameras_decided} of {overview.cameras}"),
-        ("To check", states[State.NEEDS_CHECK]),
-        ("Part read", states[State.PART_READ]),
-        ("No bib seen", states[State.NO_BIB_SEEN]),
-        ("Hidden", states[State.HIDDEN]),
-        ("Copied by the last dry-run upload", overview.dry_run_uploaded),
+        ("Photos tagged", overview.photos, None),
+        ("Files skipped", sum(overview.skipped.values()), None),
+        ("Cameras with their clock decided", f"{overview.cameras_decided} of {overview.cameras}", None),
+        ("To check", states[State.NEEDS_CHECK], "needs"),
+        ("Part read", states[State.PART_READ], "part"),
+        ("No bib seen", states[State.NO_BIB_SEEN], "nobib"),
+        ("Hidden", states[State.HIDDEN], "hidden"),
+        ("Copied by the last dry-run upload", overview.dry_run_uploaded, None),
     ]
-    counts = "".join(f"<div><dt>{e(label)}</dt><dd>{e(value)}</dd></div>" for label, value in steps)
+    counts = "".join(
+        f'<div><dt>{e(label)}</dt><dd><a href="/check/?filter={key}">{e(value)}</a></dd></div>'
+        if key and value
+        else f"<div><dt>{e(label)}</dt><dd>{e(value)}</dd></div>"
+        for label, value, key in steps
+    )
 
     warnings = []
     if overview.skipped.get("heic"):
@@ -371,6 +378,9 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
 
     reads = "".join(read_line(read) for read in view.reads) or "<li>No bibs read.</li>"
 
+    if view.state == State.HIDDEN:
+        return hidden_page(view, hidden_fields, taken, event_slug)
+
     buttons = []
     if view.guess:
         buttons.append(f'<button type="submit" name="action" value="confirm" data-key="Enter">Confirm {e(view.guess)} <kbd>Enter</kbd></button>')
@@ -404,7 +414,8 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
 
     keys = (
         "Keys: Enter confirms the guess. 1 to 9 pick a bib that fits. Typing digits goes "
-        "into the box below. U keeps it part read, N says no bib is visible, S skips, H hides."
+        "into the box below. U keeps it part read, N says no bib is visible, S skips, H hides "
+        "the photo, or shows a hidden one again."
     )
     body = f"""<h1>Check tags</h1>
 {filter_nav(view.counts, view.filter, view.folder)}
@@ -431,6 +442,40 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
 <button type="submit" name="action" value="correct">Use this bib</button>
 </form>
 <p class="hint">{e(keys)}</p>
+</div>
+</div>"""
+    return layout(f"Check {photo['short_id']}", body, event_slug=event_slug, current="/check/")
+
+
+HIDDEN_BECAUSE = {
+    "person": "Hidden by a person on this laptop. It will not be uploaded.",
+    "clock_reference": (
+        "Hidden automatically, because this camera's clock was set from the phone in this "
+        "photo and a phone screen is never uploaded. If this is not the phone photo, show it "
+        "again, then fix the camera's clock from the right one."
+    ),
+}
+
+
+def hidden_page(view: CheckView, hidden_fields: str, taken: str, event_slug: str) -> str:
+    photo = view.photo
+    body = f"""<h1>Check tags</h1>
+{filter_nav(view.counts, view.filter, view.folder)}
+<div class="check">
+<figure class="photo large">
+<img src="/img/{e(photo["photo_id"])}/full.jpg" alt="Photo {e(photo["short_id"])}">
+</figure>
+<div class="decide">
+<h2>{e(photo["short_id"])}</h2>
+<p class="meta">{e(view.credit)} · {e(view.spot)} · {e(taken)} · Hidden</p>
+<p>{e(HIDDEN_BECAUSE.get(photo["hidden_reason"], HIDDEN_BECAUSE["person"]))}</p>
+<form method="post" class="actions">
+{hidden_fields}
+<div class="buttons">
+<button type="submit" name="action" value="show" data-key="H">Show this photo again <kbd>H</kbd></button>
+<button type="submit" name="action" value="skip" class="secondary" data-key="S">Skip <kbd>S</kbd></button>
+</div>
+</form>
 </div>
 </div>"""
     return layout(f"Check {photo['short_id']}", body, event_slug=event_slug, current="/check/")

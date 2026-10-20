@@ -23,7 +23,13 @@ from pathlib import Path
 from .matching import Classified, Outcome
 from .reader import BibRead
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
+
+# Why a photo is hidden. A person pressed H, or the tool hid the photo a camera's clock was
+# set from, because it shows the photographer's phone (clocks.py). Either kind can be shown
+# again with H, so the second is never a decision a person cannot undo.
+HIDDEN_BY_PERSON = "person"
+HIDDEN_AS_CLOCK_REFERENCE = "clock_reference"
 RAW_ANSWER_KEPT = 2000
 
 SCHEMA = """
@@ -58,12 +64,14 @@ create table if not exists photos (
   raw_answer text,
   no_bib_decided_at text,
   hidden_at text,
+  hidden_reason text check (hidden_reason in ('person', 'clock_reference')),
   tagged_at text not null,
   width integer not null,
   height integer not null,
   bytes_full integer not null,
   bytes_medium integer not null,
-  bytes_thumb integer not null
+  bytes_thumb integer not null,
+  check ((hidden_at is null) = (hidden_reason is null))
 );
 
 create table if not exists reads (
@@ -355,9 +363,19 @@ class Manifest:
             )
             self.db.execute("update photos set no_bib_decided_at = ? where fingerprint = ?", (now, fingerprint))
 
-    def hide(self, fingerprint: str, now: str) -> None:
+    def hide(self, fingerprint: str, now: str, reason: str = HIDDEN_BY_PERSON) -> None:
         with self.db:
-            self.db.execute("update photos set hidden_at = ? where fingerprint = ?", (now, fingerprint))
+            self.db.execute(
+                "update photos set hidden_at = ?, hidden_reason = ? where fingerprint = ?",
+                (now, reason, fingerprint),
+            )
+
+    def show(self, fingerprint: str) -> None:
+        with self.db:
+            self.db.execute(
+                "update photos set hidden_at = null, hidden_reason = null where fingerprint = ?",
+                (fingerprint,),
+            )
 
     # Uploads
 

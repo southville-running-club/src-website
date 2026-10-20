@@ -205,12 +205,12 @@ hour the clocks repeat or skip flags the camera; those photos go without a time.
 | U       | Keeps it part read                                      |
 | N       | No bib visible                                          |
 | S       | Skips, deciding nothing                                 |
-| H       | Hides the photo: it is never uploaded                   |
+| H       | Hides the photo, so it is never uploaded; on a hidden photo, shows it again |
 
 After a bib is confirmed, the page offers it to the rest of that photo's burst: photos the
 same camera took within two seconds of each other. The filters along the top narrow the
-list to photos to check, part reads, or no bib seen, and the counts on Start link to one
-photographer's.
+list to photos to check, part reads, no bib seen, or hidden photos, and the counts on
+Start link to them, and to one photographer's.
 
 ### photos upload --dry-run
 
