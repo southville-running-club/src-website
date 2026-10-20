@@ -1003,6 +1003,19 @@ the *whole* form into the query string: every checkbox, every hidden input, and
 nothing. Caught on `/admin/people/` before it shipped; `admin.spec.ts` asserts the token never
 reaches the URL, because nothing else would have noticed.
 
+⚠️ **`Referrer-Policy: no-referrer` makes a browser send `Origin: null` with a page's own form
+posts, so an origin check refuses every one of them.** That is the Fetch standard rather than
+one engine's quirk: for a POST under `no-referrer`, the origin is serialized as `null`. It cost
+a round trip on 20 October 2026 in the race photos tool's local review page
+(`tools/photos/racephotos/review/server.py`). In a real browser the clock form answered _"A form
+from another website cannot change anything here"_, while every unit test passed, because no
+test sent an `Origin` header for a good post. `same-origin` sends the page's own origin to
+itself and nothing to anybody else, and is what that page sends now. **It matters beyond the
+tool**: the race photos brief asks the runners' private pages to send `no-referrer` (slice 4).
+`worker/csrf.ts` checks a token and never reads `Origin`, so nothing breaks today; it would the
+day somebody adds an origin check to a page that sends `no-referrer`. The guard is a test that
+posts with the header a browser actually sends.
+
 ⚠️ **`getByRole` matches the accessibility tree, so `display: none` content is absent rather than
 hidden — and an assertion written at one width can be wrong at another.** `/admin/people/` shows
 the list and the selected person as two screens below 48rem, so choosing somebody takes the list
