@@ -1,0 +1,363 @@
+/* The review page: a tool on one laptop, in the club's brand.
+
+   Colours are the brand tokens, copied by value because this page cannot load the
+   website's stylesheets: packages/shared/styles/tokens.css is the canonical source, and
+   docs/foundations/race-timing-brand-guidelines.md records what each one is for. The page
+   is built from six: ink, slate, paper, surface-muted, green and warning. Two more from the
+   same file carry what those six cannot, the text-safe link green and the error red,
+   because the raw green and red fail as text, and the rule colour draws the dividers.
+
+   This repository targets 7:1 for body text, and that decides where things sit:
+   - Ink is 13.97:1 on paper and 12.85:1 on surface-muted, so it can go anywhere.
+   - Slate (7.53:1), the link green (7.04:1) and the error red (7.04:1) clear 7:1 on paper
+     only, so secondary text, links and errors are never put on surface-muted. Panels on
+     surface-muted hold ink alone, and a link inside one is ink with an underline.
+   - Green is a fill for the main action, never text: ink on it is 6.26:1, so its label is
+     19px bold, which is large text, where the bar is 4.5:1.
+   - Warning amber is a fill for "in progress", with ink on it at 7.64:1.
+
+   Flat, as the brand is: no shadows and no gradients. Buttons have 8px corners and cards
+   12px. System fonts only, and nothing on this page loads from anywhere but this laptop. */
+
+:root {
+  color-scheme: light;
+  --src-ink: #2c2c2c;
+  --src-slate: #4a5568;
+  --src-paper: #ffffff;
+  --src-surface-muted: #f4f6f2;
+  --src-green: #00c85a;
+  --src-warning: #ffb020;
+  --src-green-text: #00672f;
+  --src-error: #af1a17;
+  --src-rule: #d8d8d4;
+  --src-radius-button: 8px;
+  --src-radius-card: 12px;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 1.0625rem/1.5 var(--font-body);
+  color: var(--src-ink);
+  background: var(--src-paper);
+}
+
+.skip {
+  position: absolute;
+  left: -10000px;
+}
+
+.skip:focus {
+  position: static;
+  display: inline-block;
+  padding: 0.5rem 1rem;
+}
+
+.masthead {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--src-rule);
+  background: var(--src-paper);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--src-slate);
+  font-size: 0.875rem;
+}
+
+.masthead ul,
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--src-green-text);
+}
+
+a[aria-current="page"] {
+  color: var(--src-ink);
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+}
+
+main {
+  padding: 1rem;
+  max-width: 90rem;
+}
+
+h1 {
+  margin: 0.5rem 0 1rem;
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+:focus-visible {
+  outline: 3px solid var(--src-ink);
+  outline-offset: 2px;
+}
+
+/* Cards: surface-muted, 12px corners, ink only. */
+
+.next,
+.panel,
+.notice,
+.counts div {
+  border-radius: var(--src-radius-card);
+  background: var(--src-surface-muted);
+}
+
+.next,
+.notice,
+.panel {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+}
+
+.next {
+  border-left: 6px solid var(--src-green);
+}
+
+.notice {
+  border-left: 6px solid var(--src-warning);
+}
+
+.notice h2,
+.problem h2,
+.panel h2 {
+  margin-top: 0;
+}
+
+.next a,
+.panel a,
+.notice a,
+.counts a {
+  color: var(--src-ink);
+}
+
+/* An error is the one card on paper, so its red can be read. */
+.problem {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--src-error);
+  border-radius: var(--src-radius-card);
+  background: var(--src-paper);
+}
+
+.problem h2,
+.problem-inline {
+  color: var(--src-error);
+}
+
+.problem-inline {
+  font-weight: 600;
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.counts div {
+  padding: 0.5rem 0.75rem;
+}
+
+.counts dt {
+  font-size: 0.875rem;
+}
+
+.counts dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+/* "In progress": amber fill, ink label, always with words. */
+.badge {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border-radius: var(--src-radius-button);
+  font-weight: 600;
+}
+
+.badge.in-progress {
+  background: var(--src-warning);
+  color: var(--src-ink);
+}
+
+.scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--src-rule);
+  text-align: left;
+  vertical-align: top;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.photo {
+  margin: 0 0 1rem;
+}
+
+.photo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 70vh;
+  border: 1px solid var(--src-rule);
+  border-radius: var(--src-radius-card);
+}
+
+.photo.large img {
+  max-height: 85vh;
+}
+
+.photo figcaption,
+.meta,
+.hint,
+.steps {
+  color: var(--src-slate);
+}
+
+/* Inside a card the background is surface-muted, where slate falls under 7:1. */
+.panel .hint {
+  color: var(--src-ink);
+}
+
+fieldset {
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.field {
+  display: inline-flex;
+  flex-direction: column;
+  margin: 0.5rem 1rem 0.5rem 0;
+}
+
+label {
+  font-weight: 600;
+}
+
+input {
+  min-height: 2.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--src-slate);
+  border-radius: var(--src-radius-button);
+  background: var(--src-paper);
+  color: var(--src-ink);
+  font: inherit;
+}
+
+/* Buttons: 8px corners. The main action is green with an ink label; the rest are ink
+   outlines on paper, which is the brand's other button. */
+
+button {
+  min-height: 2.75rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  padding: 0.5rem 1rem;
+  border: 2px solid var(--src-green);
+  border-radius: var(--src-radius-button);
+  background: var(--src-green);
+  color: var(--src-ink);
+  font: inherit;
+  font-size: 1.1875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.secondary,
+button.choice {
+  border-color: var(--src-ink);
+  background: var(--src-paper);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+button.danger {
+  border-color: var(--src-error);
+  background: var(--src-paper);
+  color: var(--src-error);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+kbd {
+  margin-left: 0.25rem;
+  padding: 0 0.3rem;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font: 0.8125rem var(--font-mono);
+}
+
+.check {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 64rem) {
+  .check {
+    grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
+    align-items: start;
+  }
+}
+
+.decide h2 {
+  margin-top: 0;
+}
+
+.reads {
+  padding-left: 1.25rem;
+}
+
+.correct {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: var(--font-mono);
+}

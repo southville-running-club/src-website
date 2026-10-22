@@ -1,0 +1,27 @@
+# The race photos tool's settings. Copy this file to config.toml in the work folder,
+# ~/nn-photos/ by default, which must be outside any git repository: the tool refuses to
+# run anywhere else. Paths are relative to the work folder unless they start with / or ~.
+#
+# This file holds no secrets yet. From slice 2 it will hold an R2 token and a vision model
+# key, which is one more reason it never lives inside the repository.
+
+# The running of the race these photos are from, and the prefix of the short IDs people
+# read out (NN26-0412).
+event_slug = "nn-2026"
+short_id_prefix = "NN26"
+
+# One folder per photographer, copied from Drive, named as in photographers.csv.
+originals = "originals"
+
+# folder,credit,spot — one row per folder of originals.
+photographers = "photographers.csv"
+
+# One column, bib, and nothing else. Any other column is refused.
+bibs = "bibs.csv"
+
+[reader]
+# Only the fake reader exists until the vision model provider is chosen. It answers from
+# fake_reads, a JSON file mapping a photo's path under originals to the model's answer; a
+# photo it has no answer for reads as "no bib seen". Leave fake_reads out to read nothing.
+kind = "fake"
+# fake_reads = "fake-reads.json"

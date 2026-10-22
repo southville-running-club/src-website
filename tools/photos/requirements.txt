@@ -1,0 +1,6 @@
+# The race photos tool's only dependency outside the standard library (ADR-059).
+#
+# Pinned exactly, and installed into tools/photos/.venv/ — see README.md. 12.3.0 rather than
+# 13.0.0 because 13 was a new major version four days old when this was pinned, on
+# 20 October 2026, and the tool's metadata stripping is checked against 12.3.0's behaviour.
+Pillow==12.3.0
