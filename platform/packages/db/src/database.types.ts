@@ -1978,7 +1978,10 @@ export type Database = {
         }
         Returns: Json
       }
-      assign_bibs: { Args: { p_event_slug: string }; Returns: Json }
+      assign_bibs: {
+        Args: { p_event_slug: string; p_start_from?: number }
+        Returns: Json
+      }
       assign_marshal: {
         Args: { p_event_slug: string; p_person_id: string }
         Returns: Json

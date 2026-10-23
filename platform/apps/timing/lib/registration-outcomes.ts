@@ -51,6 +51,34 @@ export interface OutcomeCounts {
   runners?: number | undefined;
   assigned?: number | undefined;
   already?: number | undefined;
+  /**
+   * The first and last bibs Assign bibs handed out, and the first number the desk asked for.
+   * **Strings, because a bib is `001` and not 1**, and validated to digits before they reach
+   * here, exactly as the counts are.
+   */
+  first?: string | undefined;
+  last?: string | undefined;
+  asked?: string | undefined;
+}
+
+/** `, 150 to 152` / `, number 150`, or nothing when the range did not survive the redirect. */
+function range(counts: OutcomeCounts): string {
+  const { first, last } = counts;
+  if (first === undefined || last === undefined) return '';
+  return first === last ? `, number ${first}` : `, ${first} to ${last}`;
+}
+
+/**
+ * Said only when numbering did not begin where the desk asked it to. A start below a number
+ * already given out is ignored rather than refused, so the desk has to be told, or the box
+ * reads as broken.
+ */
+function startNote(counts: OutcomeCounts): string {
+  const { asked, first } = counts;
+  if (asked === undefined || first === undefined || Number(asked) === Number(first)) {
+    return '';
+  }
+  return ` You asked to start at ${asked}, and ${first} was the first number free: nobody already numbered is renumbered, and nobody’s number is handed out twice.`;
 }
 
 /** `12 entries` / `1 entry`, or `some entries` when the count did not survive the redirect. */
@@ -130,12 +158,15 @@ const OUTCOMES: Record<string, Wording> = {
       counts.assigned,
       'entry was numbered',
       'entries were numbered',
-    )}, and ${count(
+    )}${range(counts)}, and ${count(
       counts.already,
       'already had a number',
       'already had numbers',
-    )}. Running this again never renumbers anybody.`,
+    )}.${startNote(counts)} Running this again never renumbers anybody.`,
   }),
+  invalid_start: bad(
+    'A first number is digits only and at least 1 — up to six digits — so nothing was numbered.',
+  ),
   'bibs-already-assigned': ok(
     'Every entry already has a number, so nothing was changed. Running this again never renumbers anybody.',
   ),

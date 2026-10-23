@@ -103,9 +103,66 @@ describe('outcomeFor', () => {
       'no_such_leg',
       'no_such_team',
       'incomplete',
+      'invalid_start',
     ]) {
       expect(outcomeFor(reason), reason).not.toBeNull();
     }
+  });
+});
+
+/**
+ * Assign bibs with a **First number**. The range is quoted as the database wrote it — `001`,
+ * never 1 — and a start the database could not honour is explained rather than left to look
+ * as though the box did nothing.
+ */
+describe('what Assign bibs says about where it started', () => {
+  it('quotes the range it numbered, padding and all', () => {
+    const message =
+      outcomeFor('bibs-assigned', { assigned: 12, already: 0, first: '001', last: '012' })
+        ?.message ?? '';
+    expect(message).toContain('12 entries were numbered, 001 to 012');
+  });
+
+  it('names a single number as one', () => {
+    const message =
+      outcomeFor('bibs-assigned', { assigned: 1, already: 4, first: '150', last: '150' })
+        ?.message ?? '';
+    expect(message).toContain('1 entry was numbered, number 150');
+  });
+
+  it('says nothing about a start that was honoured, padded or not', () => {
+    for (const asked of ['150', '7']) {
+      const first = asked === '7' ? '007' : asked;
+      const message =
+        outcomeFor('bibs-assigned', {
+          assigned: 2,
+          already: 0,
+          first,
+          last: first,
+          asked,
+        })?.message ?? '';
+      expect(message, asked).not.toContain('You asked to start');
+    }
+  });
+
+  it('says so when numbering had to begin above the number asked for', () => {
+    const message =
+      outcomeFor('bibs-assigned', {
+        assigned: 2,
+        already: 10,
+        first: '011',
+        last: '012',
+        asked: '5',
+      })?.message ?? '';
+    expect(message).toContain(
+      'You asked to start at 5, and 011 was the first number free',
+    );
+  });
+
+  it('quotes no range when it did not survive the redirect', () => {
+    const message =
+      outcomeFor('bibs-assigned', { assigned: 2, already: 0 })?.message ?? '';
+    expect(message).toContain('2 entries were numbered, and');
   });
 });
 

@@ -206,7 +206,11 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
       no file and no date of birth ever leaves the entry system
 - [ ] Check **Entries** and **Runners** against what `/admin/nn/` says is sold
 - [ ] Press **Assign bibs**. *"Numbering carries on from the highest number already given out,
-      skips anybody who has one, and never renumbers a field"*
+      skips anybody who has one, and never renumbers a field"*. **Leave First number blank** for
+      Nightingale Nightmare, so the field starts at 001. Fill it in only to start somewhere else
+      or to hold back a block of numbers, for example 011 to leave 001–010 for guides. A first
+      number below one already given out is ignored, and the message after pressing says where
+      numbering actually began
 - [ ] Check the numbers are **three digits — 001, 002, 003** — because the printed race numbers
       are 001 to 250 and a marshal types what is on the vest. The width is
       `timing.events.bib_pad_width`, set to 3 for `nn-2026`; a walk-in added at the desk is
