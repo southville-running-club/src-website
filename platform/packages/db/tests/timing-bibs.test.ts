@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { effectiveBib, type EventFormat, type Leg } from '@src/shared/timing/bib';
+import { planBibAssignment } from '@src/shared/timing/registration/bib-assignment';
 
 /**
  * Bibs — #249: assigning a field, overriding one at the desk, and the lockstep.
@@ -149,6 +150,11 @@ afterEach(async () => {
   await db.query('delete from timing.teams where event_id = any($1::uuid[])', [
     [SOLO_EVENT, RELAY_EVENT],
   ]);
+  // Every test starts on a race with no width, which is every race but nn-2026.
+  await db.query(
+    'update timing.events set bib_pad_width = null where id = any($1::uuid[])',
+    [[SOLO_EVENT, RELAY_EVENT]],
+  );
 });
 
 afterAll(async () => {
@@ -287,6 +293,155 @@ describe('assigning a field its numbers', () => {
       [SOLO_EVENT],
     );
     expect(rows.map((r) => r.team_number).sort()).toEqual(['1', 'T1']);
+  });
+});
+
+/**
+ * ⚠️ **The numbers a marshal types are the numbers printed on the vest.** Nightingale Nightmare's
+ * are zero-padded, 001 to 250, and a bib is matched as exact text — so a field numbered `'1'`
+ * turns every crossing typed `'001'` into an orphan. `20261023120000` pads the number where it
+ * is made, at `timing.events.bib_pad_width`, and leaves every comparison alone.
+ */
+describe('numbering a field at the width its numbers are printed', () => {
+  const setWidth = (eventId: string, width: number | null) =>
+    db.query('update timing.events set bib_pad_width = $2 where id = $1', [
+      eventId,
+      width,
+    ]);
+
+  const numbers = async (eventId: string) => {
+    const { rows } = await db.query<{ team_number: string }>(
+      `select team_number from timing.teams where event_id = $1 order by team_number::integer`,
+      [eventId],
+    );
+    return rows.map((r) => r.team_number);
+  };
+
+  it('pads a field to three digits on a race whose numbers have three', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    for (let i = 0; i < 3; i++) await makeTeam(SOLO_EVENT);
+
+    const answer = await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    expect(answer).toMatchObject({ ok: true, assigned: 3 });
+    expect(await numbers(SOLO_EVENT)).toEqual(['001', '002', '003']);
+  });
+
+  /**
+   * **The assertion the change exists for**, made through the trigger rather than by reading
+   * `team_number` back: a crossing typed off the vest resolves to the runner wearing it, and the
+   * unpadded form resolves to nobody — which is right, because nobody is wearing a `1`.
+   */
+  it('resolves a crossing typed 001 to the runner given 001, and one typed 1 to nobody', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    const teamId = await makeTeam(SOLO_EVENT);
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    const { rows } = await db.query<{ bib: string; team_id: string | null }>(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '001', now()), ($1, '1', now())
+       returning bib, team_id`,
+      [SOLO_EVENT],
+    );
+
+    expect(rows.find((r) => r.bib === '001')?.team_id).toBe(teamId);
+    expect(rows.find((r) => r.bib === '1')?.team_id).toBeNull();
+  });
+
+  it('carries on from a padded field without renumbering anybody in it', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    await makeTeam(SOLO_EVENT, { team_number: '001' });
+    await makeTeam(SOLO_EVENT, { team_number: '002' });
+    await makeTeam(SOLO_EVENT);
+
+    const answer = await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    expect(answer).toMatchObject({ ok: true, assigned: 1, already_assigned: 2 });
+    expect(await numbers(SOLO_EVENT)).toEqual(['001', '002', '003']);
+  });
+
+  /**
+   * ⚠️ **Postgres' `lpad()` truncates**: `lpad('1000', 3, '0')` is `'100'`, which is somebody
+   * else's number. A number longer than the width is written in full.
+   */
+  it('writes a number longer than the width in full rather than cutting it', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    await makeTeam(SOLO_EVENT, { team_number: '999' });
+    await makeTeam(SOLO_EVENT);
+
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    expect(await numbers(SOLO_EVENT)).toEqual(['999', '1000']);
+  });
+
+  it('pads a walk-in at the desk to the same width', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    await makeTeam(SOLO_EVENT, { team_number: '041' });
+
+    const answer = await walkInAs(IMPORTER, SOLO_SLUG, 'Wal', 'Kin');
+
+    expect(answer).toMatchObject({ ok: true, team_number: '042' });
+  });
+
+  /**
+   * Why the width is a column on the race rather than a constant: Pass the Buck's bibs are
+   * leg-first, `101` and `201`, so a width of two is what gives them — and three for everybody
+   * would have made them `1001` and `2001`.
+   */
+  it('gives a relay at width two the leg-first bibs 101 and 201', async () => {
+    await setWidth(RELAY_EVENT, 2);
+    const teamId = await makeTeam(RELAY_EVENT);
+    await assignBibsAs(IMPORTER, RELAY_SLUG);
+
+    expect(await numbers(RELAY_EVENT)).toEqual(['01']);
+
+    const { rows } = await db.query<{ bib: string; team_id: string | null }>(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, '101', now()), ($1, '201', now())
+       returning bib, team_id`,
+      [RELAY_EVENT],
+    );
+    expect(rows.map((r) => r.team_id)).toEqual([teamId, teamId]);
+  });
+
+  /**
+   * ⚠️ **The lockstep with the rule the old application ran.** `planBibAssignment()` was ported
+   * with its `padWidth` option and nothing called it; the database is what numbers a field now,
+   * so the two are held to the same answer here rather than left to drift.
+   */
+  it('numbers a field exactly as planBibAssignment() does', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    const teams: { id: string; team_number: null; csv_row_index: number }[] = [];
+    // Inserted out of order, so the answer depends on `csv_row_index` rather than on luck.
+    for (const csvRowIndex of [4, 1, 12, 3, 7, 2, 9, 5, 11, 6, 10, 8]) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into timing.teams (event_id, csv_row_index) values ($1, $2) returning id`,
+        [SOLO_EVENT, csvRowIndex],
+      );
+      teams.push({ id: rows[0]!.id, team_number: null, csv_row_index: csvRowIndex });
+    }
+
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    const { rows } = await db.query<{ id: string; team_number: string }>(
+      `select id, team_number from timing.teams where event_id = $1`,
+      [SOLO_EVENT],
+    );
+    const fromDatabase = Object.fromEntries(rows.map((r) => [r.id, r.team_number]));
+    const plan = planBibAssignment(teams, { startFrom: 1, padWidth: 3 });
+    const fromPlan = Object.fromEntries(
+      plan.assignments.map((a) => [a.id, a.newTeamNumber]),
+    );
+
+    expect(fromDatabase).toEqual(fromPlan);
+  });
+
+  it('refuses a width of nothing or of more than six digits, with 23514', async () => {
+    for (const width of [0, 7]) {
+      await expect(setWidth(SOLO_EVENT, width)).rejects.toMatchObject({
+        code: '23514',
+      });
+    }
   });
 });
 

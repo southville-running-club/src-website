@@ -207,6 +207,11 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
 - [ ] Check **Entries** and **Runners** against what `/admin/nn/` says is sold
 - [ ] Press **Assign bibs**. *"Numbering carries on from the highest number already given out,
       skips anybody who has one, and never renumbers a field"*
+- [ ] Check the numbers are **three digits — 001, 002, 003** — because the printed race numbers
+      are 001 to 250 and a marshal types what is on the vest. The width is
+      `timing.events.bib_pad_width`, set to 3 for `nn-2026`; a walk-in added at the desk is
+      padded the same way. **A number that comes out as `1` will not match a vest reading 001**:
+      stop and tell a maintainer rather than overriding bibs one by one
 - [ ] Re-run the import after any late transfer, cancellation or given place. It never touches
       a number somebody is already wearing
 
@@ -308,6 +313,10 @@ keys as it is typed, and **Confirm bib 214** (the button repeats the number) que
 bottom right with the ⌫ symbol deletes a digit. **Discard this tap** is at the top of the card,
 for a press nobody can match to a runner. At the line the scarce thing is the moment, not the
 marshal's attention.
+
+**Type the number exactly as it is printed, leading zeros and all**: the vest reading 007 is
+**0 0 7**, never **7**. A bib is matched as exact text, so a `7` belongs to nobody and lands on
+the Anomalies list for somebody to fix before the results can be published.
 
 **The dark bar along the top** says which race and who is signed in, how many crossings are
 **awaiting bib**, and **Online** or **Offline**. The **⋯** beside it shows how many are syncing,

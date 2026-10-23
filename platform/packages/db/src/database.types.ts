@@ -1779,6 +1779,7 @@ export type Database = {
       events: {
         Row: {
           actually_started_at: string | null
+          bib_pad_width: number | null
           course_notes: string | null
           created_at: string
           distance_m: number | null
@@ -1793,6 +1794,7 @@ export type Database = {
         }
         Insert: {
           actually_started_at?: string | null
+          bib_pad_width?: number | null
           course_notes?: string | null
           created_at?: string
           distance_m?: number | null
@@ -1807,6 +1809,7 @@ export type Database = {
         }
         Update: {
           actually_started_at?: string | null
+          bib_pad_width?: number | null
           course_notes?: string | null
           created_at?: string
           distance_m?: number | null

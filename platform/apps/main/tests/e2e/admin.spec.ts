@@ -486,8 +486,15 @@ test.describe('the event bar', () => {
     // The approved design showed "Closes Friday 23 October, 20:00". That was invented, like every
     // other number on it — the 2026 entry open and close times are not confirmed, and a plausible
     // one here is a date a volunteer repeats to a runner.
-    await expect(page.getByText('not decided yet')).toBeVisible();
-    await expect(page.getByText('23 October')).toHaveCount(0);
+    //
+    // ⚠️ **Scoped to the event bar, and it was page-wide until it failed on 23 October 2026.** The
+    // fixture purchases are stamped `paid_at = now()`, so on that one day of the year the entries
+    // table below the bar printed "23 October" as a payment date. The test went red on every
+    // branch for a reason that had nothing to do with the bar. The invented date can only ever
+    // have appeared in the bar, so the bar is where the absence is asserted.
+    const bar = page.locator('.admin-eventbar');
+    await expect(bar.getByText('not decided yet')).toBeVisible();
+    await expect(bar).not.toContainText('23 October');
   });
 
   test('opens on the current running when no year is in the address', async ({

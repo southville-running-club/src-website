@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   categoryFor,
+  nextBib,
   searchRoster,
   sortRoster,
   type DeskRunner,
@@ -134,5 +135,37 @@ describe('the order the table is in', () => {
 
   it('puts normal before DNS, DNF and DQ', () => {
     expect(sortRoster(FIELD, 'status', 'asc').at(-1)?.lastname).toBe('Prydderch');
+  });
+});
+
+/**
+ * ⚠️ **The suggestion is written in as an override when it differs from the number given**, so
+ * on a race whose vests read 001 to 250 a bare `'42'` would store a bib nobody is wearing.
+ */
+describe('the bib Add runner suggests', () => {
+  it('is one more than the highest numeric bib', () => {
+    expect(nextBib(['1', '7', '3'])).toBe('8');
+  });
+
+  it('keeps the width of a zero-padded field', () => {
+    expect(nextBib(['001', '041', '017'])).toBe('042');
+  });
+
+  it('keeps a two-digit width the same way', () => {
+    expect(nextBib(['01', '09'])).toBe('10');
+    expect(nextBib(['01', '02'])).toBe('03');
+  });
+
+  it('writes a number longer than the width in full', () => {
+    expect(nextBib(['001', '999'])).toBe('1000');
+  });
+
+  it('ignores a missing bib and a bib that is not a number', () => {
+    expect(nextBib([null, 'T1', '004'])).toBe('005');
+  });
+
+  it('starts at one on a race with no bibs at all', () => {
+    expect(nextBib([])).toBe('1');
+    expect(nextBib([null])).toBe('1');
   });
 });
