@@ -2538,6 +2538,16 @@ kind and row numbers, re-worded in the club's own voice by
 `apps/timing/lib/registration-outcomes.ts`: the parser's own messages name runners and quote
 their email addresses, and a query string is not somewhere personal data may go.
 
+⚠️ **A team number carries the width its race numbers are printed at, and the comparison
+does not bend to meet it.** Nightingale Nightmare's vests read 001 to 250 and a bib is matched
+as exact text, so `assign_bibs()` numbering the field `'1'` made every crossing typed `'001'`
+an orphan. `timing.events.bib_pad_width` (3 on `nn-2026`, null everywhere else) is read by
+`assign_bibs()` and `add_walk_in()` when they **make** a number, and by nothing that matches
+one — ignoring leading zeros in the trigger would break ADR-034's opaque-string rule and a
+walk-in's pool bib `05` with it. Postgres' `lpad()` truncates, so a number longer than the width
+is written in full. `20261023120000_timing_bib_pad_width.sql`; `timing-bibs.test.ts` holds the
+SQL to the old application's `planBibAssignment()`.
+
 ⚠️ **`timing` holds exactly one row of production data since 14 September 2026, and it is the
 race** — `nn-2026`, put in `timing.events` by `20260914160000_timing_nn_2026_event.sql` under
 [#288](https://github.com/southville-running-club/src-website/issues/288), because **nothing in

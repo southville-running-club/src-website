@@ -100,9 +100,11 @@ describe('the nn-2026 timing event', () => {
       finished_at: Date | null;
       results_published_at: Date | null;
       results_published_by: string | null;
+      bib_pad_width: number | null;
     }>(
       `select slug, name, format, start_at, distance_m, course_notes,
-              actually_started_at, finished_at, results_published_at, results_published_by
+              actually_started_at, finished_at, results_published_at, results_published_by,
+              bib_pad_width
          from timing.events
         where slug = $1`,
       [SLUG],
@@ -133,6 +135,10 @@ describe('the nn-2026 timing event', () => {
       finished_at: null,
       results_published_at: null,
       results_published_by: null,
+      // ⚠️ **The race numbers are printed 001 to 250** — supplied on 23 October 2026 and set by
+      // `20261023120000`. A marshal types what is on the vest, and a bib is matched as exact
+      // text, so without this every runner from 001 to 099 would resolve to nobody.
+      bib_pad_width: 3,
     });
   });
 
