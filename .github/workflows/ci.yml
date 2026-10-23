@@ -374,7 +374,12 @@ jobs:
 
       - name: Resolve the Playwright version
         id: playwright-version
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+          # The runner image, for the apt cache's key below. GitHub sets both on every hosted
+          # runner; `unknown` keeps the key well-formed anywhere else.
+          echo "image_os=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "image_version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
 
       - name: Cache the browsers
         id: playwright-cache
@@ -388,20 +393,75 @@ jobs:
           # halve the hit rate for no benefit.
           key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
 
+      - name: Restore the browsers' system packages
+        id: apt-cache
+        # ⚠️ **The apt packages are cached as well as the browsers, since 23 October 2026.**
+        # `install-deps` below runs on every job, and it was the expensive half after all: it
+        # downloads **119 MB** of fonts, GStreamer and the rest that WebKit links against,
+        # from the runner's Ubuntu mirror. That day the mirror stalled for one to three minutes
+        # per package, the step ran for 22 minutes, and the job's 25-minute budget expired
+        # before a single test — on eight jobs across #353, #354 and #355, each needing a
+        # manual re-run. Refreshing the package lists took ten seconds; the downloads were
+        # the whole of it.
+        #
+        # **Keyed on the runner image**, so a new image starts a new entry — but it restores
+        # the newest one for the same OS first, so most packages still come from the cache.
+        # A stale `.deb` is harmless: apt names each file by version and checks its hash,
+        # so one that no longer matches is ignored and fetched afresh.
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-archives
+          key: playwright-apt-${{ steps.playwright-version.outputs.image_os }}-${{ steps.playwright-version.outputs.image_version }}-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            playwright-apt-${{ steps.playwright-version.outputs.image_os }}-
+
       - name: Install browsers
         # **The system libraries are installed on a cache hit too, and that is not
-        # belt-and-braces.** The cache holds `~/.cache/ms-playwright` — the browser binaries.
-        # It does not hold the apt packages WebKit links against, which are not on the runner
-        # image by default. Restoring the binaries alone gives a WebKit that fails to launch,
-        # surfacing as every `mobile-safari` test failing at once rather than as anything
-        # naming a missing library. `install-deps` is the cheap half of `--with-deps`; the
-        # download is the expensive half, and it is what the cache removes.
+        # belt-and-braces.** The browser cache holds `~/.cache/ms-playwright` — the browser
+        # binaries. It does not hold the apt packages WebKit links against, which are not on
+        # the runner image by default. Restoring the binaries alone gives a WebKit that fails
+        # to launch, surfacing as every `mobile-safari` test failing at once rather than as
+        # anything naming a missing library. **Those packages come from the apt cache above**,
+        # seeded into apt's own archive directory first, so on a warm cache `install-deps`
+        # installs them without downloading anything.
+        #
+        # **Its own ten minutes**, so a cold cache on a bad mirror fails here, by name, instead
+        # of eating the whole job and surfacing as an unexplained cancel. A normal run is
+        # under a minute.
+        timeout-minutes: 10
         run: |
+          # Hand apt the packages an earlier run downloaded, so it fetches only what is new.
+          mkdir -p "$HOME/apt-archives"
+          if compgen -G "$HOME/apt-archives/*.deb" > /dev/null; then
+            sudo cp "$HOME"/apt-archives/*.deb /var/cache/apt/archives/
+          fi
+          # A stalled mirror connection gives up after 30 seconds and is retried, rather than
+          # sitting silent for two and a half minutes as it did on 23 October 2026.
+          printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' \
+            | sudo tee /etc/apt/apt.conf.d/80-ci-acquire > /dev/null
+
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
             npx playwright install-deps chromium webkit
           else
             npx playwright install --with-deps chromium webkit
           fi
+
+          # Keep what apt now holds for the next run.
+          if compgen -G "/var/cache/apt/archives/*.deb" > /dev/null; then
+            cp /var/cache/apt/archives/*.deb "$HOME/apt-archives/"
+          fi
+
+      - name: Save the browsers' system packages
+        # **Saved straight after the install, not at the end of the job.** `actions/cache`
+        # saves in a post step only when the job succeeds, so one red test — or a cancel —
+        # would leave the next run downloading everything again. Like the browser cache, every
+        # shard shares the key; on a miss the first to finish saves it and the rest log
+        # `another job may be creating this cache`, which is a notice and not a failure.
+        if: steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt-cache.outputs.cache-primary-key }}
 
       - name: Acceptance tests
         env:
