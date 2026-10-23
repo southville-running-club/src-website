@@ -2548,6 +2548,17 @@ walk-in's pool bib `05` with it. Postgres' `lpad()` truncates, so a number longe
 is written in full. `20261023120000_timing_bib_pad_width.sql`; `timing-bibs.test.ts` holds the
 SQL to the old application's `planBibAssignment()`.
 
+⚠️ **On a solo race leg 2 is a guide, who wears a race number of their own, and it derives
+nothing** — [ADR-061](docs/architecture/decisions/adr-061-a-guide-wears-a-number-of-their-own.md).
+`import_from_entries()` puts a guide on their runner's team as leg 2. Until 23 October 2026 a
+solo leg 2 derived the team number and `set_bib_override()` refused it, so a guide read as
+wearing their runner's bib and the desk could not record theirs. Now the guide's number is the
+leg-2 override, typed into a **Guide's bib** box. `assign_bibs()` and `add_walk_in()` step past
+any number already held as an override, and a guide's crossing times nothing, because a solo
+result reads leg 1 alone. **`derivedBib()` was ported unchanged and this is its one deliberate
+change**; `bib.ts` and `effective_bib()` carry it together. **Restating `assign_bibs()` again
+means restating `20261023140000`'s**, padding and skip both. An older copy silently drops one.
+
 ⚠️ **`timing` holds exactly one row of production data since 14 September 2026, and it is the
 race** — `nn-2026`, put in `timing.events` by `20260914160000_timing_nn_2026_event.sql` under
 [#288](https://github.com/southville-running-club/src-website/issues/288), because **nothing in

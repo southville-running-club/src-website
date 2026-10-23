@@ -536,6 +536,24 @@ describe('parity: effectiveBib() in TypeScript, and the database', () => {
       bib_leg2: null,
       leg: 1,
     },
+    // ⚠️ ADR-061: on a solo race leg 2 is a guide, who wears a number of their own or none.
+    // It derived the team number until 23 October 2026, which read as the runner's bib.
+    {
+      name: 'solo leg 2, a guide with no number of their own, derives nothing',
+      format: 'solo',
+      team_number: '12',
+      bib_leg1: null,
+      bib_leg2: null,
+      leg: 2,
+    },
+    {
+      name: "solo leg 2, a guide's own number",
+      format: 'solo',
+      team_number: '12',
+      bib_leg1: null,
+      bib_leg2: '9002',
+      leg: 2,
+    },
   ];
 
   it.each(CASES)('$name: SQL agrees with TypeScript', async (c) => {
@@ -709,7 +727,8 @@ describe('overriding a bib at the desk', () => {
   });
 
   /** Leg 2 has no meaning on a solo race, and `effectiveBib()` says so. */
-  it('refuses leg two on a solo race', async () => {
+  // Since ADR-061 a solo entry *with a guide* takes leg 2 — see the guide block below.
+  it('refuses leg two on a solo entry with no guide on it', async () => {
     const team = await makeTeam(SOLO_EVENT, { team_number: '12' });
 
     expect((await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '999')).reason).toBe(
@@ -723,6 +742,193 @@ describe('overriding a bib at the desk', () => {
     expect((await overrideAs(IMPORTER, SOLO_SLUG, team, 1, '999')).reason).toBe(
       'no_such_team',
     );
+  });
+});
+
+/**
+ * ⚠️ **A visually impaired runner's guide wears a race number of their own** — ADR-061, supplied
+ * on 23 October 2026. `import_from_entries()` puts the guide on their runner's team as leg 2,
+ * and on a solo race leg 2 used to derive the team number and refuse an override. So the desk
+ * could not record the guide's number, and a guide handed the next vest would have been timed
+ * as the next entry's runner.
+ */
+describe("a guide's own number on a solo race", () => {
+  /** A runner and their guide on one entry, the shape `import_from_entries()` writes. */
+  async function makeGuidedTeam(
+    eventId: string,
+    fields: { team_number?: string | null; bib_leg2?: string | null } = {},
+  ): Promise<string> {
+    const teamId = await makeTeam(eventId, fields);
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname, role)
+       values ($1, 1, 'Perpetua', 'Zzguided', 'runner'),
+              ($1, 2, 'Octavius', 'Zzguide', 'guide')`,
+      [teamId],
+    );
+    return teamId;
+  }
+
+  const crossingOn = async (eventId: string, bib: string) => {
+    const { rows } = await db.query<{ team_id: string | null }>(
+      `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, $2, now()) returning team_id`,
+      [eventId, bib],
+    );
+    return rows[0]?.team_id ?? null;
+  };
+
+  const rosterAs = (person: string, slug: string) =>
+    asPerson<{ runners: { role: string; bib: string | null }[] }>(
+      person,
+      'select timing.desk_roster($1) as answer',
+      [slug],
+    );
+
+  it("takes the guide's own number, and a crossing on it lands on their entry", async () => {
+    const team = await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '9002')).toMatchObject({
+      ok: true,
+      leg: 2,
+      bib: '9002',
+    });
+
+    expect(await crossingOn(SOLO_EVENT, '9002')).toBe(team);
+    expect(await crossingOn(SOLO_EVENT, '12')).toBe(team);
+  });
+
+  /**
+   * The display half, through the Roster's own read: a guide with no number written in shows
+   * none — never their runner's, which is what it showed until ADR-061.
+   */
+  it('shows a guide as wearing no number until one is written in, then that number', async () => {
+    const team = await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+
+    const before = await rosterAs(IMPORTER, SOLO_SLUG);
+    expect(before.runners.find((r) => r.role === 'guide')?.bib).toBeNull();
+    expect(before.runners.find((r) => r.role === 'runner')?.bib).toBe('12');
+
+    await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '9002');
+
+    const after = await rosterAs(IMPORTER, SOLO_SLUG);
+    expect(after.runners.find((r) => r.role === 'guide')?.bib).toBe('9002');
+  });
+
+  it("refuses the runner's own number for the guide", async () => {
+    const team = await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '12')).toEqual({
+      ok: false,
+      reason: 'bib_taken',
+      same_team: true,
+    });
+  });
+
+  /**
+   * Both directions, because the guard used to read leg 2 on a relay only: a guide cannot be
+   * handed another entry's number, and no entry can be handed a guide's.
+   */
+  it("refuses another entry's number for a guide, and a guide's number for another entry", async () => {
+    const guided = await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+    const other = await makeTeam(SOLO_EVENT, { team_number: '13' });
+
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, guided, 2, '13')).toMatchObject({
+      ok: false,
+      reason: 'bib_taken',
+      same_team: false,
+      with_team_number: '13',
+    });
+
+    await overrideAs(IMPORTER, SOLO_SLUG, guided, 2, '9002');
+
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, other, 1, '9002')).toMatchObject({
+      ok: false,
+      reason: 'bib_taken',
+      with_team_number: '12',
+    });
+  });
+
+  /**
+   * A guide who comes off an entry leaves their number behind — `import_from_entries()` never
+   * touches an override. Clearing it must still work, or that number is stranded where no page
+   * shows it and nobody can be given it.
+   */
+  it('clears a leg-two number after the guide has come off the entry', async () => {
+    const team = await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+    await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '9002');
+    await db.query('delete from timing.runners where team_id = $1 and leg = 2', [team]);
+
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, team, 2, null)).toMatchObject({
+      ok: true,
+      bib: null,
+    });
+    expect(await overrideAs(IMPORTER, SOLO_SLUG, team, 2, '9003')).toMatchObject({
+      ok: false,
+      reason: 'no_such_leg',
+    });
+  });
+
+  /**
+   * ⚠️ **The runbook re-runs Assign bibs after late entries**, and a guide's number sits in the
+   * same 001–250 range as everybody's. Without the step, the next late entry would be given the
+   * guide's number and two people would resolve to one bib.
+   */
+  it('steps Assign bibs past a number a guide is wearing', async () => {
+    await db.query('update timing.events set bib_pad_width = 3 where id = $1', [
+      SOLO_EVENT,
+    ]);
+    await makeGuidedTeam(SOLO_EVENT, { team_number: '001', bib_leg2: '002' });
+    await makeTeam(SOLO_EVENT);
+
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    const { rows } = await db.query<{ team_number: string }>(
+      `select team_number from timing.teams where event_id = $1 order by team_number`,
+      [SOLO_EVENT],
+    );
+    expect(rows.map((r) => r.team_number)).toEqual(['001', '003']);
+  });
+
+  it('steps a walk-in past a number a guide is wearing', async () => {
+    await db.query('update timing.events set bib_pad_width = 3 where id = $1', [
+      SOLO_EVENT,
+    ]);
+    await makeGuidedTeam(SOLO_EVENT, { team_number: '041', bib_leg2: '042' });
+
+    expect(await walkInAs(IMPORTER, SOLO_SLUG, 'Wal', 'Kin')).toMatchObject({
+      ok: true,
+      team_number: '043',
+    });
+  });
+
+  /**
+   * The relay half of the same step. Team 2's bibs are `12` and `22`, so a spare vest written in
+   * as `22` on team 1 means team 2 would share it.
+   */
+  it('steps Assign bibs past a relay number written in as an override', async () => {
+    await makeTeam(RELAY_EVENT, { team_number: '1', bib_leg2: '22' });
+    await makeTeam(RELAY_EVENT);
+
+    await assignBibsAs(IMPORTER, RELAY_SLUG);
+
+    const { rows } = await db.query<{ team_number: string }>(
+      `select team_number from timing.teams where event_id = $1 order by team_number`,
+      [RELAY_EVENT],
+    );
+    expect(rows.map((r) => r.team_number)).toEqual(['1', '3']);
+  });
+
+  it('tells the registration page which runner is the guide', async () => {
+    await makeGuidedTeam(SOLO_EVENT, { team_number: '12' });
+
+    const roster = await asPerson<{
+      teams: { runners: { leg: number; role: string }[] }[];
+    }>(IMPORTER, 'select timing.event_roster($1) as answer', [SOLO_SLUG]);
+
+    expect(roster.teams[0]?.runners).toEqual([
+      expect.objectContaining({ leg: 1, role: 'runner' }),
+      expect.objectContaining({ leg: 2, role: 'guide' }),
+    ]);
   });
 });
 

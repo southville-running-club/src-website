@@ -143,10 +143,14 @@ const OUTCOMES: Record<string, Wording> = {
   'bib-cleared': ok(
     'That override is gone, so the leg is back to the bib its number derives.',
   ),
+  // ⚠️ **"Somebody", not "another entry"**, since ADR-061: a guide given their runner's own
+  // number is refused for the same reason, and that clash is inside one entry.
   bib_taken: bad(
-    'Another entry already has that bib, so nothing was changed. Bibs are compared as they are actually resolved, so a clash can be with a number that is derived rather than written down.',
+    'Somebody already wears that bib — another entry, or the other person on this one — so nothing was changed. Bibs are compared as they are actually resolved, so a clash can be with a number that is derived rather than written down.',
   ),
-  no_such_leg: bad('There is no such leg on this race, so nothing was changed.'),
+  no_such_leg: bad(
+    'There is no such leg on this race, so nothing was changed. On a solo race only a guide has a second number.',
+  ),
   no_such_team: bad('That entry is not on this race, so nothing was changed.'),
 
   // --- walk-ins ----------------------------------------------------------------------------

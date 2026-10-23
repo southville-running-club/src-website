@@ -212,11 +212,19 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
       `timing.events.bib_pad_width`, set to 3 for `nn-2026`; a walk-in added at the desk is
       padded the same way. **A number that comes out as `1` will not match a vest reading 001**:
       stop and tell a maintainer rather than overriding bibs one by one
+- [ ] **Give every guide a number of their own** — ADR-061. Each entry with a guide on it has a
+      **Guide's bib** box on this page, reading *"Not given yet"* until somebody fills it in; on
+      the Roster the guide's bib reads "—". Type the number on the vest you hand them, exactly as
+      printed, and press **Save bib**. A number anybody else is wearing is refused, and so is the
+      runner's own. **Assign bibs never hands out a number a guide is already wearing**, so
+      re-running it after late entries is still safe
 - [ ] Re-run the import after any late transfer, cancellation or given place. It never touches
       a number somebody is already wearing
 
 ⚠️ **A visually impaired runner and their guide are one entry, and the guide is leg 2.** The
-guide is on the start line, wears a bib, and is **in no category and in no prize** —
+guide is on the start line, wears **a race number of their own**
+([ADR-061](../../architecture/decisions/adr-061-a-guide-wears-a-number-of-their-own.md)), and is
+**in no category and in no prize** —
 [ADR-022](../../architecture/decisions/adr-022-a-guide-rides-on-the-runners-entry.md). The
 status page shows *(guide)* beside their name so a volunteer can see it; **nothing published
 says which runner is a guide**, because "leg 2 is a guide" says "leg 1 is visually impaired"
@@ -317,6 +325,9 @@ marshal's attention.
 **Type the number exactly as it is printed, leading zeros and all**: the vest reading 007 is
 **0 0 7**, never **7**. A bib is matched as exact text, so a `7` belongs to nobody and lands on
 the Anomalies list for somebody to fix before the results can be published.
+
+**A guide's number is captured like anybody's.** Tap and type it when they cross; it lands on
+their runner's entry and times nothing, so it does not matter which of the two crosses first.
 
 **The dark bar along the top** says which race and who is signed in, how many crossings are
 **awaiting bib**, and **Online** or **Offline**. The **⋯** beside it shows how many are syncing,

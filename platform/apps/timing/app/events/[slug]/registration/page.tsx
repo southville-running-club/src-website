@@ -70,6 +70,11 @@ interface RosterRunner {
   club_name: string | null;
   age_on_day: number | null;
   is_captain: boolean;
+  /**
+   * `'runner'` or `'guide'` — ADR-022. Optional because `event_roster()` only carries it since
+   * `20261023140000`; absent reads as a runner, which is what every row was before guides.
+   */
+  role?: string | null;
 }
 
 interface RosterTeam {
@@ -148,6 +153,32 @@ function categoryOf(runner: RosterRunner): string {
   return gender === 'non_binary' ? 'Non-binary' : gender === 'female' ? 'Female' : 'Male';
 }
 
+/** A visually impaired runner's guide — ADR-022. Only ever leg 2. */
+function isGuide(runner: RosterRunner): boolean {
+  return runner.role === 'guide';
+}
+
+/**
+ * The legs an entry has a bib box for.
+ *
+ * ⚠️ **On a solo race, leg 2 is a guide's own number** — ADR-061. It is offered for an entry
+ * with a guide on it, and also for one still holding a leg-2 number after its guide has come
+ * off the entry, so that number can be cleared rather than stranded where nobody can see it.
+ */
+function bibLegs(team: RosterTeam, format: EventFormat): Leg[] {
+  if (format === 'relay') return [1, 2];
+  const guided =
+    team.runners.some((r) => r.leg === 2 && isGuide(r)) ||
+    (team.bib_leg2 !== null && team.bib_leg2.trim() !== '');
+  return guided ? [1, 2] : [1];
+}
+
+/** What a bib row is called. On a solo race the second one is the guide's. */
+function bibTerm(leg: Leg, format: EventFormat): string {
+  if (format === 'relay') return `Bib, leg ${leg}`;
+  return leg === 2 ? 'Guide’s bib' : 'Bib';
+}
+
 /** `base.css` has no visually-hidden utility, so an accessible name is an `aria-label`. */
 function legLabel(team: RosterTeam, leg: Leg, format: EventFormat): string {
   const runner = team.runners.find((r) => r.leg === leg);
@@ -155,7 +186,9 @@ function legLabel(team: RosterTeam, leg: Leg, format: EventFormat): string {
     runner === undefined
       ? `entry ${team.team_number ?? '(not numbered)'}`
       : nameOf(runner);
-  return format === 'solo' ? who : `${who}, leg ${leg}`;
+  if (format === 'relay') return `${who}, leg ${leg}`;
+  if (leg === 2) return runner === undefined ? `the guide on ${who}` : `${who} (guide)`;
+  return who;
 }
 
 function FindingList({ findings }: { findings: FindingSummary[] }) {
@@ -238,7 +271,6 @@ export default async function RegistrationPage({
 
   const { event, teams } = roster.data;
   const format: EventFormat = event.format === 'relay' ? 'relay' : 'solo';
-  const legs: Leg[] = format === 'solo' ? [1] : [1, 2];
 
   const numbered = teams.filter((team) => team.team_number !== null).length;
   const runners = teams.reduce((total, team) => total + team.runners.length, 0);
@@ -414,10 +446,13 @@ export default async function RegistrationPage({
                       <dd>{team.team_number ?? 'Not numbered yet'}</dd>
                     </div>
 
-                    {legs.map((leg) => (
+                    {bibLegs(team, format).map((leg) => (
                       <div key={leg}>
-                        <dt>{format === 'solo' ? 'Bib' : `Bib, leg ${leg}`}</dt>
-                        <dd>{effectiveBib(team, leg, format) ?? '—'}</dd>
+                        <dt>{bibTerm(leg, format)}</dt>
+                        <dd>
+                          {effectiveBib(team, leg, format) ??
+                            (format === 'solo' && leg === 2 ? 'Not given yet' : '—')}
+                        </dd>
                       </div>
                     ))}
 
@@ -428,7 +463,13 @@ export default async function RegistrationPage({
 
                     {team.runners.map((runner) => (
                       <div key={runner.id}>
-                        <dt>{format === 'solo' ? 'Runner' : `Leg ${runner.leg}`}</dt>
+                        <dt>
+                          {format === 'relay'
+                            ? `Leg ${runner.leg}`
+                            : isGuide(runner)
+                              ? 'Guide'
+                              : 'Runner'}
+                        </dt>
                         <dd>
                           {nameOf(runner)} — {categoryOf(runner)}
                           {runner.age_on_day === null ? '' : `, ${runner.age_on_day}`}
@@ -438,7 +479,7 @@ export default async function RegistrationPage({
                     ))}
                   </dl>
 
-                  {legs.map((leg) => (
+                  {bibLegs(team, format).map((leg) => (
                     <form
                       key={leg}
                       method="post"

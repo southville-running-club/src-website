@@ -413,6 +413,34 @@ export async function seedRosterEvent(slug: string): Promise<void> {
   });
 }
 
+/**
+ * A visually impaired runner and their guide on one entry of this project's roster race, in the
+ * shape `import_from_entries()` writes: the runner on leg 1, the guide on leg 2 (ADR-022). For
+ * ADR-061's guide's-own-number test.
+ *
+ * **Re-created rather than added to**, so a retried test starts from the same entry with no
+ * number written in for the guide. The team number is the caller's and invented.
+ */
+export async function seedGuidedEntry(slug: string, teamNumber: string): Promise<void> {
+  await withClient(async (db) => {
+    const eventId = fixtureEventId(slug);
+    await db.query('delete from timing.teams where event_id = $1 and team_number = $2', [
+      eventId,
+      teamNumber,
+    ]);
+    const { rows } = await db.query<{ id: string }>(
+      'insert into timing.teams (event_id, team_number) values ($1, $2) returning id',
+      [eventId, teamNumber],
+    );
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname, role)
+       values ($1, 1, 'Perpetua', 'Zzguided', 'runner'),
+              ($1, 2, 'Octavius', 'Zzguide', 'guide')`,
+      [rows[0]!.id],
+    );
+  });
+}
+
 /** By this project's own slug, and never wider — `clearTimingFixtures`' rule. */
 export async function clearRosterEvent(slug: string): Promise<void> {
   await withClient(async (db) => {

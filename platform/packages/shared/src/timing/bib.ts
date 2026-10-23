@@ -20,9 +20,16 @@
  * normalisation: `"0311" ≠ "311"`.** Two schemes coexist:
  *
  * - **derived** — relay: `${leg}${team_number}`, so team 47 is `147` and `247`, and team 100
- *   is `1100` and `2100`, which still parses. Solo: the `team_number` alone.
+ *   is `1100` and `2100`, which still parses. Solo: the `team_number` alone, on leg 1.
  * - **override** — an optional stored bib per leg, for a walk-in handed a physical bib at the
  *   desk, or any correction made on the roster.
+ *
+ * ⚠️ **On a solo race leg 2 is a visually impaired runner's guide, and it derives nothing** —
+ * [ADR-061](../../../../../docs/architecture/decisions/adr-061-a-guide-wears-a-number-of-their-own.md).
+ * A guide wears a race number of their own, which is the leg-2 override, or none yet. Until
+ * 23 October 2026 leg 2 derived the team number here, so a guide read as wearing their
+ * runner's bib. The original application had no guides, so this is the one place the port's
+ * behaviour changed on purpose.
  *
  * `effectiveBib(team, leg) = coalesce(override, derived)`.
  *
@@ -52,8 +59,12 @@ export type BibTeam = {
 /**
  * The bib a leg DERIVES to when it has no override.
  *   relay → `${leg}${team_number}` (leg-first)
- *   solo  → the team_number alone (no leg prefix — the single crossing bib)
+ *   solo  → leg 1: the team_number alone (no leg prefix — the single crossing bib);
+ *           leg 2: null — a guide's, who wears a number of their own or none (ADR-061)
  * null when team_number is null (a team imported before bib assignment).
+ *
+ * ⚠️ `timing.effective_bib()` carries the same solo branch, and `timing-bibs.test.ts` asserts
+ * the two agree case for case.
  */
 export function derivedBib(
   teamNumber: string | null,
@@ -61,7 +72,7 @@ export function derivedBib(
   format: EventFormat,
 ): string | null {
   if (teamNumber === null) return null;
-  if (format === 'solo') return teamNumber;
+  if (format === 'solo') return leg === 1 ? teamNumber : null;
   return `${leg}${teamNumber}`;
 }
 
@@ -87,14 +98,18 @@ export function effectiveBib(
 /**
  * The bibs a team effectively owns, one entry per resolvable leg:
  *   relay → up to two ({leg:1}, {leg:2})
- *   solo  → one ({leg:1}); leg 2 has no meaning on a solo event.
+ *   solo  → one ({leg:1}), plus {leg:2} when a guide's own number has been written in
+ *           (ADR-061) — leg 2 derives nothing on a solo race, so it appears only then.
  * Legs with no resolvable bib (null) are omitted.
+ *
+ * ⚠️ **This is what the collision guard compares**, so a guide's number has to be in it: left
+ * out, the guard would let the desk hand a guide's number to a second entry.
  */
 export function teamEffectiveBibs(
   team: BibTeam,
   format: EventFormat,
 ): { leg: Leg; bib: string }[] {
-  const legs: Leg[] = format === 'solo' ? [1] : [1, 2];
+  const legs: Leg[] = [1, 2];
   const out: { leg: Leg; bib: string }[] = [];
   for (const leg of legs) {
     const bib = effectiveBib(team, leg, format);
