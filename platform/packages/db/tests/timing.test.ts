@@ -5950,7 +5950,9 @@ describe('the roster a marshal may look runners up on', () => {
     const rows = (await rosterAs(MARSHAL)) ?? [];
 
     expect(rows.map((r) => [r.lastname, r.bib, r.race_status, r.role])).toEqual([
-      ['Anwyl', '7', 'dns', 'guide'],
+      // ⚠️ ADR-061: a guide wears a race number of their own, so with none written in their bib
+      // is null — not their runner's `7`, which is what this row read until 23 October 2026.
+      ['Anwyl', null, 'dns', 'guide'],
       ["O'Dell", '12', null, 'runner'],
       ['Prydderch', '7', 'dns', 'runner'],
     ]);

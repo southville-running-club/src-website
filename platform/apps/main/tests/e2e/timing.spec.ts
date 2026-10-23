@@ -29,6 +29,7 @@ import {
   seedAnomalyCrossings,
   seedAnomalyEvent,
   seedCaptureEvent,
+  seedGuidedEntry,
   seedPreviewEvent,
   seedResetEvent,
   seedRosterEvent,
@@ -1307,6 +1308,39 @@ test.describe('the entry list', () => {
     await expect(page.getByLabel('Bib written on for Isambard Zzwalkin')).toHaveValue(
       '9081',
     );
+  });
+
+  /**
+   * ⚠️ **ADR-061: a guide wears a race number of their own.** On a solo race the guide is leg 2
+   * of their runner's entry, and until this the page offered one bib box per entry and the
+   * database refused leg 2 — so the desk could not record the number the guide was wearing.
+   * `9301` and `9302` are invented and outside anything `assign_bibs()` hands out here.
+   */
+  test("gives a guide a number of their own, and refuses their runner's", async ({
+    page,
+  }, testInfo) => {
+    await seedGuidedEntry(rosterEventSlug(testInfo.project.name), '9301');
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    const guideBox = () => page.getByLabel('Bib written on for Octavius Zzguide (guide)');
+    const saveGuide = () =>
+      page.getByRole('button', { name: 'Save the bib for Octavius Zzguide (guide)' });
+
+    await expect(page.getByText('Not given yet')).toBeVisible();
+    await expect(guideBox()).toHaveValue('');
+
+    // The runner's own number is somebody else's vest as far as the guide is concerned.
+    await guideBox().fill('9301');
+    await saveGuide().click();
+    await expect(page.getByText(/Somebody already wears that bib/)).toBeVisible();
+
+    await guideBox().fill('9302');
+    await saveGuide().click();
+    await expect(
+      page.getByText(/That bib is recorded against the leg you chose/),
+    ).toBeVisible();
+    await expect(guideBox()).toHaveValue('9302');
   });
 
   /**

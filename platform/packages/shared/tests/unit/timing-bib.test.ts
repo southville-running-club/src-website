@@ -55,7 +55,14 @@ describe('derivedBib', () => {
   });
   it('solo has no leg prefix — the bib IS the team number', () => {
     expect(derivedBib('147', 1, 'solo')).toBe('147');
-    expect(derivedBib('147', 2, 'solo')).toBe('147');
+  });
+  /**
+   * ⚠️ **ADR-061, and the one deliberate change to the ported behaviour.** On a solo race leg 2
+   * is a visually impaired runner's guide, who wears a number of their own. The original
+   * answered `'147'` here, which read as the guide wearing their runner's bib.
+   */
+  it('solo leg 2 — a guide — derives nothing', () => {
+    expect(derivedBib('147', 2, 'solo')).toBeNull();
   });
   it('null team_number → null (team imported before bib assignment)', () => {
     expect(derivedBib(null, 1, 'relay')).toBeNull();
@@ -91,6 +98,10 @@ describe('effectiveBib — coalesce(override, derived)', () => {
     expect(effectiveBib(walkin('55', '900', null), 1, 'solo')).toBe('900');
     expect(effectiveBib(csv('55'), 1, 'solo')).toBe('55');
   });
+  it("solo: a guide's bib is their own number, or none — ADR-061", () => {
+    expect(effectiveBib(walkin('55', null, '9002'), 2, 'solo')).toBe('9002');
+    expect(effectiveBib(csv('55'), 2, 'solo')).toBeNull();
+  });
 });
 
 describe('teamEffectiveBibs', () => {
@@ -102,6 +113,12 @@ describe('teamEffectiveBibs', () => {
   });
   it('solo yields a single leg', () => {
     expect(teamEffectiveBibs(csv('47'), 'solo')).toEqual([{ leg: 1, bib: '47' }]);
+  });
+  it("solo with a guide's own number yields both — the guard has to see it", () => {
+    expect(teamEffectiveBibs(walkin('47', null, '9002'), 'solo')).toEqual([
+      { leg: 1, bib: '47' },
+      { leg: 2, bib: '9002' },
+    ]);
   });
   it('omits legs with no resolvable bib', () => {
     expect(teamEffectiveBibs(csv(null), 'relay')).toEqual([]);
@@ -164,6 +181,22 @@ describe('findBibCollision — hard-block guard', () => {
     const clash = findBibCollision(target, others, 'solo');
     expect(clash!.bib).toBe('900');
     expect(clash!.leg).toBe(1);
+  });
+
+  // ⚠️ ADR-061: a guide's own number is a leg-2 bib on a solo race, and the guard reads it.
+  it("solo: refuses a guide's number that another entry already wears", () => {
+    const target = guard('g', '80', null, '81');
+    const clash = findBibCollision(target, [guard('s', '81', null, null)], 'solo');
+    expect(clash).toMatchObject({ bib: '81', leg: 2, sameTeam: false, withLeg: 1 });
+  });
+  it('solo: refuses another entry the number a guide wears', () => {
+    const target = guard(null, '82', '9002', null);
+    const clash = findBibCollision(target, [guard('g', '80', null, '9002')], 'solo');
+    expect(clash).toMatchObject({ bib: '9002', withTeamNumber: '80', withLeg: 2 });
+  });
+  it("solo: refuses the runner's own number for their guide", () => {
+    const clash = findBibCollision(guard('g', '80', null, '80'), [], 'solo');
+    expect(clash).toMatchObject({ bib: '80', sameTeam: true });
   });
 });
 
@@ -278,5 +311,14 @@ describe('bib → team_id resolution parity (SQL trigger contract)', () => {
   });
   it('an unknown bib is an orphan (team_id NULL)', () => {
     expect(resolveByBib(teams, '999', 'relay')).toBeNull();
+  });
+  it("a guide's own number resolves to their entry on a solo race — ADR-061", () => {
+    const solo: ResolveTeam[] = [
+      { id: 'tg', team_number: '42', name: null, bib_leg1: null, bib_leg2: '9002' },
+      { id: 't43', team_number: '43', name: null, bib_leg1: null, bib_leg2: null },
+    ];
+    expect(resolveByBib(solo, '9002', 'solo')).toBe('tg');
+    expect(resolveByBib(solo, '42', 'solo')).toBe('tg');
+    expect(resolveByBib(solo, '43', 'solo')).toBe('t43');
   });
 });

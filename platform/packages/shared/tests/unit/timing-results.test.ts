@@ -458,6 +458,42 @@ describe('buildResults — race status (Slice 12)', () => {
   });
 });
 
+/**
+ * ⚠️ **ADR-061: a guide wears a number of their own, and it times nothing.** On a solo race the
+ * guide is leg 2 of their runner's entry and their number is the leg-2 override. A solo result
+ * is timed from leg 1's bib alone, so the guide's crossing — usually a fraction ahead of or
+ * behind their runner's — can never become the entry's time.
+ */
+describe("buildResults — a guide's own number on a solo race", () => {
+  const SOLO = { ...EVENT, format: 'solo' as const };
+  const guided = { ...makeTeam('042'), bib_leg2: '9002' };
+
+  it("times the entry from the runner's number, whichever crosses first", () => {
+    const [r] = buildResults(
+      SOLO,
+      [guided],
+      [
+        finish('9002', '2026-07-08T18:40:00.000Z'),
+        finish('042', '2026-07-08T18:40:01.000Z'),
+      ],
+    );
+    assertDefined(r);
+    expect(r.finishAt).toBe('2026-07-08T18:40:01.000Z');
+    expect(r.totalMs).toBe(40 * 60_000 + 1_000);
+  });
+
+  it("leaves the entry pending when only the guide's number has crossed", () => {
+    const [r] = buildResults(
+      SOLO,
+      [guided],
+      [finish('9002', '2026-07-08T18:40:00.000Z')],
+    );
+    assertDefined(r);
+    expect(r.status).toBe('pending');
+    expect(r.totalMs).toBeNull();
+  });
+});
+
 describe('teamRaceStatus / isTerminalStatus (Slice 12 helpers)', () => {
   it('returns the race_status when set, ignoring dnf_at', () => {
     expect(teamRaceStatus({ race_status: 'dq', dnf_at: null })).toBe('dq');
