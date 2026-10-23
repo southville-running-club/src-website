@@ -5,6 +5,7 @@ import {
   categoryFor,
   dirFrom,
   isExactBib,
+  nextBib,
   searchRoster,
   sortFrom,
   sortRoster,
@@ -63,14 +64,6 @@ function prefillFrom(query: string): { firstname: string; lastname: string } {
   if (words.length === 0) return { firstname: '', lastname: '' };
   if (words.length === 1) return { firstname: '', lastname: words[0] ?? '' };
   return { firstname: words.slice(0, -1).join(' '), lastname: words.at(-1) ?? '' };
-}
-
-/** The next unused bib: one more than the highest numeric bib on the race. */
-function nextBibOf(bibs: readonly (string | null)[]): string {
-  const numbers = bibs
-    .filter((b): b is string => b !== null && /^\d+$/u.test(b))
-    .map(Number);
-  return String((numbers.length === 0 ? 0 : Math.max(...numbers)) + 1);
 }
 
 const COLUMNS: readonly { key: SortKey; label: string }[] = [
@@ -197,7 +190,7 @@ export default async function RosterPage({
           <AddPanel
             action={action}
             cancel={back}
-            nextBib={nextBibOf(runners.map((r) => r.bib))}
+            nextBib={nextBib(runners.map((r) => r.bib))}
             prefill={prefillFrom(search)}
           />
         ) : null}

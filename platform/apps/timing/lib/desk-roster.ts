@@ -177,3 +177,29 @@ export function sortFrom(value: string | undefined): SortKey {
 export function dirFrom(value: string | undefined): SortDir {
   return value === 'desc' ? 'desc' : 'asc';
 }
+
+/**
+ * The bib **Add runner** suggests: one more than the highest numeric bib on the race, **at the
+ * width the race's numbers are printed at**.
+ *
+ * ⚠️ **Why the width matters.** A race whose vests read 001 to 250 stores its numbers that way
+ * (`timing.events.bib_pad_width`, `20261023120000`), and a bib is matched as exact text. The
+ * update route writes the suggested bib in as an override whenever it differs from the number
+ * `add_walk_in()` gave — so a suggestion of `'42'` beside a field of `'041'`s would store `42`,
+ * and a marshal typing 042 off the vest would match nobody.
+ *
+ * **The width is read off the bibs already given out**: the longest one with a leading zero,
+ * because that is what the vests say. A race with no zero-padded bib gets the number as it is.
+ * A padded race with nobody on it yet cannot be read this way and gets the bare number. The desk
+ * only adds runners after the field has been imported and numbered, so in practice that never
+ * arises.
+ */
+export function nextBib(bibs: readonly (string | null)[]): string {
+  const numeric = bibs.filter((b): b is string => b !== null && /^\d+$/u.test(b));
+  const next = String((numeric.length === 0 ? 0 : Math.max(...numeric.map(Number))) + 1);
+  const width = Math.max(
+    0,
+    ...numeric.filter((b) => b.startsWith('0')).map((b) => b.length),
+  );
+  return next.padStart(width, '0');
+}
