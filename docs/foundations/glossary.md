@@ -11,7 +11,7 @@ one transaction. Priced by England Athletics registration status: £8 per regist
 runner, £10 per non-registered, so £16, £18 or £20 per team.
 
 **Nightingale Nightmare** — a solo mass-start 10 km. One runner per entry, one gun, one
-finish crossing each. Age-band categories (Vet 40/50/60, male and female), which require
+finish crossing each. Age-band categories (Vet 40/50/60/70, male and female), which require
 date of birth. Sits on or near the clocks-change weekend.
 
 **Event** — one running of one race in one year: "Pass the Buck 2026". The unit of the

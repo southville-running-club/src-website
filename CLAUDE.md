@@ -1900,7 +1900,7 @@ words, is the runner a prize list cannot place: `raceCategoryLine()` answers `ga
 non-binary runner with no placement (ADR-031) and for a runner with no race category at all, which
 the database already refuses.
 
-**The page also counts the field by category** — the four bands, the two honest non-answers, and
+**The page also counts the field by category** — the five bands, the two honest non-answers, and
 guides beside them rather than inside one. Counted off the rows rather than asked of the
 database, because the band a runner falls in is named by `packages/shared/src/age-category.ts`
 and by nothing else.

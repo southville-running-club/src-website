@@ -16,9 +16,9 @@
  * new work — though `age_on_day` is already on `runners`, so the data is there."*
  *
  * **They are not new work. They are already here**, in
- * [`age-category.ts`](../age-category.ts): Senior 18–39, Vet 40, Vet 50, Vet 60, taken from
- * the club's own prize list on `/nn/`, tested, and already the bands the race awards prizes
- * in.
+ * [`age-category.ts`](../age-category.ts): Senior 18–39, Vet 40, Vet 50, Vet 60, Vet 70,
+ * taken from the club's own prize list on `/nn/`, tested, and already the bands the race
+ * awards prizes in.
  *
  * And the two halves fit without an adapter, which is the part worth noticing:
  *

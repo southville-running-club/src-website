@@ -118,15 +118,23 @@ describe('which category somebody runs in', () => {
     });
   });
 
-  it('holds the boundaries at 50 and 60, from both sides', () => {
+  it('holds the boundaries at 50, 60 and 70, from both sides', () => {
     expect(on(1976, 11, 2, 'female')).toMatchObject({ code: 'vet40', age: 49 });
     expect(on(1976, 11, 1, 'female')).toMatchObject({ code: 'vet50', age: 50 });
     expect(on(1966, 11, 2, 'male')).toMatchObject({ code: 'vet50', age: 59 });
     expect(on(1966, 11, 1, 'male')).toMatchObject({ code: 'vet60', age: 60 });
+    expect(on(1956, 11, 2, 'female')).toMatchObject({ code: 'vet60', age: 69 });
+    expect(on(1956, 11, 1, 'female')).toMatchObject({
+      code: 'vet70',
+      label: 'Vet 70',
+      age: 70,
+    });
   });
 
-  it('keeps everybody older than 60 in Vet 60, because it is the last band', () => {
-    expect(on(1940, 1, 1, 'female')).toMatchObject({ code: 'vet60', age: 86 });
+  it('keeps everybody 70 and over in Vet 70, because it is the last band', () => {
+    // Vet 60 was the last band, and meant 60 and over, until the club added Vet 70 on
+    // 24 October 2026. An 86-year-old asserted as `vet60` here is what that change retired.
+    expect(on(1940, 1, 1, 'female')).toMatchObject({ code: 'vet70', age: 86 });
   });
 
   it('is the same set of bands for female and male runners', () => {
@@ -252,7 +260,7 @@ describe('ageCategoryFor — the same answer, from an age that has already been 
     // the pairs that would disagree first.
     const raceDay = { year: 2026, month: 11, day: 1 };
 
-    for (const age of [17, 18, 39, 40, 49, 50, 59, 60, 61]) {
+    for (const age of [17, 18, 39, 40, 49, 50, 59, 60, 69, 70, 71]) {
       for (const gender of ['female', 'male', 'non_binary'] as const) {
         const birthday = { year: 2026 - age, month: 11, day: 1 };
         // A non-binary fixture is placed as female here specifically so this loop exercises
@@ -267,7 +275,7 @@ describe('ageCategoryFor — the same answer, from an age that has already been 
     }
   });
 
-  it('names the four bands', () => {
+  it('names the five bands', () => {
     expect(ageCategoryFor(18, 'female')).toMatchObject({
       code: 'senior',
       label: 'Senior',
@@ -278,6 +286,10 @@ describe('ageCategoryFor — the same answer, from an age that has already been 
       label: 'Vet 50',
     });
     expect(ageCategoryFor(60, 'male')).toMatchObject({ code: 'vet60', label: 'Vet 60' });
+    expect(ageCategoryFor(70, 'female')).toMatchObject({
+      code: 'vet70',
+      label: 'Vet 70',
+    });
   });
 
   it('keeps the club’s two unfinished decisions apart', () => {
