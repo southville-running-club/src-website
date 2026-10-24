@@ -6,9 +6,10 @@ account, from [`/account/data/`](../../../platform/apps/main/README.md#downloadi
 — without asking, without waiting, and without a volunteer seeing their details in order to
 hand them over.
 
-**This page is for the ones that page cannot answer**, and there are only three shapes of
-those: a request that reaches past the account into a race entry, a request from somebody who
-has no account at all, and a request the club thinks it should refuse.
+**This page is for the ones that page cannot answer**, and there are only four shapes of
+those: a request that reaches past the account into a race entry, a race photo somebody wants
+taken down, a request from somebody who has no account at all, and a request the club thinks it
+should refuse.
 
 **Prerequisites:** the club's mailbox, and for anything touching entries, `/admin/nn/`. One
 volunteer can do all of it. **Under an hour**, except where it waits on the other person.
@@ -118,6 +119,26 @@ anywhere on the page.
 sentence most likely to be read back to the club by the person or by the ICO. The month
 is **what the club does**; the notice is the general rule it does it under. If somebody
 asks for it sooner, that is a plain yes — ⚙️ delete the row, and say it is done.
+
+## Step 3b — a race photo of them
+
+✉️ **The one shape that is quick, and should be.** Somebody asks for a race photo of them to
+come down — the photos email tells them to reply with the photo ID under it.
+
+- **Take it down the same day, and ask no questions.** Removing a photo harms nobody, so step 1's
+  check is not needed: a photo of somebody who did not ask is no loss, and holding one back while
+  a stranger proves who they are is. The same goes for a photographer asking for one of theirs.
+- **It needs the photo ID** (like `NN26-0412`). If they did not give one, ask for it; it is under
+  every photo they were sent. Nobody at the club looks through the photos for a face — a bib is
+  the only link between a photo and a runner
+  ([ADR-058](../../architecture/decisions/adr-058-a-bib-number-is-the-only-link-to-a-runner.md)).
+- **How:** [the race photos runbook, step 13](race-photos.md#13-take-a-photo-down). Anybody
+  holding a photo role can do it, and it deletes the photo from storage for good.
+- ✉️ **Do not promise it vanished instantly.** Once runners' pages are live, a copy can stay in a
+  browser's or Cloudflare's cache for up to an hour.
+
+**"All the photos of me"** is the same act, once per photo ID they send. Asking for a copy of
+the photos is answered by their own private link, which shows every photo tagged with their bib.
 
 ## Step 4 — somebody with no account
 

@@ -23,6 +23,8 @@ the argument for that arrangement. It is retired. The way in is an account holdi
 | `nn-admin` | May read Nightingale Nightmare's entries, notes and exports, and cancel one entry |
 | `people-admin` | May read `/admin/people/` — who has an account and which roles they hold — and **change none of it**. Opens nothing about a race |
 | `super-admin` | May grant and revoke every role, and reads the list of people in order to. **Does not inherit `nn-admin`** — granting a role is not holding it |
+| `nn-photo-checker` | May check the race photos the laptop was unsure of at `/admin/photos/check/`, and take a photo down. **Sees photos and bibs, never the entry list** — ADR-066 |
+| `nn-photo-admin` | May publish the race photos at `/admin/photos/` and take a photo down. **Never the entry list** either — ADR-066 |
 | `nn-tester` | May enter the race before entries open. **Not staff**: `/admin/` 404s for it exactly as for anybody else |
 | `registered` | Everybody with an account. Opens nothing here. **Renamed from `member`** — ADR-016, because the club needs that word for somebody who has actually joined |
 
