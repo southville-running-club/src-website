@@ -2557,7 +2557,16 @@ leg-2 override, typed into a **Guide's bib** box. `assign_bibs()` and `add_walk_
 any number already held as an override, and a guide's crossing times nothing, because a solo
 result reads leg 1 alone. **`derivedBib()` was ported unchanged and this is its one deliberate
 change**; `bib.ts` and `effective_bib()` carry it together. **Restating `assign_bibs()` again
-means restating `20261023140000`'s**, padding and skip both. An older copy silently drops one.
+means restating `20261023160000`'s**: padding, the override skip, and the optional first number.
+An older copy silently drops one.
+
+⚠️ **Assign bibs takes an optional first number since 23 October 2026, and it can only move
+numbering up.** `assign_bibs(p_event_slug, p_start_from default null)` starts at the greater of
+the number asked for and one above the highest already given out, which is
+`planBibAssignment()`'s `startFrom` rule, so "never renumbers anybody" holds whatever is typed.
+It was **dropped and re-created rather than replaced**, because an extra defaulted parameter
+under `create or replace` leaves a second overload that PostgREST refuses as ambiguous.
+`20261023160000_timing_first_bib.sql`.
 
 ⚠️ **`timing` holds exactly one row of production data since 14 September 2026, and it is the
 race** — `nn-2026`, put in `timing.events` by `20260914160000_timing_nn_2026_event.sql` under

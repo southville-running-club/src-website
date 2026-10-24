@@ -109,6 +109,16 @@ function intFrom(value: string | string[] | undefined): number | undefined {
   return Number(value);
 }
 
+/**
+ * A query parameter that is a bib as written — digits, **leading zeros kept** — or `undefined`.
+ * `intFrom()` would read `001` as 1, and the page has to say "001 to 012", because that is what
+ * is on the vests. The same rule applies: validated to digits, then interpolated by wording
+ * written here.
+ */
+function digitsFrom(value: string | string[] | undefined): string | undefined {
+  return typeof value === 'string' && /^\d{1,7}$/.test(value) ? value : undefined;
+}
+
 function single(value: string | string[] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
@@ -240,6 +250,9 @@ export default async function RegistrationPage({
     runners: intFrom(query.runners),
     assigned: intFrom(query.assigned),
     already: intFrom(query.already),
+    first: digitsFrom(query.first),
+    last: digitsFrom(query.last),
+    asked: digitsFrom(query.asked),
   });
   const findings = findingsFrom(query.f);
 
@@ -424,15 +437,40 @@ export default async function RegistrationPage({
 
             <form method="post" action={updateAction}>
               <input type="hidden" name="intent" value="assign-bibs" />
+              {/* ⚠️ **Optional, and it can only ever move numbering up.** A first number below
+                  one already given out is ignored rather than refused — honouring it would mean
+                  renumbering somebody or handing a number out twice — and the outcome says
+                  where numbering actually began. `assign_bibs()` enforces that, not this box. */}
+              <div className="club-field">
+                <label className="club-label" htmlFor="start_from">
+                  First number (optional)
+                </label>
+                <p className="club-hint" id="start_from-hint">
+                  Leave it blank to carry on from the highest number already given out, or
+                  from 1 if there is none. Use it to start somewhere else, or to hold back
+                  a block of numbers. It never goes below a number somebody already has.
+                </p>
+                <input
+                  className="club-input"
+                  id="start_from"
+                  name="start_from"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="off"
+                  aria-describedby="start_from-hint"
+                />
+              </div>
               <button className="club-btn club-btn-primary" type="submit">
                 Assign bibs
               </button>
             </form>
 
             <p className="club-small">
-              Numbering carries on from the highest number already given out, skips
-              anybody who has one, and never renumbers a field. A bib written in below
-              always beats the number an entry derives.
+              Numbering carries on from the highest number already given out — or from the
+              first number above, if that is higher — skips anybody who has one, and never
+              renumbers a field. A bib written in below always beats the number an entry
+              derives.
             </p>
 
             <ul className="timing-stack">

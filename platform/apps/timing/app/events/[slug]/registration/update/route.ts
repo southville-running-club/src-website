@@ -107,7 +107,18 @@ export async function POST(
   }
 
   if (intent === 'assign-bibs') {
-    const result = await writeTiming('assign_bibs', { p_event_slug: slug });
+    // The optional **First number** box. Blank carries on as before. Digits only, so a typo is
+    // refused here in words rather than reaching an `integer` as a cast failure, which would
+    // render as an outage. `001` is read as 1: the race's own width decides the padding.
+    const startRaw = text(form, 'start_from');
+    if (startRaw !== null && (!/^\d{1,6}$/.test(startRaw) || Number(startRaw) < 1)) {
+      return backTo(request, slug, 'invalid_start');
+    }
+
+    const result = await writeTiming('assign_bibs', {
+      p_event_slug: slug,
+      ...(startRaw === null ? {} : { p_start_from: Number(startRaw) }),
+    });
 
     if (result.state === 'unavailable') return backTo(request, slug, 'unavailable');
     if (result.state === 'refused') return backTo(request, slug, result.reason);
@@ -115,13 +126,27 @@ export async function POST(
     const assigned = Number(result.data['assigned'] ?? 0);
     const already = Number(result.data['already_assigned'] ?? 0);
 
+    // The first and last numbers handed out, as the database wrote them — padding and all. Only
+    // a string of digits crosses the redirect; anything else is left off, and the wording then
+    // simply does not quote a range.
+    const digits = (value: unknown): string | undefined =>
+      typeof value === 'string' && /^\d{1,7}$/.test(value) ? value : undefined;
+    const first = digits(result.data['first']);
+    const last = digits(result.data['last']);
+
     // ⚠️ **"Nothing was numbered" is a success and has to read like one.** `assign_bibs()` is
     // idempotent by skipping, so a second press is meant to do nothing — and a message saying
     // *"0 entries were numbered"* invites somebody to conclude it failed and go looking for a
     // problem that does not exist.
     return assigned === 0
       ? backTo(request, slug, 'bibs-already-assigned')
-      : backTo(request, slug, 'bibs-assigned', { assigned, already });
+      : backTo(request, slug, 'bibs-assigned', {
+          assigned,
+          already,
+          ...(first === undefined ? {} : { first }),
+          ...(last === undefined ? {} : { last }),
+          ...(startRaw === null ? {} : { asked: startRaw }),
+        });
   }
 
   if (intent === 'override-bib') {

@@ -1270,6 +1270,40 @@ test.describe('the entry list', () => {
   });
 
   /**
+   * The **First number** box — `20261023160000`. The old application asked for a first bib and
+   * the port dropped it. `8001` is invented and above anything an earlier test in this project
+   * has numbered, so the start is honoured rather than carried past; the database tests cover
+   * a start below a number already given out, which is ignored rather than renumbering anybody.
+   */
+  test('starts numbering at the first number given, and refuses one that is not a number', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.setInputFiles(
+      '#file',
+      csvUpload(
+        fullOnSportCsv([
+          { poId: 'ZZ-FIRST-1', first: 'Ermintrude', last: 'Zzfirst', gender: 'F' },
+          { poId: 'ZZ-FIRST-2', first: 'Leopold', last: 'Zzfirst', gender: 'M' },
+        ]),
+      ),
+    );
+    await page.getByRole('button', { name: 'Import this file' }).click();
+    await expect(page.getByText(/The entry list was imported/)).toBeVisible();
+
+    // A typo is refused in words, before anything is numbered.
+    await page.getByLabel('First number (optional)').fill('8OO1');
+    await page.getByRole('button', { name: 'Assign bibs' }).click();
+    await expect(page.getByText(/A first number is digits only/)).toBeVisible();
+
+    await page.getByLabel('First number (optional)').fill('8001');
+    await page.getByRole('button', { name: 'Assign bibs' }).click();
+    await expect(page.getByText(/2 entries were numbered, 8001 to 8002/)).toBeVisible();
+  });
+
+  /**
    * The desk path, end to end: somebody turns up, gets the next free number, and then gets
    * handed a physical bib that is not that number.
    */

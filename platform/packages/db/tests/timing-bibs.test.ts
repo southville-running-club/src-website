@@ -61,6 +61,13 @@ async function asPerson<T>(personId: string, sql: string, params: unknown[]): Pr
 const assignBibsAs = (person: string, slug: string) =>
   asPerson<Envelope>(person, 'select timing.assign_bibs($1) as answer', [slug]);
 
+/** Assign bibs with the **First number** box filled in — `20261023160000`. */
+const assignFromAs = (person: string, slug: string, start: number) =>
+  asPerson<Envelope>(person, 'select timing.assign_bibs($1, $2) as answer', [
+    slug,
+    start,
+  ]);
+
 const overrideAs = (
   person: string,
   slug: string,
@@ -442,6 +449,146 @@ describe('numbering a field at the width its numbers are printed', () => {
         code: '23514',
       });
     }
+  });
+});
+
+/**
+ * ⚠️ **Assign bibs can be told where to start, and still never renumbers anybody** —
+ * `20261023160000`. The old application asked for a first bib; the port dropped it. The rule is
+ * `planBibAssignment()`'s: the first number is the greater of the one asked for and one above
+ * the highest already given out, so a start below that is ignored rather than honoured by
+ * renumbering somebody or handing a number out twice.
+ */
+describe('starting Assign bibs at a number the desk chooses', () => {
+  const setWidth = (eventId: string, width: number | null) =>
+    db.query('update timing.events set bib_pad_width = $2 where id = $1', [
+      eventId,
+      width,
+    ]);
+
+  const numbers = async (eventId: string) => {
+    const { rows } = await db.query<{ team_number: string }>(
+      `select team_number from timing.teams where event_id = $1 order by team_number::integer`,
+      [eventId],
+    );
+    return rows.map((r) => r.team_number);
+  };
+
+  it('starts an unnumbered field at the number asked for, and says where it ran to', async () => {
+    for (let i = 0; i < 3; i++) await makeTeam(SOLO_EVENT);
+
+    expect(await assignFromAs(IMPORTER, SOLO_SLUG, 150)).toEqual({
+      ok: true,
+      assigned: 3,
+      already_assigned: 0,
+      first: '150',
+      last: '152',
+    });
+    expect(await numbers(SOLO_EVENT)).toEqual(['150', '151', '152']);
+  });
+
+  it("pads the first number to the race's width", async () => {
+    await setWidth(SOLO_EVENT, 3);
+    for (let i = 0; i < 2; i++) await makeTeam(SOLO_EVENT);
+
+    expect(await assignFromAs(IMPORTER, SOLO_SLUG, 11)).toMatchObject({
+      first: '011',
+      last: '012',
+    });
+  });
+
+  /**
+   * ⚠️ **The half that keeps "never renumbers anybody" true.** Ten numbers are already worn; a
+   * first number of 5 is ignored, nobody already numbered moves, and the answer says numbering
+   * began at 11 so the page can tell the desk why.
+   */
+  it('never goes below a number already given out, and moves nobody', async () => {
+    const worn = await makeTeam(SOLO_EVENT, { team_number: '10' });
+    for (let i = 0; i < 2; i++) await makeTeam(SOLO_EVENT);
+
+    expect(await assignFromAs(IMPORTER, SOLO_SLUG, 5)).toMatchObject({
+      assigned: 2,
+      already_assigned: 1,
+      first: '11',
+      last: '12',
+    });
+    expect(await numbers(SOLO_EVENT)).toEqual(['10', '11', '12']);
+
+    const { rows } = await db.query<{ team_number: string }>(
+      'select team_number from timing.teams where id = $1',
+      [worn],
+    );
+    expect(rows[0]?.team_number).toBe('10');
+  });
+
+  it('leaves a field alone when everybody is numbered, whatever start is given', async () => {
+    await makeTeam(SOLO_EVENT, { team_number: '1' });
+
+    expect(await assignFromAs(IMPORTER, SOLO_SLUG, 500)).toEqual({
+      ok: true,
+      assigned: 0,
+      already_assigned: 1,
+      first: null,
+      last: null,
+    });
+    expect(await numbers(SOLO_EVENT)).toEqual(['1']);
+  });
+
+  it('still steps past a number a guide is wearing', async () => {
+    await makeTeam(SOLO_EVENT, { bib_leg2: '151' });
+    await makeTeam(SOLO_EVENT);
+
+    await assignFromAs(IMPORTER, SOLO_SLUG, 150);
+
+    // Two unnumbered teams: 150, then 151 is skipped because somebody wears it, so 152.
+    expect(await numbers(SOLO_EVENT)).toEqual(['150', '152']);
+  });
+
+  it('refuses a first number of nothing, or of more than six digits', async () => {
+    await makeTeam(SOLO_EVENT);
+
+    for (const start of [0, -3, 1_000_000]) {
+      expect(await assignFromAs(IMPORTER, SOLO_SLUG, start), String(start)).toEqual({
+        ok: false,
+        reason: 'invalid_start',
+      });
+    }
+    // The one entry is still there and still unnumbered: refused means nothing was written.
+    expect(await numbers(SOLO_EVENT)).toEqual([null]);
+  });
+
+  it('refuses somebody without the permission before reading the start', async () => {
+    expect(await assignFromAs(NOBODY, SOLO_SLUG, 0)).toEqual({
+      ok: false,
+      reason: 'refused',
+    });
+  });
+
+  /** The lockstep with the rule the old application ran, now with its `startFrom` given. */
+  it('numbers a field exactly as planBibAssignment() does from a given start', async () => {
+    await setWidth(SOLO_EVENT, 3);
+    const teams: { id: string; team_number: null; csv_row_index: number }[] = [];
+    for (const csvRowIndex of [3, 1, 4, 2, 6, 5]) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into timing.teams (event_id, csv_row_index) values ($1, $2) returning id`,
+        [SOLO_EVENT, csvRowIndex],
+      );
+      teams.push({ id: rows[0]!.id, team_number: null, csv_row_index: csvRowIndex });
+    }
+
+    await assignFromAs(IMPORTER, SOLO_SLUG, 95);
+
+    const { rows } = await db.query<{ id: string; team_number: string }>(
+      `select id, team_number from timing.teams where event_id = $1`,
+      [SOLO_EVENT],
+    );
+    const fromDatabase = Object.fromEntries(rows.map((r) => [r.id, r.team_number]));
+    const plan = planBibAssignment(teams, { startFrom: 95, padWidth: 3 });
+    const fromPlan = Object.fromEntries(
+      plan.assignments.map((a) => [a.id, a.newTeamNumber]),
+    );
+
+    expect(fromDatabase).toEqual(fromPlan);
   });
 });
 
