@@ -1,0 +1,6 @@
+# What the tool's tests need on top of requirements.txt. Never needed to run the tool.
+#
+# moto stands in for R2's S3 API inside the tests, so no test ever touches the real bucket
+# (brief §13). Pinned 23 October 2026, the newest release at least two weeks old.
+-r requirements.txt
+moto[s3]==5.2.3

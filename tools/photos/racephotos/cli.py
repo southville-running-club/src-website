@@ -15,10 +15,11 @@ from .matching import DEFAULT_THRESHOLD
 from .overview import build_overview, human_bytes
 from .reader import FakeReader
 from .tag import TagBusy
+from .sqlfile import SqlRefused
 from .upload import UploadRefused
 from .words import plural, verb
 
-REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused, TagBusy)
+REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused, SqlRefused, TagBusy)
 
 
 def counted(counter, labels=SKIP_LABELS) -> str:
@@ -76,14 +77,17 @@ def upload(args, say) -> int:
 
     config = load_config(args.work)
     run = run_upload(config, dry_run=args.dry_run)
+    sent = "Wrote" if run.dry_run else "Uploaded"
+    earlier_run = "an earlier dry run" if run.dry_run else "an earlier upload"
     say(
-        f"Dry run. Wrote {plural(run.written, 'file')} for {plural(run.photos, 'photo')} to {run.destination}. "
-        f"{run.already} {verb(run.already, 'was', 'were')} there from an earlier dry run."
+        f"{'Dry run. ' if run.dry_run else ''}{sent} {plural(run.written, 'file')} for "
+        f"{plural(run.photos, 'photo')} to {run.destination}. "
+        f"{run.already} {verb(run.already, 'was', 'were')} there from {earlier_run}."
     )
     if run.hidden:
         earlier = (
-            f" {run.hidden_after_upload} of them {verb(run.hidden_after_upload, 'was', 'were')} written by an earlier dry run; once photos "
-            "are on the website, hiding one means taking it down there."
+            f" {run.hidden_after_upload} of them {verb(run.hidden_after_upload, 'was', 'were')} sent by {earlier_run}; "
+            "hiding one now means taking it down on the website."
             if run.hidden_after_upload else ""
         )
         say(f"{plural(run.hidden, 'hidden photo')} {verb(run.hidden, 'was', 'were')} left out.{earlier}")
@@ -92,8 +96,19 @@ def upload(args, say) -> int:
             f"{plural(run.without_time, 'photo')} {verb(run.without_time, 'is', 'are')} included without a time, because the corrected time "
             "fell in the hour the clocks repeated or skipped."
         )
-    say(f"Keys, sizes and checksums: {run.keys_file}")
-    say("Nothing has left this laptop. The real upload to R2 and the SQL file come with slice 2.")
+    if run.keys_file:
+        say(f"Keys, sizes and checksums: {run.keys_file}")
+    if run.sql_files:
+        say(f"The SQL for {plural(run.photos, 'photo')}, in {plural(len(run.sql_files), 'part')}:")
+        for path in run.sql_files:
+            say(f"  {path}")
+    if run.dry_run:
+        say("Nothing has left this laptop.")
+    else:
+        say(
+            "Next: run each SQL part in the Supabase SQL editor, then revoke the R2 token. "
+            "docs/delivery/runbooks/race-photos.md says how."
+        )
     return 0
 
 
@@ -146,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
     upload_command = commands.add_parser("upload", help="write the copies in the bucket's layout")
     upload_command.add_argument(
         "--dry-run", action="store_true",
-        help="write to dry-run/ in the work folder instead of R2 (the only kind until slice 2)",
+        help="write to dry-run/ in the work folder instead of sending to R2",
     )
     upload_command.set_defaults(handler=upload)
     return parser

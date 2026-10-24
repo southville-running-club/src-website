@@ -1,6 +1,14 @@
-# The race photos tool's only dependency outside the standard library (ADR-059).
+# The race photos tool's dependencies outside the standard library (ADR-059).
 #
-# Pinned exactly, and installed into tools/photos/.venv/ — see README.md. 12.3.0 rather than
-# 13.0.0 because 13 was a new major version four days old when this was pinned, on
-# 20 October 2026, and the tool's metadata stripping is checked against 12.3.0's behaviour.
+# Pinned exactly, and installed into tools/photos/.venv/ (see README.md). Each was the newest
+# release at least two weeks old when it was pinned.
+#
+# Pillow 12.3.0, pinned 20 October 2026, rather than 13.0.0: 13 was a new major version four
+# days old, and the tool's metadata stripping is checked against 12.3.0's behaviour.
 Pillow==12.3.0
+
+# boto3 uploads the stripped copies to R2 through its S3 API (slice 2). botocore is pinned
+# with it because the two release together daily and boto3 alone would float botocore to
+# whatever came out this morning. Pinned 23 October 2026.
+boto3==1.43.110
+botocore==1.43.110
