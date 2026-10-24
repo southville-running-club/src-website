@@ -1,4 +1,4 @@
-# ADR-063: Tags reach the database as a SQL file run by hand
+# ADR-064: Tags reach the database as a SQL file run by hand
 
 **Status:** Accepted
 **Date:** 24 October 2026
@@ -63,5 +63,5 @@ way the race's own one-off SQL is run.**
 - [Race photos brief](../../delivery/nn-photos-brief.md), §2 decision 6 and §8
 - `tools/photos/racephotos/sqlfile.py` and its tests;
   `platform/packages/db/tests/photos.test.ts` and `tests/fixtures/photos-golden.sql`
-- [ADR-062](adr-062-the-laptop-uploads-with-a-token-revoked-after-each-upload.md): the upload
+- [ADR-063](adr-063-the-laptop-uploads-with-a-token-revoked-after-each-upload.md): the upload
   that comes first

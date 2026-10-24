@@ -12,11 +12,11 @@ is set up as in [`tools/photos/README.md`](../../../tools/photos/README.md), and
 have been tagged and every camera's clock decided.
 
 Why it works this way is in three decisions:
-[ADR-061](../../architecture/decisions/adr-061-race-photos-live-in-one-private-eu-bucket.md)
+[ADR-062](../../architecture/decisions/adr-062-race-photos-live-in-one-private-eu-bucket.md)
 (the bucket),
-[ADR-062](../../architecture/decisions/adr-062-the-laptop-uploads-with-a-token-revoked-after-each-upload.md)
+[ADR-063](../../architecture/decisions/adr-063-the-laptop-uploads-with-a-token-revoked-after-each-upload.md)
 (the token) and
-[ADR-063](../../architecture/decisions/adr-063-tags-reach-the-database-as-a-sql-file-run-by-hand.md)
+[ADR-064](../../architecture/decisions/adr-064-tags-reach-the-database-as-a-sql-file-run-by-hand.md)
 (the SQL file).
 
 ---

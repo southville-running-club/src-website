@@ -1,4 +1,4 @@
-# ADR-061: Race photos live in one private R2 bucket, in the EU
+# ADR-062: Race photos live in one private R2 bucket, in the EU
 
 **Status:** Accepted
 **Date:** 24 October 2026
@@ -59,5 +59,5 @@ prefix per running.**
 
 - [Race photos brief](../../delivery/nn-photos-brief.md), §2 decision 4, §11 and §14
 - [The race photos runbook](../../delivery/runbooks/race-photos.md): making the bucket
-- [ADR-062](adr-062-the-laptop-uploads-with-a-token-revoked-after-each-upload.md): how
+- [ADR-063](adr-063-the-laptop-uploads-with-a-token-revoked-after-each-upload.md): how
   copies reach it
