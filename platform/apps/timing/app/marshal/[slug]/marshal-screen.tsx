@@ -9,6 +9,7 @@ import {
 } from '@src/shared/timing/anomaly';
 import { allCards, deleteCards, openQueue, putCard } from '../../../lib/queue-db';
 import {
+  alreadyCaptured,
   atRetryCap,
   beginSync,
   confirmBib,
@@ -665,7 +666,14 @@ export function MarshalScreen({
   const confirm = useCallback(
     (card: QueueCard) => {
       const draft = drafts[card.id] ?? '';
-      const next = confirmBib(card, draft, format, known);
+      // ⚠️ **This phone's own unsent crossings count too** — `alreadyCaptured()` says why. Read
+      // from the ref, so a card confirmed a moment ago is in the list this one is judged against.
+      const next = confirmBib(
+        card,
+        draft,
+        format,
+        alreadyCaptured(known, cardsRef.current),
+      );
       if (next === null) {
         return;
       }
@@ -727,6 +735,10 @@ export function MarshalScreen({
   const queue = sortCards(cards);
   const count = (state: QueueCard['state']) =>
     queue.filter((c) => c.state === state).length;
+
+  // What the warning on the keypad is judged against: the club's crossings and this phone's own
+  // unsent ones, the same list Confirm freezes the verdict from.
+  const seen = alreadyCaptured(known, cards);
 
   // ⚠️ **One keypad on the screen at a time: the oldest tap still waiting for its bib.** Runners
   // are typed in the order they crossed, and three keypads stacked under each other is a screen
@@ -837,7 +849,7 @@ export function MarshalScreen({
                 card={card}
                 draft={drafts[card.id] ?? ''}
                 format={format}
-                known={known}
+                known={seen}
                 onPress={press}
                 onBackspace={backspace}
                 onConfirm={confirm}

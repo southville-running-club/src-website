@@ -165,6 +165,39 @@ export interface KnownCrossing {
 }
 
 /**
+ * Everything a new bib is judged against: what the club already has, **and what this phone has
+ * captured but not yet sent**.
+ *
+ * ⚠️ **The one place this screen deliberately does better than the old application** — asked
+ * for on 24 October 2026. The anomaly check used to see only crossings the club had answered
+ * for, read back after each sync. With no signal, nothing syncs, so a bib typed twice on the
+ * same phone looked new both times, was stored unflagged, and never reached the Anomalies
+ * list — `buildResults()` quietly kept the earlier time and nobody was told. A queued card with
+ * a bib is a crossing this phone *knows* happened; leaving it out was an accident of where the
+ * list came from, not a decision.
+ *
+ * The same reasoning answers the relay's other check: a leg-1 crossing queued on this phone is
+ * a handover that happened, so a leg-2 crossing typed after it is not "no handover recorded".
+ *
+ * **What it cannot do** is see another phone's unsent crossings. Two phones offline at two
+ * points on the course still only find out about each other when both have synced — which is
+ * what the Anomalies list, built from the database, is for.
+ *
+ * A card the club already has is counted once, by id. A tap still waiting for its bib has none
+ * to compare and is left out.
+ */
+export function alreadyCaptured(
+  known: readonly KnownCrossing[],
+  cards: readonly QueueCard[],
+): KnownCrossing[] {
+  const ids = new Set(known.map((crossing) => crossing.id));
+  const mine = cards
+    .filter((card) => card.bib !== null && !ids.has(card.id))
+    .map((card) => ({ id: card.id, bib: card.bib, captured_at: card.capturedAt }));
+  return [...known, ...mine];
+}
+
+/**
  * Confirming the keypad: the bib goes on, the anomaly is decided **once**, and the card joins
  * the queue.
  *

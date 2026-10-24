@@ -1449,6 +1449,12 @@ const BIB_OFFLINE = `2${CAPTURE_TEAM_NUMBER}`;
 const BIB_RELOAD = '288';
 /** Two runners timed in one signal gap. Orphans on purpose: the bibs match nobody. */
 const BIBS_GAP = ['266', '267'] as const;
+/**
+ * Typed twice in one signal gap. **Leg 1** of a team that does not exist, so the only thing
+ * that can flag it is the duplicate: no `277` is ever written, so it is never "leg 1 after
+ * leg 2", and a leg-1 bib is never "no handover recorded".
+ */
+const BIB_TWICE = '177';
 
 /** The keypad, pressed a digit at a time — which is the only way a bib is typed on this screen. */
 const typeBib = async (page: Page, bib: string): Promise<void> => {
@@ -1731,6 +1737,48 @@ test.describe('recording a crossing', () => {
     for (const bib of BIBS_GAP) {
       expect(after.some((c) => c.bib === bib)).toBe(true);
     }
+  });
+
+  /**
+   * ⚠️ **A bib typed twice on one phone with no signal is flagged** — 24 October 2026. The
+   * duplicate check used to see only what the club had answered for, so with nothing syncing the
+   * second `177` looked new, was stored unflagged and never reached the Anomalies list. The
+   * marshal is told on the keypad, before Confirm, and the flag travels with the crossing.
+   */
+  test('flags a bib typed twice on this phone with no signal @requires-js', async ({
+    page,
+    context,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.goto(capturePath(testInfo.project.name));
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    await context.setOffline(true);
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, BIB_TWICE);
+    await expect(page.getByText(/Duplicate bib/)).toHaveCount(0);
+    await page.getByRole('button', { name: `Confirm bib ${BIB_TWICE}` }).click();
+
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, BIB_TWICE);
+    // Said on the keypad, before Confirm — and Confirm is still the button.
+    await expect(
+      page.getByText(`Duplicate bib ${BIB_TWICE}`, { exact: false }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: `Confirm bib ${BIB_TWICE}` }).click();
+
+    await context.setOffline(false);
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
+      timeout: 45_000,
+    });
+
+    const mine = (await captureCrossings(testInfo.project.name)).filter(
+      (c) => c.bib === BIB_TWICE,
+    );
+    expect(mine.map((c) => c.anomaly_flag)).toEqual([false, true]);
   });
 
   /**

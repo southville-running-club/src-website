@@ -343,6 +343,11 @@ empty."**
 is wearing — the screen says so *before* the marshal commits, and then lets them commit
 anyway: *"Confirm if that is what you saw."* Somebody at a laptop checks it later. **A marshal never stops to argue with a flag.**
 
+**A bib typed twice on the same phone is flagged even with no signal**, because the phone checks
+against its own unsent crossings as well as the club's. **One typed on another phone is not**,
+until both phones have sent: neither can see the other's queue. The Anomalies list catches that
+afterwards.
+
 ### 3.2 — what the cards mean 📱
 
 **This is the paragraph to read out on the morning.** Four things a card can say, and only the
