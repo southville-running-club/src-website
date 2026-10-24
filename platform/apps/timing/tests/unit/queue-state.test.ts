@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   RETRY_CAP,
+  alreadyCaptured,
   atRetryCap,
   beginSync,
   confirmBib,
@@ -145,6 +146,76 @@ describe('confirming a bib', () => {
 
     expect(afterFailures.anomalyFlag).toBe(true);
     expect(afterFailures.anomalyReason).toBe(flagged.anomalyReason);
+  });
+});
+
+/**
+ * ⚠️ **A bib typed twice on one phone with no signal** — 24 October 2026. The check used to see
+ * only what the club had answered for, so with nothing syncing the second `311` looked new, was
+ * stored unflagged, and never reached the Anomalies list. `alreadyCaptured()` adds this phone's
+ * own unsent crossings to what a new bib is judged against.
+ */
+describe("this phone's own unsent crossings", () => {
+  const LATER = '2026-11-01T11:31:00.000Z';
+
+  it('flags the second of two taps given the same bib, with nothing synced', () => {
+    const first = confirmBib(tap('c1'), '311', 'relay', [])!;
+    // Offline: the drain failed, so the first card is waiting rather than landed.
+    const waiting = syncWaiting(beginSync(first), 'no signal');
+
+    const second = confirmBib(
+      tap('c2', LATER),
+      '311',
+      'relay',
+      alreadyCaptured([], [waiting]),
+    );
+
+    expect(first.anomalyFlag).toBe(false);
+    expect(second?.anomalyFlag).toBe(true);
+    expect(second?.anomalyReason).toContain('Duplicate bib 311');
+  });
+
+  it('counts a queued, sending or failed card, and never a tap still waiting for its bib', () => {
+    const queued = confirmBib(tap('q'), '101', 'relay', [])!;
+    const sending = beginSync(confirmBib(tap('s'), '102', 'relay', [])!);
+    const failed = syncFailed(confirmBib(tap('f'), '103', 'relay', [])!, 'refused');
+    const blank = tap('b');
+
+    expect(
+      alreadyCaptured([], [queued, sending, failed, blank]).map((c) => c.bib),
+    ).toEqual(['101', '102', '103']);
+  });
+
+  it('counts a crossing the club already has once, not twice', () => {
+    const card = confirmBib(tap('c1'), '311', 'relay', [])!;
+    const known = [{ id: 'c1', bib: '311', captured_at: AT }];
+
+    expect(alreadyCaptured(known, [card])).toEqual(known);
+  });
+
+  /**
+   * The relay's other check, the same way round: a handover this phone recorded and has not
+   * sent is still a handover, so the finish typed after it has one.
+   */
+  it('finds a handover queued on this phone, so leg 2 is not "no handover recorded"', () => {
+    const handover = confirmBib(tap('h'), '147', 'relay', [])!;
+
+    const finish = confirmBib(
+      tap('f', LATER),
+      '247',
+      'relay',
+      alreadyCaptured([], [handover]),
+    );
+
+    expect(finish?.anomalyFlag).toBe(false);
+  });
+
+  it("still judges against the club's crossings as before", () => {
+    const known = [{ id: 'other', bib: '311', captured_at: '2026-11-01T11:20:00.000Z' }];
+
+    expect(
+      confirmBib(tap(), '311', 'relay', alreadyCaptured(known, []))?.anomalyFlag,
+    ).toBe(true);
   });
 });
 

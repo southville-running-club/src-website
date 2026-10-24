@@ -2290,6 +2290,10 @@ page: a searched view is a URL somebody may have sent.
   follows from**: a full-width button timestamps immediately and the bib is typed afterwards on
   a keypad, because at the line the scarce resource is the moment rather than the marshal's
   attention. An anomaly **flags and never blocks**, frozen at confirm time and never recomputed.
+  ⚠️ **Since 24 October 2026 it is judged against this phone's own unsent crossings too**
+  (`alreadyCaptured()`): before, the check saw only what the club had answered for, so a bib
+  typed twice with no signal was stored unflagged and never reached the Anomalies list. Another
+  phone's unsent crossings still cannot be seen, and that is the Anomalies list's job.
   The rules are pure and unit-tested in `apps/timing/lib/queue-state.ts` — `RETRY_CAP = 10`, a
   thirty-second drain, ⚠️ **no signal never counting towards the cap** (since 9 October 2026,
   `syncWaiting()`: a long signal gap used to stop every card sending by itself after about five
