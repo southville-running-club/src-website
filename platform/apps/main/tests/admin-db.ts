@@ -10,6 +10,23 @@ import {
   NN_RESULTS_EMAIL,
   NN_TESTER_EMAIL,
   PEOPLE_ADMIN_EMAIL,
+  PHOTO_ADMIN_EMAIL,
+  PHOTO_CHECKER_EMAIL,
+  PHOTO_CREDIT,
+  PHOTO_HIDDEN_ID,
+  PHOTO_HIDDEN_SHORT_ID,
+  PHOTO_PART_ID,
+  PHOTO_PART_SHORT_ID,
+  PHOTO_TAGGED_ID,
+  PHOTO_TAGGED_SHORT_ID,
+  PHOTO_TO_TAKE_DOWN_ID,
+  PHOTO_TO_TAKE_DOWN_SHORT_ID,
+  PHOTO_UNSURE_ID,
+  PHOTO_UNSURE_SHORT_ID,
+  PHOTOS_EVENT_ID,
+  PHOTOS_EVENT_NAME,
+  PHOTOS_EVENT_SLUG,
+  PHOTOS_WORN_BIBS,
   SUPER_ADMIN_EMAIL,
   ADMIN_CAPACITY,
   ADMIN_EVENT_DATE,
@@ -539,9 +556,88 @@ export async function seedAdminFixtures(gateKey: string = ADMIN_GATE_KEY): Promi
     });
   });
 
+  await seedPhotoFixtures();
+
   // **After the entries, and outside the `withClient` above**, because this one talks to
   // GoTrue over HTTP as well as to Postgres. Nothing above depends on a person existing.
   await seedFixturePeople();
+}
+
+/**
+ * The race photos fixture: a fabricated running with a roster, and five photos in the states
+ * the check page has to tell apart. Written the way the laptop's SQL file writes them — rows,
+ * with nothing decided on the website yet — and cleared by slug, never wider.
+ */
+async function seedPhotoFixtures(): Promise<void> {
+  await withClient(async (db) => {
+    await db.query(
+      `insert into timing.events (id, slug, name, format, start_at)
+       values ($1, $2, $3, 'solo', '2026-12-06T10:00:00Z')`,
+      [PHOTOS_EVENT_ID, PHOTOS_EVENT_SLUG, PHOTOS_EVENT_NAME],
+    );
+
+    for (const bib of PHOTOS_WORN_BIBS) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into timing.teams (event_id, team_number) values ($1, $2) returning id`,
+        [PHOTOS_EVENT_ID, bib],
+      );
+      await db.query(
+        `insert into timing.runners (team_id, leg, firstname, lastname)
+         values ($1, 1, 'Fixture', 'Runner')`,
+        [rows[0]!.id],
+      );
+    }
+
+    await db.query(`insert into photos.event (slug) values ($1)`, [PHOTOS_EVENT_SLUG]);
+    await db.query(
+      `insert into photos.photo
+         (id, event_slug, short_id, photographer, spot, taken_at, width, height,
+          check_state, hidden_at)
+       values
+         ($1, $11, $6, $12, 'Finish', '2026-12-06T10:30:00Z', 1200, 800, 'needs_check', null),
+         ($2, $11, $7, $12, 'Finish', '2026-12-06T10:31:00Z', 1200, 800, 'part_read', null),
+         ($3, $11, $8, $12, 'The hill', '2026-12-06T10:20:00Z', 1200, 800, 'tagged', null),
+         ($4, $11, $9, $12, 'The hill', '2026-12-06T10:10:00Z', 1200, 800, 'needs_check', now()),
+         ($5, $11, $10, $12, 'The hill', '2026-12-06T10:40:00Z', 1200, 800, 'tagged', null)`,
+      [
+        PHOTO_UNSURE_ID,
+        PHOTO_PART_ID,
+        PHOTO_TAGGED_ID,
+        PHOTO_HIDDEN_ID,
+        PHOTO_TO_TAKE_DOWN_ID,
+        PHOTO_UNSURE_SHORT_ID,
+        PHOTO_PART_SHORT_ID,
+        PHOTO_TAGGED_SHORT_ID,
+        PHOTO_HIDDEN_SHORT_ID,
+        PHOTO_TO_TAKE_DOWN_SHORT_ID,
+        PHOTOS_EVENT_SLUG,
+        PHOTO_CREDIT,
+      ],
+    );
+    await db.query(
+      `insert into photos.photo_bib (photo_id, bib_text, confidence, confirmed, source)
+       values ($1, '125', 0.610, false, 'model'),
+              ($2, '12?', 0.900, false, 'model'),
+              ($3, '0311', 0.970, true, 'model'),
+              ($4, '120', 0.500, false, 'model'),
+              ($5, '128', 0.990, true, 'model')`,
+      [
+        PHOTO_UNSURE_ID,
+        PHOTO_PART_ID,
+        PHOTO_TAGGED_ID,
+        PHOTO_HIDDEN_ID,
+        PHOTO_TO_TAKE_DOWN_ID,
+      ],
+    );
+  });
+}
+
+async function clearPhotoFixtures(db: Client): Promise<void> {
+  // `photo_bib` and `decision` cascade from `photo`; `photo` and `event` do not, deliberately.
+  await db.query('delete from photos.photo where event_slug = $1', [PHOTOS_EVENT_SLUG]);
+  await db.query('delete from photos.event where slug = $1', [PHOTOS_EVENT_SLUG]);
+  // Teams and runners cascade from the timing record.
+  await db.query('delete from timing.events where slug = $1', [PHOTOS_EVENT_SLUG]);
 }
 
 /**
@@ -584,6 +680,8 @@ async function seedFixturePeople(): Promise<void> {
     [NN_TESTER_EMAIL]: 'nn-tester',
     [PEOPLE_ADMIN_EMAIL]: 'people-admin',
     [NN_RESULTS_EMAIL]: 'nn-results',
+    [PHOTO_CHECKER_EMAIL]: 'nn-photo-checker',
+    [PHOTO_ADMIN_EMAIL]: 'nn-photo-admin',
     [ENTRANT_EMAIL]: null,
     [LAPSED_EMAIL]: null,
   };
@@ -669,6 +767,7 @@ export async function clearAdminFixtures(
     await db.query('delete from entries.events where slug = any($1::text[])', [
       FIXTURE_EVENT_SLUGS,
     ]);
+    await clearPhotoFixtures(db);
     await db.query('delete from entries.admin_audit where actor = any($1::text[])', [
       [ADMIN_HANDLE, REVOKED_HANDLE],
     ]);
