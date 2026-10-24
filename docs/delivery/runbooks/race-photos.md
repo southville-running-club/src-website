@@ -208,6 +208,6 @@ Each hand step, as it is done: what, by whom, when.
 
 | Step | Done by | When | Notes |
 | --- | --- | --- | --- |
-| 2. Bucket created, EU jurisdiction | | | |
-| 3. Public access checked off | | | |
+| 2. Bucket created, EU jurisdiction | Bindal | 24 October 2026, 22:09 | Dashboard, **Specify jurisdiction → European Union**, storage class Standard. The bucket's dashboard address is under `/r2/eu/` |
+| 3. Public access checked off | Bindal | 24 October 2026 | The bucket's page shows **Public Access: Disabled**; nothing was switched on |
 | 4. Retention rule | | | Waits on the committee |
