@@ -107,6 +107,16 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
   {
     /**
+     * **`nn.photo.read`, which both photo roles hold** — the progress figures. The check queue
+     * behind it is `nn.photo.check`, but a link that only checkers could follow would hide the
+     * section from the photo-admin who publishes from it (ADR-066).
+     */
+    href: `${ADMIN_PREFIX}/photos/`,
+    label: 'Race photos',
+    permission: 'nn.photo.read',
+  },
+  {
+    /**
      * **The read, not the grant.** The page is a list of people that some of its readers may
      * also change, and `people-admin` may only read it — so the permission that opens the
      * link has to be the one that opens the table. Naming `identity.role.grant` here would
@@ -151,6 +161,11 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  */
 export const STAFF_ROLES = [
   'nn-admin',
+  // **The two race photo roles, taken on 24 October 2026** (ADR-066). Staff because their
+  // pages are under `/admin/`; neither carries an `nn.entry.*` permission, so being through
+  // this door shows them photos and bibs and never the entry list.
+  'nn-photo-admin',
+  'nn-photo-checker',
   'people-admin',
   // **The club's master role, for directors** — the sixth role, taken on 6 September 2026. It
   // is on this list for the ordinary reason any staff role is: it opens pages behind the

@@ -159,6 +159,12 @@ describe('the shape of the model', () => {
     // would let a super-admin record a membership claim the system cannot back.
     expect(rows.map((row) => row.slug)).toEqual([
       'nn-admin',
+      // **The tenth and eleventh, taken on 24 October 2026** — race photos, brief slice 3
+      // and ADR-066. Both are on `STAFF_ROLES`, because their pages are under `/admin/`, and
+      // **neither carries any `nn.entry.*` permission**: a checker sees photos and bibs, never
+      // the entry list.
+      'nn-photo-admin',
+      'nn-photo-checker',
       // **The ninth, taken on 11 September 2026 on the club's instruction** — results on
       // `/nn/<year>/results/`, hidden behind `nn-results` until they are published. A role
       // for looking: it opens no back office and is not on `STAFF_ROLES`.
@@ -220,6 +226,16 @@ describe('the shape of the model', () => {
       'nn.entry.export',
       'nn.entry.read',
       'nn.entry.read_medical',
+      // **The twentieth to twenty-third, for the race photos' check page** — brief slice 3,
+      // ADR-066. Four because the page has four doors: the progress figures (`read`, both
+      // photo roles), the check queue and unpublished images (`check`, the checker), a
+      // takedown (`hide`, both) and publishing (`publish`, the photo-admin). **No
+      // `nn.photo.send` yet**: sending links is slice 5, and a permission guarding a door that
+      // has not been built is one nobody can reason about.
+      'nn.photo.check',
+      'nn.photo.hide',
+      'nn.photo.publish',
+      'nn.photo.read',
       // **The eighteenth**, carried by `nn-results` and `src-admin`. Deliberately not by
       // `timing-admin`: running a race and seeing its results before they are public are
       // different powers, and the club asked for the second to sit behind its own role.
@@ -290,6 +306,16 @@ describe('the shape of the model', () => {
       'nn-admin → nn.entry.export',
       'nn-admin → nn.entry.read',
       'nn-admin → nn.entry.read_medical',
+      // **The photo roles, ADR-066**: the checker checks and takes down, the photo-admin
+      // publishes and takes down, and both see the progress figures. ⚠️ **Not one `nn.entry.*`
+      // between them**, which is the line to look at if a checker is ever reported reading the
+      // entry list.
+      'nn-photo-admin → nn.photo.hide',
+      'nn-photo-admin → nn.photo.publish',
+      'nn-photo-admin → nn.photo.read',
+      'nn-photo-checker → nn.photo.check',
+      'nn-photo-checker → nn.photo.hide',
+      'nn-photo-checker → nn.photo.read',
       'nn-results → nn.results.read',
       'nn-tester → nn.entry.before_open',
       'people-admin → identity.person.read',
@@ -316,6 +342,13 @@ describe('the shape of the model', () => {
       'src-admin → nn.entry.export',
       'src-admin → nn.entry.read',
       'src-admin → nn.entry.read_medical',
+      // **The four photo permissions, decided on 24 October 2026**: directors get them, as
+      // they hold every other area's. ⚠️ That includes seeing photos before they are published
+      // and taking one down, which deletes it from storage.
+      'src-admin → nn.photo.check',
+      'src-admin → nn.photo.hide',
+      'src-admin → nn.photo.publish',
+      'src-admin → nn.photo.read',
       // The explicit-rows design forcing the decision again: directors see results early.
       'src-admin → nn.results.read',
       'src-admin → store.ticket.read',
@@ -560,6 +593,12 @@ describe('grantable_roles', () => {
     expect(answer.ok).toBe(true);
     expect(answer.roles.map((role) => role.slug)).toEqual([
       'nn-admin',
+      // **The tenth and eleventh, taken on 24 October 2026** — race photos, brief slice 3
+      // and ADR-066. Both are on `STAFF_ROLES`, because their pages are under `/admin/`, and
+      // **neither carries any `nn.entry.*` permission**: a checker sees photos and bibs, never
+      // the entry list.
+      'nn-photo-admin',
+      'nn-photo-checker',
       // **The ninth, taken on 11 September 2026 on the club's instruction** — results on
       // `/nn/<year>/results/`, hidden behind `nn-results` until they are published. A role
       // for looking: it opens no back office and is not on `STAFF_ROLES`.
@@ -598,8 +637,9 @@ describe('grantable_roles', () => {
     // This count is exactly what the explicit-rows design exists to make somebody change by
     // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
-    // ⚠️ **Eighteen until 9 October 2026**, when ADR-056 added `timing.roster.read`.
-    expect(masterRole?.permissions).toHaveLength(19);
+    // ⚠️ **Eighteen until 9 October 2026**, when ADR-056 added `timing.roster.read`, and
+    // **nineteen until 24 October 2026**, when the race photos' four arrived (ADR-066).
+    expect(masterRole?.permissions).toHaveLength(23);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });

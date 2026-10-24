@@ -34,6 +34,13 @@ describe('grouping a role by its slug', () => {
     expect(groupFor('timing-marshal').id).toBe('timing');
   });
 
+  it('files the two photo roles under Nightingale Nightmare, where the brief puts them', () => {
+    // Brief §10: "new rows in the role list at /admin/people/, in the Nightingale Nightmare
+    // group". The `nn-` prefix is what does it, so the slug is the decision.
+    expect(groupFor('nn-photo-checker').id).toBe('nn');
+    expect(groupFor('nn-photo-admin').id).toBe('nn');
+  });
+
   it('puts everything else in Club, including the two club roles', () => {
     expect(groupFor('src-admin').id).toBe('club');
     expect(groupFor('people-admin').id).toBe('club');
@@ -61,6 +68,8 @@ describe('labelling a role', () => {
     expect(roleLabel('nn-admin')).toBe('Admin');
     expect(roleLabel('nn-results')).toBe('Results');
     expect(roleLabel('timing-marshal')).toBe('Marshal');
+    expect(roleLabel('nn-photo-checker')).toBe('Photo checker');
+    expect(roleLabel('nn-photo-admin')).toBe('Photo admin');
   });
 
   it('keeps a club slug whole, since there is no prefix to drop', () => {

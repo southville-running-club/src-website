@@ -6,13 +6,14 @@ import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * The `photos` schema, as slice 2 leaves it: four tables that only the SQL editor can write.
+ * The `photos` schema: tables only the SQL editor and the schema's own functions can write.
  *
  * Race photos arrive from the laptop tool as a SQL file a volunteer runs by hand (brief §2
- * decision 6). Nothing on the website reads or writes here until the slices that build the
- * check page, the runners' pages and the private links add their own functions, each with
- * its own grants. Until then the assertion that matters is the negative one: no role a
- * browser can reach holds anything, and the schema is not exposed through PostgREST at all.
+ * decision 6). The website reaches them only through functions, each with its own grant:
+ * the shared check page's since slice 3 (`photos-check.test.ts`), and the runners' pages and
+ * private links in the slices after. The assertion that matters here is the negative one: no
+ * role a browser can reach holds anything on a table, though the schema is exposed through
+ * PostgREST since slice 3.
  *
  * Each refusal names its **error code**, for the reason `membership.test.ts` gives: a test
  * that passes because a table stopped existing has stopped testing.
@@ -49,7 +50,7 @@ afterAll(async () => {
  * schema holds a table that is not on it, so a fifth table cannot arrive without a decision
  * about who may reach it.
  */
-const TABLES = ['event', 'link', 'photo', 'photo_bib'] as const;
+const TABLES = ['decision', 'event', 'link', 'photo', 'photo_bib'] as const;
 
 // Invented, fixed values. `nn-2026` is the one running `timing.events` holds on every machine.
 const EVENT = 'nn-2026';
@@ -84,12 +85,19 @@ async function attempt(statements: string[]): Promise<string | null> {
 
 describe('what nobody a browser can be may do', () => {
   for (const table of TABLES) {
-    it(`cannot reach ${table} through the API, because the schema is not exposed`, async () => {
+    it(`cannot read ${table} through the API, because nothing grants it`, async () => {
       const { error } = await anon.schema('photos').from(table).select('*').limit(1);
 
-      // PGRST106: PostgREST has no route to the schema at all. The later slices expose it,
-      // and from then this becomes 42501 — the grant refusing rather than the route missing.
-      expect(error?.code).toBe('PGRST106');
+      // 42501: PostgREST routes the request since the check page exposed the schema, and
+      // Postgres refuses it. It was PGRST106 until then — no route at all — which proved less:
+      // a refusal that only happens because nothing can get as far as asking is not one.
+      expect(error?.code).toBe('42501');
+    });
+
+    it(`cannot write ${table} through the API either`, async () => {
+      const { error } = await anon.schema('photos').from(table).insert({});
+
+      expect(error?.code).toBe('42501');
     });
 
     it(`grants anon and authenticated nothing on ${table}`, async () => {
@@ -132,18 +140,41 @@ describe('the shape of the schema', () => {
   });
 
   /**
-   * ⚠️ **The list is the decision**, as `membership.test.ts` says of its own. Slice 2 adds no
-   * function. Each later slice adds its own here, with what it is for and who may call it, in
-   * the same diff as the grant.
+   * ⚠️ **The list is the decision**, as `membership.test.ts` says of its own. Each slice adds
+   * its functions here, with what they are for and who may call them, in the same diff as the
+   * grant — so a function granted to `anon`, or a new one granted to anybody, fails this test
+   * until somebody decides it in a diff.
+   *
+   * **Slice 3, the check page** (ADR-065): seven granted to `authenticated`, each asking
+   * `identity.has_permission()` inside itself, and six helpers granted to nobody. **`anon`
+   * may call none of them.**
    */
-  it('has no functions yet', async () => {
-    const rows = await query(
-      `select p.proname from pg_proc p
+  it('has exactly these functions, and grants them exactly this way', async () => {
+    const rows = await query<{ name: string; anon: boolean; authenticated: boolean }>(
+      `select p.proname as name,
+              has_function_privilege('anon', p.oid, 'execute') as anon,
+              has_function_privilege('authenticated', p.oid, 'execute') as authenticated
+         from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'photos'`,
+        where n.nspname = 'photos'
+        order by p.proname`,
     );
 
-    expect(rows).toEqual([]);
+    expect(rows).toEqual([
+      { name: 'candidate_bibs', anon: false, authenticated: false },
+      { name: 'decide', anon: false, authenticated: true },
+      { name: 'is_unsure', anon: false, authenticated: false },
+      { name: 'left_to_check', anon: false, authenticated: false },
+      { name: 'next_photo', anon: false, authenticated: true },
+      { name: 'photo_for_admin_image', anon: false, authenticated: true },
+      { name: 'photo_for_checking', anon: false, authenticated: false },
+      { name: 'photo_state', anon: false, authenticated: false },
+      { name: 'progress', anon: false, authenticated: true },
+      { name: 'publish', anon: false, authenticated: true },
+      { name: 'take_down', anon: false, authenticated: true },
+      { name: 'undo_decision', anon: false, authenticated: true },
+      { name: 'worn_bibs', anon: false, authenticated: false },
+    ]);
   });
 });
 
@@ -289,6 +320,7 @@ const CHECKER = '6a0b2c1d-3e4f-4a5b-8c6d-7e8f9a0b1c2d';
 
 async function clearPhotos(): Promise<void> {
   await query('delete from photos.photo_bib');
+  await query('delete from photos.decision');
   await query('delete from photos.photo');
   await query('delete from photos.link');
   await query('delete from photos.event');
