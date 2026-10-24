@@ -27,6 +27,7 @@ import {
   AWKWARD_FIRST_NAME,
   AWKWARD_LAST_NAME,
   CLEAN_EVENT_SLUG,
+  CLEAN_HELD_LAST_NAME,
   CLEAN_PAID_LAST_NAME,
   CLEAN_PAID_PURCHASE_ID,
   REGISTERED_EMAIL,
@@ -1205,6 +1206,45 @@ test.describe('one entry in full', () => {
 
     expect(response.status()).toBe(404);
     expect(await response.text()).not.toContain(CLEAN_PAID_LAST_NAME);
+  });
+
+  /**
+   * **Transfer is offered on a paid entry only, while Cancel also takes a live hold.** The two
+   * shared Cancel's condition from the day Transfer was added until 24 October 2026, so a held
+   * entry offered a form that `transfer_entry()` refuses `not_paid` every time — and the
+   * refusal reached the volunteer as a 404. A hold has no place to move yet: it becomes paid,
+   * or it lapses back to the race.
+   *
+   * **Cancel is asserted present before Transfer is asserted absent**, in both places, because
+   * an absence inside a closed `<details>` or on the wrong page would pass for nothing.
+   */
+  test('offers Cancel on a held entry and not Transfer, in its menu and on its page', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    // The list opens on the Paid pill, which a hold is not in.
+    await page.goto(`${CLEAN}?status=pending`);
+
+    const held = page.getByRole('row', { name: new RegExp(CLEAN_HELD_LAST_NAME) });
+    await held.locator('summary').click();
+
+    await expect(
+      held.getByRole('button', {
+        name: new RegExp(`^Cancel.* the entry for ${CLEAN_HELD_LAST_NAME}`),
+      }),
+    ).toBeVisible();
+    await expect(held.getByRole('button', { name: /^Transfer/ })).toHaveCount(0);
+
+    await held.getByRole('button', { name: /View details/ }).click();
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: new RegExp(CLEAN_HELD_LAST_NAME) }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel this entry' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Transfer this entry' })).toHaveCount(
+      0,
+    );
   });
 });
 
@@ -2592,6 +2632,73 @@ test.describe('acting on an entry somebody paid for', () => {
     ).toBeVisible();
     await expect(
       page.getByRole('rowheader', { name: new RegExp(CANCELLABLE_LAST_NAME) }),
+    ).toBeHidden();
+  });
+
+  /**
+   * **A refusal is named on the form, and nothing moves.** Until 24 October 2026 every refusal
+   * from `transfer_entry()` except `unauthorised` reached the volunteer as _"Not found. There is
+   * nothing at this address."_ — on the form they had just filled in, which read as a broken
+   * page, or as a deadline having passed. One place per email address is the rule a volunteer
+   * actually met that way, so it is the one here: `ENTRANT_EMAIL` already paid for
+   * Achterberg's place on this running.
+   *
+   * **Before the transfer test below, and it has to be**: that one consumes Lindqvist's row,
+   * and this one asserts that nothing about it changed.
+   */
+  test('names the rule when the new runner’s address already holds a place, and moves nothing', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ACTIONS);
+
+    const transferable = page.getByRole('row', {
+      name: new RegExp(`${TRANSFERABLE_LAST_NAME}, Petra`),
+    });
+    await transferable.locator('summary').click();
+    await transferable
+      .getByRole('button', {
+        name: new RegExp(
+          `^Transfer to someone else\\s*:\\s*the entry for ${TRANSFERABLE_LAST_NAME}, Petra`,
+        ),
+      })
+      .click();
+
+    await page.getByLabel('First name').fill(TRANSFER_TO_FIRST_NAME);
+    await page.getByLabel('Last name').fill(TRANSFER_TO_LAST_NAME);
+    await page.getByLabel(/date of birth/i).fill('1990-02-17');
+    await page.getByLabel(/email address of the new runner/i).fill(ENTRANT_EMAIL);
+    await page.getByRole('radio', { name: 'Female' }).check();
+    await page.getByLabel(/their own phone number/i).fill('07700 900555');
+    await page.getByLabel(/emergency contact name/i).fill('Ada Okonkwo');
+    await page.getByLabel(/emergency contact number/i).fill('07700 900123');
+
+    // **The status is the regression**: it was a 404, and the page that came with it is
+    // indistinguishable from an address that does not exist.
+    const submitted = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/admin/nn/transfer/') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: 'Move the place to this runner' }).click();
+    expect((await submitted).status()).toBe(200);
+
+    // The form comes back, saying which rule and that nothing moved.
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Transfer this entry' }),
+    ).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText(
+      'That email address already has a place in this race',
+    );
+    await expect(page.getByRole('alert')).toContainText('Nothing has changed');
+
+    await page.goto(ACTIONS);
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFERABLE_LAST_NAME) }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('rowheader', { name: new RegExp(TRANSFER_TO_LAST_NAME) }),
     ).toBeHidden();
   });
 

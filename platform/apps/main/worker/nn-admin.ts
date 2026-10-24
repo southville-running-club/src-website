@@ -44,6 +44,7 @@ import {
   type MedicalExportRow,
   type ResultPlacement,
   type StartListExportRow,
+  type TransferReason,
   type UnavailableCause,
 } from '@src/shared';
 import type { SupabaseConfig } from '@src/shared';
@@ -1891,8 +1892,12 @@ function entryRow(
  *
  *   * *View details* on every row, including a refunded one — reading is the safe act, and a
  *     cancelled entry is the row somebody most often needs the history of;
- *   * *Transfer* only where `entries.transfer_entry()` can do it — a place that exists, and no
- *     guide on the purchase, because "transfer it" does not say which of two people is leaving;
+ *   * *Transfer* only where `entries.transfer_entry()` can do it — a **paid** entry, and no
+ *     guide on the purchase, because "transfer it" does not say which of two people is leaving.
+ *     ⚠️ **Paid, not "paid or a live hold" like Cancel**, and this was wrong from the day
+ *     Transfer was added until 24 October 2026: it reused Cancel's condition, so a held entry
+ *     offered a form that `transfer_entry()` refuses `not_paid` every time. A hold has no place
+ *     to move yet — it either becomes paid or lapses back to the race;
  *   * *Cancel* only on a paid entry or a live hold, and only for `nn.entry.cancel`. It is last,
  *     below a rule and in the error colour, and it still only *asks*: the POST renders the
  *     confirmation page, which mints the CSRF token the second POST has to echo.
@@ -1917,7 +1922,13 @@ function rowMenu(
     (entry.status === 'paid' || entry.status === 'pending');
 
   // The database refuses a transfer it cannot do regardless; this stops the page promising one.
-  const transferable = cancellable && entry.role !== 'guide' && !hasGuide(entry, all);
+  // **`paid` and not `cancellable`'s two statuses** — `transfer_entry()` answers `not_paid` to
+  // a hold, however live, because there is no place to move until the payment lands.
+  const transferable =
+    can(viewer, 'nn.entry.cancel') &&
+    entry.status === 'paid' &&
+    entry.role !== 'guide' &&
+    !hasGuide(entry, all);
 
   const label = named
     ? `Manage entry for ${entry.firstName} ${entry.lastName}`
@@ -2625,11 +2636,15 @@ function entryDetailPage(viewer: AdminViewer, detail: AdminEntryDetail): Html {
 
   // **The same two controls the row offers, and offered on the same conditions.** A page that
   // showed a Transfer button where the list does not would be a page promising something
-  // `entries.transfer_entry()` refuses — see `entryRow` for why a guide narrows it.
+  // `entries.transfer_entry()` refuses — see `rowMenu` for why a guide narrows it, and why
+  // Transfer asks for `paid` where Cancel also takes a live hold.
   const cancellable =
     can(viewer, 'nn.entry.cancel') &&
     (purchase.status === 'paid' || purchase.status === 'pending');
-  const transferable = cancellable && detail.entrants.length === 1;
+  const transferable =
+    can(viewer, 'nn.entry.cancel') &&
+    purchase.status === 'paid' &&
+    detail.entrants.length === 1;
 
   const open = detail.requests.filter((request) => request.resolvedAt === null);
 
@@ -3456,6 +3471,15 @@ async function readForm(request: Request): Promise<FormData | null> {
  * **No Stripe call anywhere on this path.** The money stays where it is and the place never
  * returns to the pool, which is the whole difference between this and cancelling — a
  * transferred place cannot be taken by somebody else in between.
+ *
+ * **No date is read anywhere on this path, and that is worth saying because it gets asked.**
+ * The race director's terms set a transfer deadline — `race.json`'s `transferDeadline`, read by
+ * `/nn/<year>/terms/` and by nothing else — and neither this handler nor `transfer_entry()`
+ * enforces it, nor `entries_close_at`, nor race day. The only date compared is the new
+ * runner's date of birth. A late transfer is the race director's call, not this code's.
+ *
+ * **A refusal is named on the form, not answered with a 404**, since 24 October 2026 — see
+ * `TRANSFER_REASONS` for the defect that was, and `transferRefusalWords` for the wording.
  */
 async function transferResponse(
   request: Request,
@@ -3567,10 +3591,36 @@ async function transferResponse(
   // number of their own was what closed that; the club stopped asking for numbers on 29 August
   // 2026, so no fee requires one and an affiliated transfer is now an ordinary transfer.
 
-  if (outcome.status !== 'ok') {
-    // `unauthorised` and `not-found` answer identically, exactly as every other read and write
-    // on this surface does.
-    return notFound();
+  if (outcome.status === 'refused') {
+    // **Only the two that are about the right to be here answer 404**, identically, exactly as
+    // every other refusal of that kind on this surface does: "you may not" and "there is no
+    // such entry" must not be told apart. Every other reason is a rule the volunteer can act
+    // on, and was a 404 until 24 October 2026 — which read as a broken page.
+    if (outcome.reason === 'unauthorised' || outcome.reason === 'no_such_purchase') {
+      return notFound();
+    }
+
+    // **No form will fix these two**, because they are about the entry rather than about who
+    // it is moving to — so they get an outcome page rather than the form back.
+    if (outcome.reason === 'not_paid' || outcome.reason === 'not_a_solo_entry') {
+      return page(
+        'Transfer entry',
+        cancelOutcomePage(
+          viewer,
+          'This entry cannot be transferred',
+          transferRefusalWords(outcome.reason),
+        ),
+        {},
+      );
+    }
+
+    const token = mintCsrfToken();
+
+    return page(
+      'Transfer entry',
+      transferFormPage(viewer, purchaseId, token, transferRefusalWords(outcome.reason)),
+      { cookies: [csrfCookie(token, secure)] },
+    );
   }
 
   return page(
@@ -3582,6 +3632,45 @@ async function transferResponse(
     ),
     {},
   );
+}
+
+/**
+ * What each refusal from `transfer_entry()` reads as on the page.
+ *
+ * **Named individually, for `assignRefusalWords`' reason**: "that address already has a place"
+ * and "that runner is under 18" ask for completely different things next, and every fact
+ * concerned was typed by this volunteer a moment ago. Each says **nothing has changed**,
+ * because the question a volunteer has after a refusal is whether the place moved anyway.
+ *
+ * `unauthorised` and `no_such_purchase` never reach here — they are the 404 — and
+ * `ea_number_required` is unreachable since ADR-023, so it shares the fallback with `unknown`.
+ */
+function transferRefusalWords(reason: TransferReason): string {
+  if (reason === 'email_already_entered') {
+    return 'That email address already has a place in this race. The club holds one place per address, and a place somebody is part-way through paying for counts. Nothing has changed. Use an address that belongs to the new runner.';
+  }
+
+  if (reason === 'already_entered') {
+    return 'That runner already has a place in this race — the club has an entry against that name and date of birth. Nothing has changed.';
+  }
+
+  if (reason === 'under_minimum_age') {
+    return 'That date of birth is under the minimum age on race day. The age rule applies to a transferred place exactly as it does to one that is bought. Nothing has changed.';
+  }
+
+  if (reason === 'invalid_entrant') {
+    return 'The club could not accept those details — most often because the date of birth is after race day. Nothing has changed. Check every box and try again.';
+  }
+
+  if (reason === 'not_paid') {
+    return 'Only a paid entry can be transferred, and this one is not paid: it is a hold that has not completed, or it has already been cancelled. A hold either becomes paid or lapses back to the race. Nothing has changed.';
+  }
+
+  if (reason === 'not_a_solo_entry') {
+    return 'This entry has two people on it — a runner and their guide — and a transfer does not say which of them is leaving. Nothing has changed.';
+  }
+
+  return 'The club could not move the place. Nothing has changed. Check every box and try again.';
 }
 
 /**

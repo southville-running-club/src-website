@@ -1724,6 +1724,47 @@ export interface TransferredEntry {
 }
 
 /**
+ * Why `entries.transfer_entry()` refused, in its own words.
+ *
+ * **Not folded into `CancelResult`'s three any more, and that fixes a live defect rather than
+ * a style.** `transferEntry` went through `readCancelEnvelope`, which turns every reason except
+ * `unauthorised` into `not-found` — so until 24 October 2026 a volunteer who typed a new runner
+ * whose address already held a place was shown _"Not found. There is nothing at this address."_
+ * on the form they had just filled in. So was one who typed a runner under the minimum age, or
+ * somebody who already had a place. The address existed and the rule refusing it went unnamed,
+ * which reads as a broken page rather than as a rule to act on — and the transfer deadline being
+ * past made it look like a timeout, though nothing about a transfer reads a date.
+ *
+ * The same answer `MANUAL_ENTRY_REASONS` gives for giving a place away: every fact concerned was
+ * typed by this volunteer a moment ago, or is about an entry their permission already lets them
+ * read, so naming the rule discloses nothing. The two that are about _whether there is a record
+ * this person may act on_ — `unauthorised` and `no_such_purchase` — still answer 404 at the
+ * Worker, exactly as every other refusal of the right to be somewhere on this surface does.
+ *
+ * `ea_number_required` is still a branch in the function and unreachable since ADR-023. It is
+ * listed so it parses as itself rather than as `unknown`, and goes at the contract step.
+ */
+export const TRANSFER_REASONS = [
+  'unauthorised',
+  'no_such_purchase',
+  'not_paid',
+  'not_a_solo_entry',
+  'invalid_entrant',
+  'ea_number_required',
+  'under_minimum_age',
+  'already_entered',
+  'email_already_entered',
+  'unknown',
+] as const;
+
+export type TransferReason = (typeof TRANSFER_REASONS)[number];
+
+export type TransferResult =
+  | TransferredEntry
+  | { status: 'refused'; reason: TransferReason }
+  | { status: 'unavailable'; error: string; cause?: UnavailableCause | undefined };
+
+/**
  * Move one paid entry to a different runner.
  *
  * **No money moves.** The purchase keeps its amount and its Stripe references, and the place
@@ -1738,7 +1779,7 @@ export async function transferEntry(
   client: UserClient,
   purchaseId: string,
   to: TransferTo,
-): Promise<CancelResult<TransferredEntry>> {
+): Promise<TransferResult> {
   try {
     const { data, error } = await client.schema('entries').rpc('transfer_entry', {
       p_purchase_id: purchaseId,
@@ -1767,18 +1808,41 @@ export async function transferEntry(
       p_phone: to.phone,
     });
 
-    return readCancelEnvelope(data, error, 'transfer_entry', (value) => {
-      const parsed = z
-        .object({ previous_runner: z.string().nullable().catch(null) })
-        .safeParse(value);
+    if (error) {
+      return {
+        status: 'unavailable',
+        error: `${error.code ?? 'unknown'}: ${error.message}`,
+        // **The refusal that reads as an outage, named** — see `readCancelEnvelope`, which this
+        // used to go through and whose one useful half is kept.
+        cause: missingFunctionCause(error.code),
+      };
+    }
 
-      return parsed.success
-        ? {
-            status: 'ok',
-            previousRunner: parsed.data.previous_runner ?? 'the previous runner',
-          }
-        : { status: 'unavailable', error: 'transfer_entry returned an unexpected shape' };
-    });
+    const envelope = z
+      .object({
+        ok: z.boolean(),
+        // `.catch('unknown')` so a reason added to the function before this list learns it
+        // reads as a refusal the page can still word, rather than as an outage.
+        reason: z.enum(TRANSFER_REASONS).catch('unknown').optional(),
+        previous_runner: z.string().nullable().catch(null),
+      })
+      .safeParse(data);
+
+    if (!envelope.success) {
+      return {
+        status: 'unavailable',
+        error: 'transfer_entry returned an unexpected shape',
+      };
+    }
+
+    if (!envelope.data.ok) {
+      return { status: 'refused', reason: envelope.data.reason ?? 'unknown' };
+    }
+
+    return {
+      status: 'ok',
+      previousRunner: envelope.data.previous_runner ?? 'the previous runner',
+    };
   } catch (cause) {
     return {
       status: 'unavailable',

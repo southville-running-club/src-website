@@ -203,6 +203,7 @@ export {
   fetchEntryDetail,
   missingFunctionCause,
   transferEntry,
+  TRANSFER_REASONS,
   type UnavailableCause,
   MANUAL_ENTRY_REASONS,
   type ManualEntrant,
@@ -210,6 +211,8 @@ export {
   type ManualEntryReason,
   type ManualEntryResult,
   type StartListExportRow,
+  type TransferReason,
+  type TransferResult,
   type TransferredEntry,
   type TransferTo,
 } from './admin';

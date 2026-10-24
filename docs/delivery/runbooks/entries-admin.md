@@ -199,6 +199,27 @@ refuse on an affiliated entry — so **every affiliated transfer failed, and fai
 the form said the club's database could not be reached, on a database that was perfectly healthy.
 If you ever see that message again it is a real outage rather than this defect.
 
+**A transfer the club refuses says why, on the form, since 24 October 2026.** Before that, every
+refusal came back as **"Not found. There is nothing at this address."**, which reads as a
+broken page. The form now comes back with a red line naming the rule, and **nothing has
+changed** whenever it does:
+
+| The form says | What to do |
+| --- | --- |
+| That email address already has a place in this race | One place per address. Ask the new runner for an address of their own that has no entry |
+| That runner already has a place in this race | Somebody with that name and date of birth already holds a place. Check the list before going further |
+| That date of birth is under the minimum age on race day | They are under 18 on race day. The rule is the same for a transferred place as a bought one |
+| The club could not accept those details | Most often a date of birth after race day. Check the year |
+
+Two refusals are about the entry rather than the new runner, and come back as a page headed
+**"This entry cannot be transferred"**: the entry is not paid, or it has a guide on it. "Not
+found" on a transfer now means only what it means everywhere else here — you are signed out, or
+the entry does not exist.
+
+**No date stops a transfer.** The race director's terms set a transfer deadline, but nothing in
+the platform enforces it — not that deadline, not the close of entries, not race day. Whether a
+late transfer should happen is her call, made before you press the button.
+
 **Every view is an address except a search, and nothing works only with a script.** The pills
 and the Runner and Category column headers are links; Category, Entry type and Sort are a GET
 form with an **Apply** button. So a filtered view is a URL somebody can send to the other
@@ -212,10 +233,13 @@ and header on the page is a small form that carries it, so sorting does not lose
 search** drops it. The flip side is that a searched view cannot be bookmarked or sent.
 
 **Each row's "⋯" menu holds everything you can do to that entry**: View details, Transfer to
-someone else (paid or held, and no guide on the entry), Email the runner, and — last, in red —
-Cancel and refund. It is a plain disclosure that opens with Enter or a tap and works with
-scripting off. **Cancel is on a phone now as well**, which it deliberately was not; the
-confirmation page is unchanged, and that page is what makes a stray tap harmless.
+someone else (**paid only**, and no guide on the entry), Email the runner, and — last, in red —
+Cancel and refund. ⚠️ **Transfer was offered on a held entry too until 24 October 2026**, and
+always failed there: a hold has no place to move until it is paid. Cancel is still offered on a
+live hold, because releasing one is a real act. The menu is a plain disclosure that opens with
+Enter or a tap and works with scripting off. **Cancel is on a phone now as well**, which it
+deliberately was not; the confirmation page is unchanged, and that page is what makes a stray
+tap harmless.
 
 **The Category cell says what the prizes are awarded in.** Line one is the band — Senior, Vet 40,
 Vet 50, Vet 60 — and line two is the **race category** (Female, Male, or a non-binary runner's
