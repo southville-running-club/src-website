@@ -1266,6 +1266,256 @@ export type Database = {
       [_ in never]: never
     }
   }
+  photos: {
+    Tables: {
+      decision: {
+        Row: {
+          action: string
+          after_state: Json | null
+          before_state: Json | null
+          decided_at: string
+          decided_by: string | null
+          id: number
+          photo_id: string
+          undone_at: string | null
+          undone_by: string | null
+        }
+        Insert: {
+          action: string
+          after_state?: Json | null
+          before_state?: Json | null
+          decided_at?: string
+          decided_by?: string | null
+          id?: never
+          photo_id: string
+          undone_at?: string | null
+          undone_by?: string | null
+        }
+        Update: {
+          action?: string
+          after_state?: Json | null
+          before_state?: Json | null
+          decided_at?: string
+          decided_by?: string | null
+          id?: never
+          photo_id?: string
+          undone_at?: string | null
+          undone_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "decision_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event: {
+        Row: {
+          created_at: string
+          links_sent_at: string | null
+          published_at: string | null
+          published_by: string | null
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          links_sent_at?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          links_sent_at?: string | null
+          published_at?: string | null
+          published_by?: string | null
+          slug?: string
+        }
+        Relationships: []
+      }
+      link: {
+        Row: {
+          bib: string
+          created_at: string
+          event_slug: string
+          replaced_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          bib: string
+          created_at?: string
+          event_slug: string
+          replaced_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          bib?: string
+          created_at?: string
+          event_slug?: string
+          replaced_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_event_slug_fkey"
+            columns: ["event_slug"]
+            isOneToOne: false
+            referencedRelation: "event"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      photo: {
+        Row: {
+          burst_id: string | null
+          check_state: string
+          checked_at: string | null
+          checked_by: string | null
+          created_at: string
+          event_slug: string
+          height: number
+          held_by: string | null
+          held_until: string | null
+          hidden_at: string | null
+          id: string
+          photographer: string
+          short_id: string
+          spot: string
+          taken_at: string | null
+          updated_at: string
+          width: number
+        }
+        Insert: {
+          burst_id?: string | null
+          check_state: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          event_slug: string
+          height: number
+          held_by?: string | null
+          held_until?: string | null
+          hidden_at?: string | null
+          id: string
+          photographer: string
+          short_id: string
+          spot: string
+          taken_at?: string | null
+          updated_at?: string
+          width: number
+        }
+        Update: {
+          burst_id?: string | null
+          check_state?: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          event_slug?: string
+          height?: number
+          held_by?: string | null
+          held_until?: string | null
+          hidden_at?: string | null
+          id?: string
+          photographer?: string
+          short_id?: string
+          spot?: string
+          taken_at?: string | null
+          updated_at?: string
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_event_slug_fkey"
+            columns: ["event_slug"]
+            isOneToOne: false
+            referencedRelation: "event"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      photo_bib: {
+        Row: {
+          bib_text: string
+          confidence: number | null
+          confirmed: boolean
+          decided_at: string | null
+          decided_by: string | null
+          dismissed: boolean
+          photo_id: string
+          source: string
+        }
+        Insert: {
+          bib_text: string
+          confidence?: number | null
+          confirmed?: boolean
+          decided_at?: string | null
+          decided_by?: string | null
+          dismissed?: boolean
+          photo_id: string
+          source: string
+        }
+        Update: {
+          bib_text?: string
+          confidence?: number | null
+          confirmed?: boolean
+          decided_at?: string | null
+          decided_by?: string | null
+          dismissed?: boolean
+          photo_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "photo_bib_photo_id_fkey"
+            columns: ["photo_id"]
+            isOneToOne: false
+            referencedRelation: "photo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      candidate_bibs: { Args: { p_photo_id: string }; Returns: string[] }
+      decide: {
+        Args: { p_action: string; p_bibs?: string[]; p_photo_id: string }
+        Returns: Json
+      }
+      is_unsure: {
+        Args: {
+          p_check_state: string
+          p_checked_by: string
+          p_hidden_at: string
+        }
+        Returns: boolean
+      }
+      left_to_check: { Args: { p_event_slug: string }; Returns: number }
+      next_photo: { Args: never; Returns: Json }
+      photo_for_admin_image: { Args: { p_photo_id: string }; Returns: Json }
+      photo_for_checking: { Args: { p_photo_id: string }; Returns: Json }
+      photo_state: { Args: { p_photo_id: string }; Returns: Json }
+      progress: { Args: never; Returns: Json }
+      publish: { Args: { p_event_slug: string }; Returns: Json }
+      take_down: {
+        Args: { p_event_slug: string; p_short_id: string }
+        Returns: Json
+      }
+      undo_decision: { Args: { p_photo_id: string }; Returns: Json }
+      worn_bibs: { Args: { p_event_slug: string }; Returns: string[] }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   store: {
     Tables: {
       api_secrets: {
@@ -2250,6 +2500,9 @@ export const Constants = {
     Enums: {},
   },
   membership: {
+    Enums: {},
+  },
+  photos: {
     Enums: {},
   },
   store: {

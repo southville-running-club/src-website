@@ -50,7 +50,7 @@ afterAll(async () => {
  * schema holds a table that is not on it, so a fifth table cannot arrive without a decision
  * about who may reach it.
  */
-const TABLES = ['event', 'link', 'photo', 'photo_bib'] as const;
+const TABLES = ['decision', 'event', 'link', 'photo', 'photo_bib'] as const;
 
 // Invented, fixed values. `nn-2026` is the one running `timing.events` holds on every machine.
 const EVENT = 'nn-2026';
@@ -140,18 +140,41 @@ describe('the shape of the schema', () => {
   });
 
   /**
-   * ⚠️ **The list is the decision**, as `membership.test.ts` says of its own. Slice 2 adds no
-   * function. Each later slice adds its own here, with what it is for and who may call it, in
-   * the same diff as the grant.
+   * ⚠️ **The list is the decision**, as `membership.test.ts` says of its own. Each slice adds
+   * its functions here, with what they are for and who may call them, in the same diff as the
+   * grant — so a function granted to `anon`, or a new one granted to anybody, fails this test
+   * until somebody decides it in a diff.
+   *
+   * **Slice 3, the check page** (ADR-065): seven granted to `authenticated`, each asking
+   * `identity.has_permission()` inside itself, and six helpers granted to nobody. **`anon`
+   * may call none of them.**
    */
-  it('has no functions yet', async () => {
-    const rows = await query(
-      `select p.proname from pg_proc p
+  it('has exactly these functions, and grants them exactly this way', async () => {
+    const rows = await query<{ name: string; anon: boolean; authenticated: boolean }>(
+      `select p.proname as name,
+              has_function_privilege('anon', p.oid, 'execute') as anon,
+              has_function_privilege('authenticated', p.oid, 'execute') as authenticated
+         from pg_proc p
          join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'photos'`,
+        where n.nspname = 'photos'
+        order by p.proname`,
     );
 
-    expect(rows).toEqual([]);
+    expect(rows).toEqual([
+      { name: 'candidate_bibs', anon: false, authenticated: false },
+      { name: 'decide', anon: false, authenticated: true },
+      { name: 'is_unsure', anon: false, authenticated: false },
+      { name: 'left_to_check', anon: false, authenticated: false },
+      { name: 'next_photo', anon: false, authenticated: true },
+      { name: 'photo_for_admin_image', anon: false, authenticated: true },
+      { name: 'photo_for_checking', anon: false, authenticated: false },
+      { name: 'photo_state', anon: false, authenticated: false },
+      { name: 'progress', anon: false, authenticated: true },
+      { name: 'publish', anon: false, authenticated: true },
+      { name: 'take_down', anon: false, authenticated: true },
+      { name: 'undo_decision', anon: false, authenticated: true },
+      { name: 'worn_bibs', anon: false, authenticated: false },
+    ]);
   });
 });
 
@@ -297,6 +320,7 @@ const CHECKER = '6a0b2c1d-3e4f-4a5b-8c6d-7e8f9a0b1c2d';
 
 async function clearPhotos(): Promise<void> {
   await query('delete from photos.photo_bib');
+  await query('delete from photos.decision');
   await query('delete from photos.photo');
   await query('delete from photos.link');
   await query('delete from photos.event');
