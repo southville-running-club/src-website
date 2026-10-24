@@ -14,6 +14,8 @@
  */
 export const STAFF_ROLES = [
   'nn-admin',
+  'nn-photo-admin',
+  'nn-photo-checker',
   'people-admin',
   'src-admin',
   'super-admin',

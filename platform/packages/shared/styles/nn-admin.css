@@ -3135,3 +3135,161 @@ a.admin-runner-email:focus-visible {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ---------------------------------------------------------------------------------------
+ * Race photos — /admin/photos/ and its check page (brief slice 3, ADR-065)
+ * ---------------------------------------------------------------------------------------
+ * The check page is used from a laptop with the keys and from a tablet or phone with a thumb,
+ * by the same four people in the same evening. So every control is a full-size button — the
+ * same 2.75rem floor `.admin-button` already has, and taller for the bib choices, which are the
+ * ones pressed a few hundred times — and the photo is as large as the screen allows.
+ *
+ * No new colours: every rule here uses a token this file already defines.
+ */
+
+/* A notice or an error standing on its own, rather than as the band at the top of a panel. */
+.admin-banner-boxed {
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+}
+
+.admin-photo-check .admin-error {
+  margin: 0 0 1.25rem;
+}
+
+.admin-banner-boxed > p,
+.admin-photo-check .admin-error > p {
+  margin: 0;
+}
+
+/* A link that does what a button does — "Check photos", "Take this photo down" — drawn as
+   one, because it is pressed like one. */
+.admin-button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.admin-photo-undo {
+  margin-top: 0.625rem;
+}
+
+/* The photo beside the choices on a wide screen, above them on a narrow one. A container
+   query rather than a media query, for the reason `.admin-app` gives: what decides the layout
+   is the width this page has, not the width of the screen. */
+.admin-photo-check {
+  container-type: inline-size;
+}
+
+.admin-photo-check-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@container (min-width: 56rem) {
+  .admin-photo-check-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
+    align-items: start;
+  }
+}
+
+.admin-photo-figure {
+  margin: 0;
+}
+
+/* The width and height attributes reserve the photo's shape before it arrives; these let it
+   shrink to the column without distorting. */
+.admin-photo-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  background: var(--admin-track);
+  border-radius: var(--radius-card);
+}
+
+.admin-photo-link {
+  display: block;
+}
+
+.admin-photo-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
+  color: var(--colour-muted);
+}
+
+.admin-photo-reads p {
+  margin: 0 0 0.5rem;
+}
+
+.admin-photo-choices {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--colour-rule);
+  border-radius: var(--radius-card);
+  background: var(--admin-card);
+}
+
+.admin-photo-choices legend {
+  padding: 0 0.25rem;
+  font-weight: 700;
+}
+
+/* The bib choices: as many to a row as fit at a thumb's width, each a large target. */
+.admin-photo-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+.admin-photo-pick {
+  min-height: 3.5rem;
+  font-size: 1.0625rem;
+}
+
+.admin-photo-typed {
+  margin-bottom: 0;
+}
+
+.admin-photo-typed .admin-button {
+  align-self: flex-start;
+}
+
+.admin-photo-others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+/* The key a control answers to, as the laptop's check screen shows it. */
+.admin-photo-check kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 0.3em;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.admin-photo-thumb {
+  display: block;
+  max-width: min(100%, 20rem);
+  height: auto;
+  margin: 1rem 0;
+  border-radius: var(--radius-card);
+}
+
+.admin-photos-event {
+  margin-bottom: 1.25rem;
+}
+
+.admin-photos-take-down {
+  max-width: 26rem;
+}
