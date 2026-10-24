@@ -1,0 +1,116 @@
+name: Browsers
+description: >-
+  Playwright's Chromium and WebKit, and the system packages they link against: restored from
+  cache, installed, and saved straight back. Used by `ci.yml`'s acceptance job and by
+  `ci-cache.yml`, which fills the same caches from `main` so that every pull request can
+  restore them.
+
+# ⚠️ **One definition, because the keys have to match exactly.** `ci-cache.yml` exists so that
+# a pull request finds the caches warm, and it only works if both workflows compute the same
+# key for the same browsers and the same runner image. Two copies of these steps would drift,
+# and a key that differed by one character would silently mean every pull request starts cold
+# again, which is the failure this file exists to end.
+#
+# **Composite steps take no `timeout-minutes` and do not inherit `defaults.run`**, so the
+# working directory is set on each `run` step here, and the time limit is set by the caller on
+# the step that uses this action.
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the Playwright version
+      id: playwright-version
+      shell: bash
+      working-directory: platform
+      run: |
+        echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        # The runner image, for the apt cache's key below. GitHub sets both on every hosted
+        # runner; `unknown` keeps the key well-formed anywhere else.
+        echo "image_os=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+        echo "image_version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+
+    # **Restored and saved as two steps rather than `actions/cache`'s one.** That action saves
+    # in a post step, which runs only when the whole job succeeds, so one red test or a cancel
+    # would leave the next run downloading everything again. Saving straight after the install
+    # stores the cache whatever the tests then do.
+    #
+    # **Every caller shares each key on purpose.** On a miss, the first to finish saves and the
+    # rest log `another job may be creating this cache`, which is a notice and not a failure.
+    # **A pull request restores from its own branch first and from `main` second** — GitHub's
+    # rule — which is what `ci-cache.yml` relies on: an exact hit from `main` means the pull
+    # request saves nothing of its own, and no longer stores another 363 MB copy per PR.
+    - name: Restore the browsers
+      id: playwright-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+    # ⚠️ **The apt packages are cached as well as the browsers, since 23 October 2026.**
+    # `install-deps` below runs on every job, and it was the expensive half after all: it
+    # downloads **119 MB** of fonts, GStreamer and the rest that WebKit links against, from the
+    # runner's Ubuntu mirror. That day the mirror stalled for one to three minutes per package,
+    # the step ran for 22 minutes, and the acceptance job's 25-minute budget expired before a
+    # single test, on eight jobs across #353, #354 and #355. Refreshing the package lists took
+    # ten seconds; the downloads were the whole of it.
+    #
+    # **Keyed on the runner image**, so a new image starts a new entry, but it restores the
+    # newest one for the same OS first, so most packages still come from the cache. A stale
+    # `.deb` is harmless: apt names each file by version and checks its hash, so one that no
+    # longer matches is ignored and fetched afresh.
+    - name: Restore the browsers' system packages
+      id: apt-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/apt-archives
+        key: playwright-apt-${{ steps.playwright-version.outputs.image_os }}-${{ steps.playwright-version.outputs.image_version }}-${{ steps.playwright-version.outputs.version }}
+        restore-keys: |
+          playwright-apt-${{ steps.playwright-version.outputs.image_os }}-
+
+    # **The system libraries are installed on a cache hit too, and that is not belt-and-braces.**
+    # The browser cache holds `~/.cache/ms-playwright`, the browser binaries. It does not hold
+    # the apt packages WebKit links against, which are not on the runner image by default.
+    # Restoring the binaries alone gives a WebKit that fails to launch, surfacing as every
+    # `mobile-safari` test failing at once rather than as anything naming a missing library.
+    # **Those packages come from the apt cache above**, seeded into apt's own archive directory
+    # first, so on a warm cache `install-deps` installs them without downloading anything.
+    - name: Install browsers
+      shell: bash
+      working-directory: platform
+      env:
+        BROWSERS_CACHED: ${{ steps.playwright-cache.outputs.cache-hit }}
+      run: |
+        # Hand apt the packages an earlier run downloaded, so it fetches only what is new.
+        mkdir -p "$HOME/apt-archives"
+        if compgen -G "$HOME/apt-archives/*.deb" > /dev/null; then
+          sudo cp "$HOME"/apt-archives/*.deb /var/cache/apt/archives/
+        fi
+        # A stalled mirror connection gives up after 30 seconds and is retried, rather than
+        # sitting silent for two and a half minutes as it did on 23 October 2026.
+        printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\n' \
+          | sudo tee /etc/apt/apt.conf.d/80-ci-acquire > /dev/null
+
+        if [ "$BROWSERS_CACHED" = 'true' ]; then
+          npx playwright install-deps chromium webkit
+        else
+          npx playwright install --with-deps chromium webkit
+        fi
+
+        # Keep what apt now holds for the next run.
+        if compgen -G "/var/cache/apt/archives/*.deb" > /dev/null; then
+          cp /var/cache/apt/archives/*.deb "$HOME/apt-archives/"
+        fi
+
+    - name: Save the browsers
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
+    - name: Save the browsers' system packages
+      if: steps.apt-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/apt-archives
+        key: ${{ steps.apt-cache.outputs.cache-primary-key }}
