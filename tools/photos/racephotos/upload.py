@@ -4,10 +4,10 @@ Each visible photo's three copies go to ``<event slug>/<photo id>/{full,medium,t
 the bucket's key layout. A dry run writes that layout under the work folder's ``dry-run/``
 with a ``keys.tsv`` listing every key, its size, its SHA-256 and its content type, and
 nothing leaves the laptop. A real upload sends the same files to the R2 bucket named in the
-config's ``[r2]`` section (ADR-062).
+config's ``[r2]`` section (ADR-063).
 
 Both then write the SQL file of every read for the photos they sent (``sqlfile.py``), for a
-volunteer to run in the Supabase SQL editor (ADR-063).
+volunteer to run in the Supabase SQL editor (ADR-064).
 
 **A dry run never marks a photo as uploaded for real**: the manifest keeps the two apart,
 so the real upload cannot skip a photo because it was rehearsed.

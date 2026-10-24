@@ -1,4 +1,4 @@
-# ADR-062: The laptop uploads with a token limited to one bucket and revoked after each upload
+# ADR-063: The laptop uploads with a token limited to one bucket and revoked after each upload
 
 **Status:** Accepted
 **Date:** 24 October 2026
@@ -57,4 +57,4 @@ bucket through a binding and holds no storage credential at all.**
 
 - [Race photos brief](../../delivery/nn-photos-brief.md), §2 decision 5, §9 and §11
 - [The race photos runbook](../../delivery/runbooks/race-photos.md): steps 6 to 9
-- [ADR-061](adr-061-race-photos-live-in-one-private-eu-bucket.md): the bucket
+- [ADR-062](adr-062-race-photos-live-in-one-private-eu-bucket.md): the bucket

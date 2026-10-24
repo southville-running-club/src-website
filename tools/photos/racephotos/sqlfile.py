@@ -1,4 +1,4 @@
-"""The SQL file of every read, for a volunteer to run in the Supabase SQL editor (ADR-063).
+"""The SQL file of every read, for a volunteer to run in the Supabase SQL editor (ADR-064).
 
 There is no import endpoint and no service-role key (brief §2 decision 6): the laptop writes
 plain SQL and a person pastes it into the editor, the way the race's own SQL is run. So the
