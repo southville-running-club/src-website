@@ -57,6 +57,15 @@ port = 54321
 # grants `anon` exactly one function, `membership_state()`, which returns published prices.
 # `tests/membership.test.ts` names that grant and walks both tables in both verbs.
 #
+# `photos` — the race photos the laptop tool uploads (ADR-059 to ADR-064) — joined with the
+# shared check page, brief slice 3, for the functions behind `/admin/photos/`. Every one of
+# them is granted to `authenticated` alone and asks `identity.has_permission()` inside itself;
+# `anon` may call none of them. **The argument that makes exposing `store` safe holds here and
+# is asserted**: all five `photos` tables have RLS on with no policy and no grant to `anon` or
+# `authenticated`, so PostgREST routes a request and Postgres answers `42501`.
+# `tests/photos.test.ts` walks them and names every granted function. The schema holds no
+# runner's name or email address (brief §3), so what is routable is bibs and photo details.
+#
 # ⚠️ **This whole file ships to production on the next merge that touches a migration, and
 # there is no partial apply** — a rejected value here would take `[auth]`'s `site_url`, the
 # redirect allowlist and the captcha secret down with it while `db push`, which runs first,
@@ -67,7 +76,7 @@ port = 54321
 # `/^schemas\s*=\s*\[(.+)\]/m`, so a multi-line array makes every assertion about what the
 # Data API exposes throw "config.toml has no [api] schemas list" — six red tests describing a
 # parser rather than a problem. Reformatting this for readability costs more than it buys.
-schemas = ["public", "graphql_public", "intake", "entries", "identity", "store", "timing", "membership"]
+schemas = ["public", "graphql_public", "intake", "entries", "identity", "store", "timing", "membership", "photos"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size

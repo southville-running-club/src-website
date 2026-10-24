@@ -6,13 +6,14 @@ import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * The `photos` schema, as slice 2 leaves it: four tables that only the SQL editor can write.
+ * The `photos` schema: tables only the SQL editor and the schema's own functions can write.
  *
  * Race photos arrive from the laptop tool as a SQL file a volunteer runs by hand (brief §2
- * decision 6). Nothing on the website reads or writes here until the slices that build the
- * check page, the runners' pages and the private links add their own functions, each with
- * its own grants. Until then the assertion that matters is the negative one: no role a
- * browser can reach holds anything, and the schema is not exposed through PostgREST at all.
+ * decision 6). The website reaches them only through functions, each with its own grant:
+ * the shared check page's since slice 3 (`photos-check.test.ts`), and the runners' pages and
+ * private links in the slices after. The assertion that matters here is the negative one: no
+ * role a browser can reach holds anything on a table, though the schema is exposed through
+ * PostgREST since slice 3.
  *
  * Each refusal names its **error code**, for the reason `membership.test.ts` gives: a test
  * that passes because a table stopped existing has stopped testing.
@@ -84,12 +85,19 @@ async function attempt(statements: string[]): Promise<string | null> {
 
 describe('what nobody a browser can be may do', () => {
   for (const table of TABLES) {
-    it(`cannot reach ${table} through the API, because the schema is not exposed`, async () => {
+    it(`cannot read ${table} through the API, because nothing grants it`, async () => {
       const { error } = await anon.schema('photos').from(table).select('*').limit(1);
 
-      // PGRST106: PostgREST has no route to the schema at all. The later slices expose it,
-      // and from then this becomes 42501 — the grant refusing rather than the route missing.
-      expect(error?.code).toBe('PGRST106');
+      // 42501: PostgREST routes the request since the check page exposed the schema, and
+      // Postgres refuses it. It was PGRST106 until then — no route at all — which proved less:
+      // a refusal that only happens because nothing can get as far as asking is not one.
+      expect(error?.code).toBe('42501');
+    });
+
+    it(`cannot write ${table} through the API either`, async () => {
+      const { error } = await anon.schema('photos').from(table).insert({});
+
+      expect(error?.code).toBe('42501');
     });
 
     it(`grants anon and authenticated nothing on ${table}`, async () => {
