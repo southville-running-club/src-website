@@ -1,0 +1,65 @@
+name: CI caches
+
+# **Fills the browser and apt caches from `main`, so every pull request starts warm.**
+#
+# GitHub lets a workflow run restore a cache saved on its own branch or on the default branch,
+# and nothing else. `ci.yml` runs only on pull requests, so until this existed every cache it
+# saved belonged to one pull request: a 363 MB copy of the browsers for each of #352 to #356,
+# and a new pull request's first run always downloaded everything, the 119 MB of system
+# packages from the runner's Ubuntu mirror included. That download is what timed out eight
+# acceptance jobs on 23 October 2026. A run here saves under `main`, which every pull request
+# can restore.
+#
+# **It runs the same steps as the acceptance job**, through `.github/actions/browsers`, because
+# a key that differed by a character would mean a pull request never found these entries.
+#
+# - **On a push to `main`**: a merge that moves Playwright's version changes the browser key.
+#   When nothing has changed, both restores hit exactly, nothing is saved, and the run costs
+#   the time of an `npm ci`.
+# - **Weekly**: GitHub publishes a new runner image about once a week and the apt key carries
+#   the image version, so this keeps an entry for the current image. A cache nobody reads for
+#   seven days is evicted, and this is also what reads it.
+# - **On demand** (`workflow_dispatch`), to warm the caches by hand.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Monday, 05:23 UTC. Off the hour, because scheduled runs at :00 queue behind everybody's.
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+
+# Read-only, declared rather than inherited, as `ci.yml` does. Saving a cache uses the runner's
+# own cache token, not `GITHUB_TOKEN`, so it needs no write permission here.
+permissions:
+  contents: read
+
+# One at a time, and a run is never cancelled part-way through a save.
+concurrency:
+  group: ci-cache
+  cancel-in-progress: false
+
+jobs:
+  fill:
+    name: Fill the browser and apt caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Not `.github/actions/bootstrap`: that starts Supabase and builds both Workers, and none
+      # of it is needed to install browsers. `npm ci` is, because `npx playwright` and the
+      # version the keys are made from both come from the workspace.
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: platform/.nvmrc
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+
+      - name: Install dependencies
+        working-directory: platform
+        run: npm ci
+
+      - name: Browsers
+        uses: ./.github/actions/browsers

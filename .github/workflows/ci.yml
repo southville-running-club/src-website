@@ -372,36 +372,16 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ./.github/actions/bootstrap
 
-      - name: Resolve the Playwright version
-        id: playwright-version
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache the browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          # **Both acceptance shards share this key on purpose.** They restore the same
-          # browsers, and on a miss both install and both try to save - the second gets
-          # `Cache already exists` as a warning, not a failure. One copy of three browser
-          # engines is what should be cached; keying it per shard would store it twice and
-          # halve the hit rate for no benefit.
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-
-      - name: Install browsers
-        # **The system libraries are installed on a cache hit too, and that is not
-        # belt-and-braces.** The cache holds `~/.cache/ms-playwright` — the browser binaries.
-        # It does not hold the apt packages WebKit links against, which are not on the runner
-        # image by default. Restoring the binaries alone gives a WebKit that fails to launch,
-        # surfacing as every `mobile-safari` test failing at once rather than as anything
-        # naming a missing library. `install-deps` is the cheap half of `--with-deps`; the
-        # download is the expensive half, and it is what the cache removes.
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = 'true' ]; then
-            npx playwright install-deps chromium webkit
-          else
-            npx playwright install --with-deps chromium webkit
-          fi
+      - name: Browsers
+        # Chromium, WebKit and the system packages they link against, from cache wherever it
+        # can: `.github/actions/browsers`, shared with `ci-cache.yml`, which fills the same
+        # caches from `main` so this job finds them warm. The reasoning lives in that file.
+        #
+        # **Its own twelve minutes**, so a cold cache on a bad mirror fails here, by name,
+        # instead of eating the job's 25 and surfacing as an unexplained cancel. A warm run
+        # takes seconds; a cold one on a healthy mirror, about a minute.
+        timeout-minutes: 12
+        uses: ./.github/actions/browsers
 
       - name: Acceptance tests
         env:
