@@ -244,7 +244,7 @@ deliberately was not; the confirmation page is unchanged, and that page is what 
 tap harmless.
 
 **The Category cell says what the prizes are awarded in.** Line one is the band — Senior, Vet 40,
-Vet 50, Vet 60 — and line two is the **race category** (Female, Male, or a non-binary runner's
+Vet 50, Vet 60, Vet 70 — and line two is the **race category** (Female, Male, or a non-binary runner's
 chosen placement). **An amber marker and the words "Non-binary, not placed"** flag the one runner a
 prize list cannot place. How somebody described their own gender, if they did, is a third line
 and is never flagged when blank — not answering is an answer (ADR-020).

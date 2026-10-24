@@ -13,9 +13,10 @@ import type { TimingCrossing, TimingRunner } from '../../src/timing/rows';
  * as prizes with no winner — three empty rows on a results page, for categories the race does
  * not have.
  *
- * So a solo race gets the club's own eight bands instead: Senior, Vet 40, Vet 50 and Vet 60,
- * awarded to female and male runners, exactly as the prize list on `/nn/` gives them and
- * exactly as `age-category.ts` already encodes them for the entry form.
+ * So a solo race gets the club's own prize list instead: 1st to 3rd, then 1st Vet 40, Vet 50,
+ * Vet 60 and Vet 70, awarded to female and male runners, exactly as the prize list on `/nn/`
+ * gives them and in the bands `age-category.ts` already encodes for the entry form. Vet 70 is
+ * the club's addition of 24 October 2026, which made Vet 60 the 60–69 band.
  *
  * ⚠️ **The last test in this file is the one that matters most.** The load-bearing guarantee
  * in `awards.ts` is that a team carrying any terminal status is excluded from *every* prize.
@@ -118,9 +119,11 @@ describe("Nightingale Nightmare's prize list — computeAwards on a solo race", 
       '1st Female Vet 40',
       '1st Female Vet 50',
       '1st Female Vet 60',
+      '1st Female Vet 70',
       '1st Male Vet 40',
       '1st Male Vet 50',
       '1st Male Vet 60',
+      '1st Male Vet 70',
     ]);
   });
 
@@ -206,7 +209,8 @@ describe("Nightingale Nightmare's prize list — computeAwards on a solo race", 
       soloTeam('3', 'male', 22),
       soloTeam('4', 'male', 49),
       soloTeam('5', 'male', 50),
-      soloTeam('6', 'male', 60),
+      soloTeam('6', 'male', 69),
+      soloTeam('7', 'male', 70),
     ];
     const crossings = teams.map((t, n) => finishAt(t.team_number!, 40 + n));
     const awards = computeAwards(EVENT, teams, crossings);
@@ -214,6 +218,27 @@ describe("Nightingale Nightmare's prize list — computeAwards on a solo race", 
     expect(winnerOf(awards, 'solo_male_vet40')?.team.id).toBe('team-4');
     expect(winnerOf(awards, 'solo_male_vet50')?.team.id).toBe('team-5');
     expect(winnerOf(awards, 'solo_male_vet60')?.team.id).toBe('team-6');
+    expect(winnerOf(awards, 'solo_male_vet70')?.team.id).toBe('team-7');
+  });
+
+  /**
+   * ⚠️ **Vet 60 stopped at 69 on 24 October 2026**, when the club added Vet 70. Before that a
+   * 72-year-old faster than every runner in their sixties won the Vet 60 prize, and this is the
+   * case that would quietly go back to doing so if the band were ever widened again.
+   */
+  it('gives a runner of 70 or over the Vet 70 prize, never the Vet 60 one', () => {
+    const teams = [
+      soloTeam('1', 'female', 20),
+      soloTeam('2', 'female', 21),
+      soloTeam('3', 'female', 22),
+      soloTeam('4', 'female', 72), // faster than the 65-year-old behind her
+      soloTeam('5', 'female', 65),
+    ];
+    const crossings = teams.map((t, n) => finishAt(t.team_number!, 40 + n));
+    const awards = computeAwards(EVENT, teams, crossings);
+
+    expect(winnerOf(awards, 'solo_female_vet70')?.team.id).toBe('team-4');
+    expect(winnerOf(awards, 'solo_female_vet60')?.team.id).toBe('team-5');
   });
 
   it('awards nothing to a runner with no gender it can place, and no band without an age', () => {

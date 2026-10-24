@@ -259,8 +259,8 @@ export function AddPanel({
               autoComplete="off"
             />
             <p className="club-small" id="add-age-hint">
-              An age, never a date of birth. It is what puts them in Senior, Vet 40, 50 or
-              60.
+              An age, never a date of birth. It is what puts them in Senior, Vet 40, 50,
+              60 or 70.
             </p>
           </div>
         </div>
