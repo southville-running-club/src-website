@@ -1,4 +1,6 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
@@ -265,5 +267,124 @@ describe('what the SQL file may write, and what it may not', () => {
         `insert into photos.link (token_hash, event_slug, bib) values ('a-real-looking-token', '${EVENT}', '125')`,
       ]),
     ).toBe('23514');
+  });
+});
+
+/**
+ * The SQL file the laptop writes (`tools/photos/racephotos/sqlfile.py`), run here for real.
+ *
+ * `fixtures/photos-golden.sql` is that writer's output for six invented photos, and the
+ * tool's own test fails if the writer stops producing exactly this text. So this is the
+ * other half of one contract: the file applies cleanly, a second run changes nothing at all,
+ * and nothing in it overwrites what the team decided on the website (brief §8).
+ *
+ * These tests commit, unlike the ones above, so they clear the schema before each and after
+ * the last, and they run last in this file for that reason.
+ */
+const GOLDEN = readFileSync(
+  fileURLToPath(new URL('./fixtures/photos-golden.sql', import.meta.url)),
+  'utf8',
+);
+const CHECKER = '6a0b2c1d-3e4f-4a5b-8c6d-7e8f9a0b1c2d';
+
+async function clearPhotos(): Promise<void> {
+  await query('delete from photos.photo_bib');
+  await query('delete from photos.photo');
+  await query('delete from photos.link');
+  await query('delete from photos.event');
+  await query('delete from auth.users where id = $1', [CHECKER]);
+}
+
+async function snapshot(): Promise<{ photos: unknown[]; bibs: unknown[] }> {
+  return {
+    photos: await query('select * from photos.photo order by short_id'),
+    bibs: await query(
+      'select * from photos.photo_bib order by photo_id, bib_text collate "C"',
+    ),
+  };
+}
+
+async function photoId(shortId: string): Promise<string> {
+  const [row] = await query<{ id: string }>(
+    'select id from photos.photo where short_id = $1',
+    [shortId],
+  );
+  return row!.id;
+}
+
+describe("the laptop's SQL file", () => {
+  beforeEach(clearPhotos);
+  afterAll(clearPhotos);
+
+  it('applies to an empty schema and holds what was sent', async () => {
+    await query(GOLDEN);
+
+    const photos = await query<{
+      short_id: string;
+      photographer: string;
+      check_state: string;
+    }>('select short_id, photographer, check_state from photos.photo order by short_id');
+    expect(photos).toEqual([
+      { short_id: 'NN26-0001', photographer: 'Adrian', check_state: 'tagged' },
+      { short_id: 'NN26-0002', photographer: 'Adrian', check_state: 'part_read' },
+      { short_id: 'NN26-0003', photographer: "Ross O'Neill", check_state: 'checked' },
+      { short_id: 'NN26-0004', photographer: "Ross O'Neill", check_state: 'no_bib_seen' },
+      { short_id: 'NN26-0006', photographer: "Ross O'Neill", check_state: 'needs_check' },
+    ]);
+
+    const bibs = await query<{ bib_text: string; confirmed: boolean }>(
+      'select bib_text, confirmed from photos.photo_bib order by bib_text collate "C"',
+    );
+    expect(bibs).toEqual([
+      { bib_text: '0311', confirmed: true },
+      { bib_text: '125', confirmed: true },
+      { bib_text: '12?', confirmed: false },
+      { bib_text: '999', confirmed: false },
+    ]);
+  });
+
+  it('changes nothing at all when it is run a second time, not even updated_at', async () => {
+    await query(GOLDEN);
+    const first = await snapshot();
+    await query(GOLDEN);
+
+    expect(await snapshot()).toEqual(first);
+  });
+
+  it('never overwrites a decision made on the website, or a takedown', async () => {
+    await query(GOLDEN);
+    await query(
+      `insert into auth.users
+         (id, instance_id, aud, role, email, encrypted_password,
+          email_confirmed_at, created_at, updated_at)
+       values ($1, '00000000-0000-0000-0000-000000000000', 'authenticated',
+               'authenticated', 'photo-checker@example.com', 'not-a-password', now(), now(), now())`,
+      [CHECKER],
+    );
+    const two = await photoId('NN26-0002');
+
+    // On the website: a checker settles NN26-0002 as 121 and keeps the part read as decided,
+    // and NN26-0004 is taken down.
+    await query(
+      `update photos.photo set check_state = 'checked', checked_by = $1, checked_at = now()
+        where short_id = 'NN26-0002'`,
+      [CHECKER],
+    );
+    await query(
+      `insert into photos.photo_bib (photo_id, bib_text, confirmed, source, decided_by, decided_at)
+       values ($1, '121', true, 'person', $2, now())`,
+      [two, CHECKER],
+    );
+    await query(
+      `update photos.photo_bib set decided_by = $1, decided_at = now()
+        where photo_id = $2 and bib_text = '12?'`,
+      [CHECKER, two],
+    );
+    await query(`update photos.photo set hidden_at = now() where short_id = 'NN26-0004'`);
+    const decided = await snapshot();
+
+    await query(GOLDEN);
+
+    expect(await snapshot()).toEqual(decided);
   });
 });
