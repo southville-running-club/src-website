@@ -14,15 +14,17 @@ Why it works this way is in three decisions:
   only stripped copies leave the laptop.
 
 The whole feature is planned in [the race photos brief](../../docs/delivery/nn-photos-brief.md).
-This is slice 1 of it.
+This is slices 1 and 2 of it.
 
 ## What is not built yet
 
 - **The real vision reader.** It waits on the choice of provider. Until then the tool
   reads bibs with a **fake reader** that answers from a file you write, so everything else
   can be rehearsed.
-- **The real upload to R2, and the SQL file of every read.** Both come with slice 2.
-  `photos upload` only does a dry run, to a folder on the laptop.
+
+The real upload to R2 and the SQL file of every read are built (slice 2). The website's
+half, where the team checks unsure reads and runners see their photos, comes in slices 3 to
+5.
 
 ## Set it up once
 
@@ -43,7 +45,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-That installs Pillow, pinned in [requirements.txt](requirements.txt), into
+That installs Pillow and boto3, pinned in [requirements.txt](requirements.txt), into
 `tools/photos/.venv/`, which git ignores. Then, in every new terminal before using the
 tool:
 
@@ -55,8 +57,8 @@ source .venv/bin/activate
 
 Everything the tool reads and writes is in one folder **outside any git repository**,
 `~/nn-photos/` unless you pass `--work` with another. The tool refuses to run if the work
-folder or the folder of originals is inside a repository, because a photo or, from slice 2,
-a key there is one commit away from being published.
+folder or the folder of originals is inside a repository, because a photo, or the R2 token
+the config holds during an upload, is one commit away from being published there.
 
 ```
 ~/nn-photos/
@@ -69,7 +71,8 @@ a key there is one commit away from being published.
     Ross/
   manifest.sqlite       what the tool has done (it writes this)
   copies/               the stripped copies (it writes these)
-  dry-run/              what an upload would send (it writes this)
+  sql/                  the SQL of every read, in parts (upload writes these)
+  dry-run/              what an upload would send, and its SQL (it writes this)
 ```
 
 To start one:
@@ -140,7 +143,10 @@ to a person.
 3. `./photos review`, and fix every camera's clock.
 4. Optionally, check the unsure reads on the same page. The team's main checking happens on
    the website, together.
-5. `./photos upload --dry-run`.
+5. `./photos upload --dry-run`, to see what will be sent.
+6. `./photos upload`, with a token the account holder made for it, then run the SQL parts
+   in the Supabase SQL editor and revoke the token. [The race photos
+   runbook](../../docs/delivery/runbooks/race-photos.md) has every step.
 
 ### photos tag
 
@@ -225,17 +231,27 @@ same camera took within two seconds of each other. The filters along the top nar
 list to photos to check, part reads, no bib seen, or hidden photos, and the counts on
 Start link to them, and to one photographer's.
 
-### photos upload --dry-run
+### photos upload
 
 ```bash
 ./photos upload --dry-run
 ```
 
 Writes every visible photo's three copies to `dry-run/nn-2026/<photo id>/full.jpg`,
-`medium.jpg` and `thumb.jpg`, the layout the bucket will have, with `dry-run/keys.tsv`
-listing each key, its size and its checksum. Hidden photos are left out. Nothing leaves the
-laptop. A dry run is kept apart from a real upload, so the real one, in slice 2, will
-still send everything.
+`medium.jpg` and `thumb.jpg`, the layout the bucket has, with `dry-run/keys.tsv` listing
+each key, its size and its checksum, and the SQL in `dry-run/sql/`. Hidden photos are left
+out. Nothing leaves the laptop, and a dry run never counts as an upload.
+
+```bash
+./photos upload
+```
+
+Sends the same files to the R2 bucket named in the `[r2]` section of `config.toml`, which
+holds a token made for this upload and revoked after it. It skips anything an earlier upload
+already sent, and if it stops on an error, running it again carries on. Then it writes the
+SQL for every photo sent so far to `sql/`, in parts. Run each part in the Supabase SQL
+editor: **running one twice changes nothing**, and nothing in it overwrites a decision the
+team made on the website or a photo taken down there.
 
 ## When it says "Stopped"
 
@@ -245,6 +261,9 @@ Every refusal says why, and none prints a value from `bibs.csv`. The usual ones:
   Move it, or pass `--work` with a folder outside one.
 - **"must have exactly one column, named bib"**: export the bib column on its own.
 - **"Upload waits until every camera's clock is decided"**: finish Camera clocks.
+- **"There is no [r2] section"**: a real upload needs a token; see the runbook.
+- **"R2 refused …"**: the code says why. The runbook has a table of them. The token is never
+  printed.
 - **"Another tag run is using this work folder"**: one `./photos tag` at a time per work
   folder. Wait for the other to finish, then run it again; it carries on from there.
 - **"could not be used"**, about a port: another program has it. Use
@@ -257,10 +276,21 @@ cd tools/photos
 ```
 
 ```bash
+.venv/bin/python -m pip install -r requirements-dev.txt
+```
+
+```bash
 .venv/bin/python -m unittest
 ```
 
-Standard library `unittest`, no other dependency. Every test photo is synthetic, made by
-the test that uses it; **no real race photo is ever added to this repository**, and
-`.gitignore` refuses JPEGs, HEIC files, CSVs, manifests and configs anywhere under
-`tools/photos/`. The tests do not run in CI yet; that comes at the start of slice 2.
+Standard library `unittest`. [requirements-dev.txt](requirements-dev.txt) adds moto, which
+stands in for R2 so that **no test ever touches the real bucket**. Every test photo is
+synthetic, made by the test that uses it; **no real race photo is ever added to this
+repository**, and `.gitignore` refuses JPEGs, HEIC files, CSVs, manifests and configs
+anywhere under `tools/photos/`. CI runs these on every pull request, as **Race photos
+tool**.
+
+The SQL writer's output is pinned to
+`platform/packages/db/tests/fixtures/photos-golden.sql`, which the database tests run against
+a real Postgres. After a deliberate change to the writer, regenerate it with
+`UPDATE_GOLDEN=1 .venv/bin/python -m unittest tests.test_sqlfile` and commit both.

@@ -101,6 +101,36 @@ jobs:
         # surviving until the next full re-read finds it by hand.
         run: python3 tools/check-no-live-subdomains.py
 
+  photos-tool:
+    name: Race photos tool
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # tools/photos/ is Python, outside the npm workspace, so nothing else here runs its tests.
+    # It was left out of CI for slice 1, while entries were selling, and joins with slice 2.
+    #
+    # The runner's own python3 and a virtual environment, rather than a setup action, for
+    # the reason every action here is actions/*: a third-party step in the pipeline is a
+    # supply-chain decision. The dependencies are pinned exactly in requirements-dev.txt,
+    # which also brings moto, the stand-in for R2, so no test here touches a real bucket.
+    #
+    # It runs on every pull request, like the docs job: it takes about a minute, and a tool
+    # that is only tested when somebody remembers is one that rots.
+    defaults:
+      run:
+        working-directory: tools/photos
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install the tool's pinned dependencies
+        run: |
+          python3 --version
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check --quiet -r requirements-dev.txt
+
+      - name: Unit tests
+        run: .venv/bin/python -m unittest -v
+
   changes:
     name: What changed
     runs-on: ubuntu-latest

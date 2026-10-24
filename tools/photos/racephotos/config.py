@@ -7,15 +7,16 @@ the originals folder is inside *any* git repository, not only this one, because 
 a token that reaches a repository is one commit from being published (ADR-059). The
 ``.gitignore`` patterns for ``tools/photos/`` are a second line, not this one.
 
-Slice 1's config holds no secrets. From slice 2 it will hold an R2 token and a vision model
-key; nothing in this module prints a value it was given.
+From slice 2 the config can hold an R2 API token's two halves, in an ``[r2]`` section. They
+are never printed: the settings hide them from ``repr()``, no message here quotes a value it
+was given, and the token is meant to be revoked after each upload (brief §2 decision 5).
 """
 
 from __future__ import annotations
 
 import re
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 DEFAULT_WORK = Path("~/nn-photos")
@@ -24,12 +25,31 @@ CONFIG_NAME = "config.toml"
 EVENT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SHORT_ID_PREFIX = re.compile(r"[A-Z0-9]{2,8}")
 
-TOP_LEVEL_KEYS = {"event_slug", "short_id_prefix", "originals", "photographers", "bibs", "reader"}
+TOP_LEVEL_KEYS = {"event_slug", "short_id_prefix", "originals", "photographers", "bibs", "reader", "r2"}
 READER_KEYS = {"kind", "fake_reads"}
+R2_KEYS = {"account_id", "bucket", "access_key_id", "secret_access_key"}
+
+ACCOUNT_ID = re.compile(r"[0-9a-f]{32}")
+BUCKET = re.compile(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]")
 
 
 class ConfigError(ValueError):
     """A refusal, worded for the person running the tool."""
+
+
+@dataclass(frozen=True)
+class R2Settings:
+    """Where the copies go. The bucket is in the EU jurisdiction (brief §2 decision 4), so
+    its S3 endpoint carries ``.eu.``; a bucket's jurisdiction cannot be changed once made."""
+
+    account_id: str
+    bucket: str
+    access_key_id: str = field(repr=False)
+    secret_access_key: str = field(repr=False)
+
+    @property
+    def endpoint(self) -> str:
+        return f"https://{self.account_id}.eu.r2.cloudflarestorage.com"
 
 
 @dataclass(frozen=True)
@@ -42,6 +62,7 @@ class Config:
     bibs_csv: Path
     reader_kind: str
     fake_reads: Path | None
+    r2: R2Settings | None = None
 
     @property
     def manifest_path(self) -> Path:
@@ -125,6 +146,7 @@ def load_config(work: Path = DEFAULT_WORK) -> Config:
 
     originals = _path(work, raw.get("originals", "originals"), "originals")
     refuse_inside_repository(originals, "originals folder")
+    r2 = _r2(raw["r2"]) if "r2" in raw else None
 
     return Config(
         work=work,
@@ -135,4 +157,26 @@ def load_config(work: Path = DEFAULT_WORK) -> Config:
         bibs_csv=_path(work, raw.get("bibs", "bibs.csv"), "bibs"),
         reader_kind="fake",
         fake_reads=fake_reads,
+        r2=r2,
     )
+
+
+def _r2(section: object) -> R2Settings:
+    """The [r2] section. Every message names a setting and never quotes its value."""
+    if not isinstance(section, dict):
+        raise ConfigError(f"{CONFIG_NAME}: [r2] must be a section.")
+    unknown = set(section) - R2_KEYS
+    if unknown:
+        raise ConfigError(f"{CONFIG_NAME} [r2] has settings this tool does not know: {', '.join(sorted(unknown))}.")
+    missing = sorted(R2_KEYS - set(section))
+    if missing:
+        raise ConfigError(f"{CONFIG_NAME} [r2] is missing: {', '.join(missing)}.")
+    values = {key: section[key] for key in R2_KEYS}
+    for key, value in values.items():
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(f"{CONFIG_NAME}: [r2] {key} must be text, in quotes.")
+    if not ACCOUNT_ID.fullmatch(values["account_id"]):
+        raise ConfigError(f"{CONFIG_NAME}: [r2] account_id must be the 32-character Cloudflare account ID.")
+    if not BUCKET.fullmatch(values["bucket"]):
+        raise ConfigError(f"{CONFIG_NAME}: [r2] bucket must be a bucket name, such as src-race-photos.")
+    return R2Settings(**{key: value.strip() for key, value in values.items()})

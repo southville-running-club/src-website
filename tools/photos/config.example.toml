@@ -2,8 +2,8 @@
 # ~/nn-photos/ by default, which must be outside any git repository: the tool refuses to
 # run anywhere else. Paths are relative to the work folder unless they start with / or ~.
 #
-# This file holds no secrets yet. From slice 2 it will hold an R2 token and a vision model
-# key, which is one more reason it never lives inside the repository.
+# The [r2] section at the foot holds an R2 API token, which is one more reason this file
+# never lives inside the repository. The tool never prints it.
 
 # The running of the race these photos are from, and the prefix of the short IDs people
 # read out (NN26-0412).
@@ -25,3 +25,13 @@ bibs = "bibs.csv"
 # photo it has no answer for reads as "no bib seen". Leave fake_reads out to read nothing.
 kind = "fake"
 # fake_reads = "fake-reads.json"
+
+# Where `photos upload` sends the copies. Leave the section out for dry runs. The bucket is
+# made in the EU jurisdiction by the Cloudflare account holder, and the token is an R2 API
+# token with Object Read & Write on that bucket alone, revoked after each upload. See
+# docs/delivery/runbooks/race-photos.md.
+# [r2]
+# account_id = "<the 32-character Cloudflare account ID>"
+# bucket = "src-race-photos"
+# access_key_id = "<the token's Access Key ID>"
+# secret_access_key = "<the token's Secret Access Key>"

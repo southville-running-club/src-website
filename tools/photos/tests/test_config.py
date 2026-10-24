@@ -15,7 +15,7 @@ kind = "fake"
 """
 
 
-class ConfigTest(unittest.TestCase):
+class ConfigCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name).resolve()
@@ -28,6 +28,8 @@ class ConfigTest(unittest.TestCase):
     def write(self, text):
         (self.work / "config.toml").write_text(text)
 
+
+class ConfigTest(ConfigCase):
     def test_the_temporary_folder_is_not_inside_a_repository(self):
         # Every other test here depends on this; if it fails, the rest prove nothing.
         self.assertIsNone(enclosing_git_repository(self.root))
@@ -93,6 +95,50 @@ class ConfigTest(unittest.TestCase):
                 self.write(bad)
                 with self.assertRaises(ConfigError):
                     load_config(self.work)
+
+
+R2 = """
+[r2]
+account_id = "0123456789abcdef0123456789abcdef"
+bucket = "src-race-photos"
+access_key_id = "AKID-NOT-A-REAL-KEY"
+secret_access_key = "SECRET-NOT-A-REAL-KEY"
+"""
+
+
+class R2SettingsTest(ConfigCase):
+    def test_reads_the_section_and_aims_at_the_eu_endpoint(self):
+        self.write(GOOD + R2)
+        r2 = load_config(self.work).r2
+        self.assertEqual(r2.bucket, "src-race-photos")
+        self.assertEqual(r2.endpoint, "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com")
+
+    def test_no_section_means_no_real_upload(self):
+        self.write(GOOD)
+        self.assertIsNone(load_config(self.work).r2)
+
+    def test_the_token_is_never_in_what_the_settings_print(self):
+        self.write(GOOD + R2)
+        config = load_config(self.work)
+        for shown in (repr(config), str(config), repr(config.r2), str(config.r2)):
+            self.assertNotIn("SECRET-NOT-A-REAL-KEY", shown)
+            self.assertNotIn("AKID-NOT-A-REAL-KEY", shown)
+
+    def test_refuses_a_missing_or_unknown_setting(self):
+        self.write(GOOD + R2.replace('bucket = "src-race-photos"\n', ""))
+        with self.assertRaises(ConfigError) as caught:
+            load_config(self.work)
+        self.assertIn("missing: bucket", str(caught.exception))
+        self.write(GOOD + R2 + 'region = "eu"\n')
+        with self.assertRaises(ConfigError):
+            load_config(self.work)
+
+    def test_refuses_a_bad_account_id_without_quoting_any_value(self):
+        self.write(GOOD + R2.replace("0123456789abcdef0123456789abcdef", "SECRET-NOT-A-REAL-KEY"))
+        with self.assertRaises(ConfigError) as caught:
+            load_config(self.work)
+        self.assertIn("account_id", str(caught.exception))
+        self.assertNotIn("SECRET-NOT-A-REAL-KEY", str(caught.exception))
 
 
 if __name__ == "__main__":
