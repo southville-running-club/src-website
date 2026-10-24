@@ -33,13 +33,21 @@ function readWranglerConfig(): Record<string, unknown> {
   return JSON.parse(withoutComments.replace(/,(\s*[}\]])/g, '$1'));
 }
 
+interface R2Binding {
+  binding?: string;
+  bucket_name?: string;
+  jurisdiction?: string;
+}
+
 interface WranglerConfig {
   vars?: Record<string, string>;
   triggers?: { crons?: string[] };
+  r2_buckets?: R2Binding[];
   env?: {
     production?: {
       vars?: Record<string, string>;
       triggers?: { crons?: string[] };
+      r2_buckets?: R2Binding[];
     };
   };
 }
@@ -84,5 +92,36 @@ describe('the Cron Trigger that sweeps lapsed holds', () => {
 
     expect(parsed.triggers?.crons).toEqual(['*/5 * * * *']);
     expect(parsed.env?.production?.triggers?.crons).toEqual(['*/5 * * * *']);
+  });
+});
+
+describe('the race photos bucket', () => {
+  it('is a binding in both blocks, and the EU bucket in production', () => {
+    // ADR-062 and ADR-063: the Worker reaches the bucket through a binding and nothing else.
+    // **Repeated per environment** because Wrangler does not inherit bindings, and the
+    // jurisdiction is named in production because a binding without it looks for the bucket
+    // outside the EU, where it does not exist.
+    const parsed = config();
+
+    expect(parsed.r2_buckets).toEqual([
+      { binding: 'PHOTOS', bucket_name: 'src-race-photos' },
+    ]);
+    expect(parsed.env?.production?.r2_buckets).toEqual([
+      { binding: 'PHOTOS', bucket_name: 'src-race-photos', jurisdiction: 'eu' },
+    ]);
+  });
+
+  it('carries no storage credential in either block', () => {
+    // The laptop's R2 token lives in a file outside the repository and is revoked after each
+    // upload (ADR-063). Nothing that looks like one may arrive here as a var.
+    const parsed = config();
+    const names = [
+      ...Object.keys(parsed.vars ?? {}),
+      ...Object.keys(parsed.env?.production?.vars ?? {}),
+    ];
+
+    expect(
+      names.filter((name) => /R2|ACCESS_KEY|SECRET_ACCESS|BUCKET/i.test(name)),
+    ).toEqual([]);
   });
 });
