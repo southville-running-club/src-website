@@ -69,6 +69,7 @@ import {
   ageCategoryLabel,
   createAnonClient,
   createUserClient,
+  fetchPhotosReady,
   type SupabaseConfig,
 } from '@src/shared';
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -472,6 +473,18 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
       </p>`;
 }
 
+/**
+ * The race photos are out — brief slice 4, decision 5 of its plan.
+ *
+ * ⚠️ **Shown only once the photos are published and the runners' links have gone** —
+ * `photos.photos_ready()` — so it can never send somebody looking for a link that has not been
+ * sent. The words are the brief's own draft subject line, **for Kayleigh's sign-off**; slice 5
+ * adds the way to ask for a lost link, which is where this will point.
+ */
+function photosBanner(): Html {
+  return html`<p class="results-photos">Your Nightingale Nightmare photos are ready</p>`;
+}
+
 export async function handleNnResults(
   request: Request,
   env: NnResultsEnv,
@@ -537,9 +550,15 @@ export async function handleNnResults(
   const visibility: Visibility =
     published && setCookies.length === 0 ? 'public' : 'private';
 
+  // Only a published race can say its photos are out, and only once they are.
+  const photosReady = published
+    ? await fetchPhotosReady(createAnonClient(cfg), slug)
+    : false;
+
   const body = html`<main class="results-page" id="main">
     <h1>${payload.event.name} — results</h1>
-    ${previewBanner(payload.event)} ${resultsTable(payload)}
+    ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
+    ${resultsTable(payload)}
   </main>`;
 
   return withCookies(
