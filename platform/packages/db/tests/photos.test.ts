@@ -146,8 +146,13 @@ describe('the shape of the schema', () => {
    * until somebody decides it in a diff.
    *
    * **Slice 3, the check page** (ADR-065): seven granted to `authenticated`, each asking
-   * `identity.has_permission()` inside itself, and six helpers granted to nobody. **`anon`
-   * may call none of them.**
+   * `identity.has_permission()` inside itself, and six helpers granted to nobody.
+   *
+   * **Slice 4, the runners' pages** (ADR-067): **the first four `anon` may call**, because a
+   * runner is signed out — `runner_photos`, `runner_photo`, `servable_photo` and
+   * `photos_ready` — each answering nothing without an active link's hash or a published
+   * running, and two more helpers granted to nobody. `photos-runner.test.ts` proves each
+   * refusal. A fifth `anon` grant is a decision somebody takes in a diff, here.
    */
   it('has exactly these functions, and grants them exactly this way', async () => {
     const rows = await query<{ name: string; anon: boolean; authenticated: boolean }>(
@@ -163,14 +168,20 @@ describe('the shape of the schema', () => {
     expect(rows).toEqual([
       { name: 'candidate_bibs', anon: false, authenticated: false },
       { name: 'decide', anon: false, authenticated: true },
+      { name: 'fits_bib', anon: false, authenticated: false },
       { name: 'is_unsure', anon: false, authenticated: false },
       { name: 'left_to_check', anon: false, authenticated: false },
       { name: 'next_photo', anon: false, authenticated: true },
       { name: 'photo_for_admin_image', anon: false, authenticated: true },
       { name: 'photo_for_checking', anon: false, authenticated: false },
       { name: 'photo_state', anon: false, authenticated: false },
+      { name: 'photos_ready', anon: true, authenticated: false },
       { name: 'progress', anon: false, authenticated: true },
       { name: 'publish', anon: false, authenticated: true },
+      { name: 'runner_card', anon: false, authenticated: false },
+      { name: 'runner_photo', anon: true, authenticated: false },
+      { name: 'runner_photos', anon: true, authenticated: false },
+      { name: 'servable_photo', anon: true, authenticated: false },
       { name: 'take_down', anon: false, authenticated: true },
       { name: 'undo_decision', anon: false, authenticated: true },
       { name: 'worn_bibs', anon: false, authenticated: false },
