@@ -179,7 +179,7 @@ Each runner's email (slice 5) carries a private link, `/nn/<year>/photos/p/<toke
 their bib, their finish time once the results are published, their own photos, and a "Could
 be you" section for photos whose number could only partly be read. **There is no search and no
 account**: the link is the only way in, and a replaced link stops working
-([ADR-067](../../architecture/decisions/adr-067-runners-reach-their-photos-through-a-private-link.md)).
+([ADR-068](../../architecture/decisions/adr-068-runners-reach-their-photos-through-a-private-link.md)).
 "That's me" and "Ask us to take it down" both open an email to the race's reply address; they
 change nothing, and a person answers them — the second by step 13.
 

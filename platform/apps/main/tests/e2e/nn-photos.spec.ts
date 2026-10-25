@@ -12,7 +12,7 @@ import {
 } from '../photos-runner-fixtures';
 
 /**
- * A runner's race photos, in three browsers (brief slice 4, ADR-067).
+ * A runner's race photos, in three browsers (brief slice 4, ADR-068).
  *
  * The brief's browser list for this slice: **no-JavaScript journeys** for the private page and
  * one photo, **zero axe violations**, and **operable at 320px**. What a link may read and what

@@ -1,6 +1,6 @@
 /*
  * A runner's race photos — `/nn/<year>/photos/p/<token>/` and one photo beneath it (brief
- * slice 4, ADR-067). Loaded after `nn-theme.css`, by `/nn/photos.css`.
+ * slice 4, ADR-068). Loaded after `nn-theme.css`, by `/nn/photos.css`.
  *
  * **The race's look, not the club's**, which is the brief's call (§10) and the opposite of
  * `nn-results.css`: these pages are read by the runners the race page spoke to. The race title

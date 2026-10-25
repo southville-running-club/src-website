@@ -19,7 +19,7 @@ import {
 } from '../../photos-runner-fixtures';
 
 /**
- * A runner's race photos, in the real Workers runtime (brief slice 4, ADR-067).
+ * A runner's race photos, in the real Workers runtime (brief slice 4, ADR-068).
  *
  * The database tests (`packages/db/tests/photos-runner.test.ts`) prove what a link may read.
  * This file proves the Worker's half, which is the brief's own list for this slice: the three

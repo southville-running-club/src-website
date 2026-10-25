@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { AnonClient } from './supabase';
 
 /**
- * A runner's private link to their race photos (brief slice 4, decisions 7 and 8; ADR-067).
+ * A runner's private link to their race photos (brief slice 4, decisions 7 and 8; ADR-068).
  *
  * ## The token, and the one place it becomes a hash
  *

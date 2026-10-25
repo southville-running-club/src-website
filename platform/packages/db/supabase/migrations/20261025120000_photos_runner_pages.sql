@@ -1,4 +1,4 @@
--- Race photos: what a runner's private link may read (brief slice 4, decisions 7 and 8, ADR-067).
+-- Race photos: what a runner's private link may read (brief slice 4, decisions 7 and 8, ADR-068).
 --
 -- A runner reaches their photos through a private link emailed to them (slice 5), and nothing
 -- else: no public bib search, no account. The link is `/nn/<year>/photos/p/<token>/`; the

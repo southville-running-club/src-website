@@ -2862,7 +2862,7 @@ Three things about it are load-bearing:
 **Slices 1 to 4 of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
 laptop tool (`tools/photos/`, ADR-058 to ADR-060), the `photos` schema with the real upload to
 R2 and the SQL file (ADR-062 to ADR-064), the shared check page at `/admin/photos/` (ADR-065,
-ADR-066), and the runners' private pages and images under `/nn/<year>/photos/` (ADR-067).
+ADR-066), and the runners' private pages and images under `/nn/<year>/photos/` (ADR-068).
 **Slice 5 is not**: nothing mints or sends a link yet and there is no lost-link form, so no
 runner can open a page and publishing shows nothing to anybody.
 [The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
@@ -2897,7 +2897,7 @@ the `photos` schema holds no runner's name or address (brief §3). `admin.ts` op
 `nn.photo.read`; every door inside asks its own permission and answers the same 404 without it.
 
 **A runner's private link is a key, and four `photos` functions are `anon`'s because a runner is
-signed out** (ADR-067): `runner_photos`, `runner_photo`, `servable_photo` and `photos_ready`,
+signed out** (ADR-068): `runner_photos`, `runner_photo`, `servable_photo` and `photos_ready`,
 each answering one `null` to every refusal. `photos.test.ts` names every function and who may
 call it, so a fifth `anon` grant is a decision taken in a diff. The token is 43 URL-safe
 characters and `packages/shared/src/photos-runner.ts` is the one place it becomes the SHA-256

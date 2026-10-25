@@ -148,7 +148,7 @@ describe('the shape of the schema', () => {
    * **Slice 3, the check page** (ADR-065): seven granted to `authenticated`, each asking
    * `identity.has_permission()` inside itself, and six helpers granted to nobody.
    *
-   * **Slice 4, the runners' pages** (ADR-067): **the first four `anon` may call**, because a
+   * **Slice 4, the runners' pages** (ADR-068): **the first four `anon` may call**, because a
    * runner is signed out — `runner_photos`, `runner_photo`, `servable_photo` and
    * `photos_ready` — each answering nothing without an active link's hash or a published
    * running, and two more helpers granted to nobody. `photos-runner.test.ts` proves each

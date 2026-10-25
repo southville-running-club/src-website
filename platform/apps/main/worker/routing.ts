@@ -326,7 +326,7 @@ export function nnEventSlugForResultsPath(pathname: string): string | null {
 }
 
 /**
- * A runner's race photos (brief slice 4, ADR-067) — three addresses under `/nn/<year>/photos/`:
+ * A runner's race photos (brief slice 4, ADR-068) — three addresses under `/nn/<year>/photos/`:
  *
  *   * `/nn/2026/photos/p/<token>/` — their private page;
  *   * `/nn/2026/photos/p/<token>/<short id>/` — one photo;

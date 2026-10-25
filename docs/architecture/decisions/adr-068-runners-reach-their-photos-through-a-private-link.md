@@ -67,7 +67,7 @@ anybody's own until a person confirms a whole bib.**
 ## References
 
 - [Race photos brief](../../delivery/nn-photos-brief.md), §2 decisions 7 and 8, §10, §13 and §14
-- `platform/packages/db/supabase/migrations/20261024130000_photos_runner_pages.sql`
+- `platform/packages/db/supabase/migrations/20261025120000_photos_runner_pages.sql`
 - `platform/apps/main/worker/nn-photos.ts`; `platform/packages/shared/src/photos-runner.ts`
 - `platform/packages/db/tests/photos-runner.test.ts`;
   `platform/apps/main/tests/worker/admin/nn-photos.test.ts`;

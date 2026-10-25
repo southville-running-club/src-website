@@ -22,7 +22,7 @@ import { faviconLink, siteBanner, siteFooter } from './site-chrome';
 
 /**
  * A runner's race photos — their private page, one photo, and the images (brief slice 4;
- * decisions 7 and 8; ADR-067).
+ * decisions 7 and 8; ADR-068).
  *
  * ## Reached only through a private link
  *

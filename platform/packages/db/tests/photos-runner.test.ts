@@ -4,7 +4,7 @@ import { Client } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * What a runner's private link may read (brief slice 4, decisions 7 and 8; ADR-067).
+ * What a runner's private link may read (brief slice 4, decisions 7 and 8; ADR-068).
  *
  * Every call here goes the way the Worker's does — through PostgREST with the published anon
  * key — because these are the first `photos` functions `anon` may execute, and what is being
