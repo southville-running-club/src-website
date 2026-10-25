@@ -1,6 +1,10 @@
 import { createServer, type Server } from 'node:http';
 import { clearAdminFixtures, medicalReadAudit, seedAdminFixtures } from '../../admin-db';
 import {
+  clearRunnerPhotoFixtures,
+  seedRunnerPhotoFixtures,
+} from '../../photos-runner-db';
+import {
   clearPublishedCurrentRunning,
   clearTimingFixtures,
   seedPublishedCurrentRunning,
@@ -67,6 +71,10 @@ export async function setup(): Promise<void> {
   // `seedTimingFixtures()` because Playwright calls that one too: see the note on the function.
   await seedPublishedCurrentRunning();
 
+  // A runner's race photos (brief slice 4): one thread here, so cleared and seeded outright.
+  await clearRunnerPhotoFixtures();
+  await seedRunnerPhotoFixtures();
+
   const server = createServer((_request, response) => {
     medicalReadAudit()
       .then((rows) => {
@@ -101,6 +109,7 @@ export async function teardown(): Promise<void> {
     });
   }
 
+  await clearRunnerPhotoFixtures();
   await clearPublishedCurrentRunning();
   await clearTimingFixtures();
   await clearAdminFixtures(null);
