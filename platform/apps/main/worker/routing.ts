@@ -326,6 +326,75 @@ export function nnEventSlugForResultsPath(pathname: string): string | null {
 }
 
 /**
+ * A runner's race photos (brief slice 4, ADR-067) — three addresses under `/nn/<year>/photos/`:
+ *
+ *   * `/nn/2026/photos/p/<token>/` — their private page;
+ *   * `/nn/2026/photos/p/<token>/<short id>/` — one photo;
+ *   * `/nn/2026/photos/img/<photo id>/<size>.jpg` — an image, from the bucket.
+ *
+ * **Worker addresses rather than pages in `dist/`**, for the results page's reason: what may be
+ * read depends on the database per request — a link's hash, whether the photos are published.
+ *
+ * **The token segment matches anything without a slash**, not only a token's shape, so a link
+ * mangled by an email program still reaches the page that says so kindly rather than the
+ * site's bare 404. The shape is checked there, before the database is asked. A page address
+ * without its slash is answered with a redirect to the slashed one, `trailingSlash: 'always'`
+ * being the rule this site keeps, so the two spellings are never two answers.
+ *
+ * ⚠️ **`/nn/2026/photos/` itself is not matched here.** It is the lost-link form, and that is
+ * slice 5's; until then it falls through to the assets binding's ordinary 404.
+ */
+const NN_PHOTOS_PAGE_PATH = /^\/nn\/(\d{4})\/photos\/p\/([^/]+)(\/?)$/;
+const NN_PHOTOS_PHOTO_PATH = /^\/nn\/(\d{4})\/photos\/p\/([^/]+)\/([^/]+)(\/?)$/;
+const NN_PHOTOS_IMAGE_PATH = /^\/nn\/(\d{4})\/photos\/img\/([^/]+)\/([^/]+)\.jpg$/;
+
+export type NnPhotosRoute =
+  | { kind: 'page'; eventSlug: string; token: string; slashed: boolean }
+  | { kind: 'photo'; eventSlug: string; token: string; shortId: string; slashed: boolean }
+  | { kind: 'image'; eventSlug: string; photoId: string; size: string };
+
+export function nnPhotosRoute(pathname: string): NnPhotosRoute | null {
+  const page = NN_PHOTOS_PAGE_PATH.exec(pathname);
+  if (page !== null) {
+    return {
+      kind: 'page',
+      eventSlug: `${NN_RACE_SLUG}-${page[1]!}`,
+      token: page[2]!,
+      slashed: page[3] === '/',
+    };
+  }
+
+  const photo = NN_PHOTOS_PHOTO_PATH.exec(pathname);
+  if (photo !== null) {
+    return {
+      kind: 'photo',
+      eventSlug: `${NN_RACE_SLUG}-${photo[1]!}`,
+      token: photo[2]!,
+      shortId: photo[3]!,
+      slashed: photo[4] === '/',
+    };
+  }
+
+  const image = NN_PHOTOS_IMAGE_PATH.exec(pathname);
+  if (image !== null) {
+    return {
+      kind: 'image',
+      eventSlug: `${NN_RACE_SLUG}-${image[1]!}`,
+      photoId: image[2]!,
+      size: image[3]!,
+    };
+  }
+
+  return null;
+}
+
+/** Where a running's private pages and images live: `nn-2026` → `/nn/2026/photos/`. */
+export function nnPhotosPath(eventSlug: string): string | null {
+  const yearPath = nnYearPathForEventSlug(eventSlug);
+  return yearPath === null ? null : `${yearPath}photos/`;
+}
+
+/**
  * Where the admin surface used to live — **now nothing but redirects**.
  *
  * #58 moved the whole surface to `/admin/nn/`, because the club's back office had become one
