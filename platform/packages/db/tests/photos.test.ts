@@ -50,7 +50,15 @@ afterAll(async () => {
  * schema holds a table that is not on it, so a fifth table cannot arrive without a decision
  * about who may reach it.
  */
-const TABLES = ['decision', 'event', 'link', 'photo', 'photo_bib'] as const;
+const TABLES = [
+  'api_secrets',
+  'decision',
+  'email_outbox',
+  'event',
+  'link',
+  'photo',
+  'photo_bib',
+] as const;
 
 // Invented, fixed values. `nn-2026` is the one running `timing.events` holds on every machine.
 const EVENT = 'nn-2026';
@@ -152,7 +160,15 @@ describe('the shape of the schema', () => {
    * runner is signed out — `runner_photos`, `runner_photo`, `servable_photo` and
    * `photos_ready` — each answering nothing without an active link's hash or a published
    * running, and two more helpers granted to nobody. `photos-runner.test.ts` proves each
-   * refusal. A fifth `anon` grant is a decision somebody takes in a diff, here.
+   * refusal.
+   *
+   * **Slice 5, the links** (ADR-069): **three more `anon` may call**, each behind a key of its
+   * own — `request_link` (the lost-link form's entry key), and `claim_outbox_batch` and
+   * `record_send_result` (the drain's webhook key). Two granted to `authenticated` behind
+   * `nn.photo.send`: `send_links` and `send_figures`. Four helpers granted to nobody, among
+   * them `key_ok`, which callable would be an oracle for both keys, and `recipient_for`, the
+   * one place a bib becomes an address. `photos-links.test.ts` proves each refusal. An eighth
+   * `anon` grant is a decision somebody takes in a diff, here.
    */
   it('has exactly these functions, and grants them exactly this way', async () => {
     const rows = await query<{ name: string; anon: boolean; authenticated: boolean }>(
@@ -166,21 +182,30 @@ describe('the shape of the schema', () => {
     );
 
     expect(rows).toEqual([
+      { name: 'bibs_with_photos', anon: false, authenticated: false },
       { name: 'candidate_bibs', anon: false, authenticated: false },
+      { name: 'claim_outbox_batch', anon: true, authenticated: false },
       { name: 'decide', anon: false, authenticated: true },
       { name: 'fits_bib', anon: false, authenticated: false },
       { name: 'is_unsure', anon: false, authenticated: false },
+      { name: 'key_ok', anon: false, authenticated: false },
       { name: 'left_to_check', anon: false, authenticated: false },
       { name: 'next_photo', anon: false, authenticated: true },
+      { name: 'own_photo_count', anon: false, authenticated: false },
       { name: 'photo_for_admin_image', anon: false, authenticated: true },
       { name: 'photo_for_checking', anon: false, authenticated: false },
       { name: 'photo_state', anon: false, authenticated: false },
       { name: 'photos_ready', anon: true, authenticated: false },
       { name: 'progress', anon: false, authenticated: true },
       { name: 'publish', anon: false, authenticated: true },
+      { name: 'recipient_for', anon: false, authenticated: false },
+      { name: 'record_send_result', anon: true, authenticated: false },
+      { name: 'request_link', anon: true, authenticated: false },
       { name: 'runner_card', anon: false, authenticated: false },
       { name: 'runner_photo', anon: true, authenticated: false },
       { name: 'runner_photos', anon: true, authenticated: false },
+      { name: 'send_figures', anon: false, authenticated: true },
+      { name: 'send_links', anon: false, authenticated: true },
       { name: 'servable_photo', anon: true, authenticated: false },
       { name: 'take_down', anon: false, authenticated: true },
       { name: 'undo_decision', anon: false, authenticated: true },
