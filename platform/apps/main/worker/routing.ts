@@ -341,19 +341,31 @@ export function nnEventSlugForResultsPath(pathname: string): string | null {
  * without its slash is answered with a redirect to the slashed one, `trailingSlash: 'always'`
  * being the rule this site keeps, so the two spellings are never two answers.
  *
- * ⚠️ **`/nn/2026/photos/` itself is not matched here.** It is the lost-link form, and that is
- * slice 5's; until then it falls through to the assets binding's ordinary 404.
+ * **`/nn/2026/photos/` itself is the lost-link form** (slice 5, ADR-069): somebody types the
+ * address they entered with and is sent a new link. It is a Worker address for the same reason
+ * as the rest — whether the photos are out is a database answer — and it takes a POST.
  */
+const NN_PHOTOS_LOST_PATH = /^\/nn\/(\d{4})\/photos(\/?)$/;
 const NN_PHOTOS_PAGE_PATH = /^\/nn\/(\d{4})\/photos\/p\/([^/]+)(\/?)$/;
 const NN_PHOTOS_PHOTO_PATH = /^\/nn\/(\d{4})\/photos\/p\/([^/]+)\/([^/]+)(\/?)$/;
 const NN_PHOTOS_IMAGE_PATH = /^\/nn\/(\d{4})\/photos\/img\/([^/]+)\/([^/]+)\.jpg$/;
 
 export type NnPhotosRoute =
+  | { kind: 'lost-link'; eventSlug: string; slashed: boolean }
   | { kind: 'page'; eventSlug: string; token: string; slashed: boolean }
   | { kind: 'photo'; eventSlug: string; token: string; shortId: string; slashed: boolean }
   | { kind: 'image'; eventSlug: string; photoId: string; size: string };
 
 export function nnPhotosRoute(pathname: string): NnPhotosRoute | null {
+  const lost = NN_PHOTOS_LOST_PATH.exec(pathname);
+  if (lost !== null) {
+    return {
+      kind: 'lost-link',
+      eventSlug: `${NN_RACE_SLUG}-${lost[1]!}`,
+      slashed: lost[2] === '/',
+    };
+  }
+
   const page = NN_PHOTOS_PAGE_PATH.exec(pathname);
   if (page !== null) {
     return {

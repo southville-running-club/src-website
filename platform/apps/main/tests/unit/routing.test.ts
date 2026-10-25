@@ -576,9 +576,23 @@ describe("a runner's race photos", () => {
     });
   });
 
-  it('leaves the lost-link address and anything deeper alone', () => {
-    expect(nnPhotosRoute('/nn/2026/photos/')).toBeNull();
+  it('routes the lost-link form, with and without its slash (slice 5)', () => {
+    expect(nnPhotosRoute('/nn/2026/photos/')).toEqual({
+      kind: 'lost-link',
+      eventSlug: 'nn-2026',
+      slashed: true,
+    });
+    expect(nnPhotosRoute('/nn/2026/photos')).toEqual({
+      kind: 'lost-link',
+      eventSlug: 'nn-2026',
+      slashed: false,
+    });
+  });
+
+  it('leaves anything deeper, or any other shape, alone', () => {
     expect(nnPhotosRoute(`/nn/2026/photos/p/${TOKEN}/NN26-0412/extra/`)).toBeNull();
+    expect(nnPhotosRoute('/nn/2026/photos/p/')).toBeNull();
+    expect(nnPhotosRoute('/nn/2026/photosx/')).toBeNull();
     expect(nnPhotosRoute('/nn/202/photos/p/x/')).toBeNull();
   });
 
