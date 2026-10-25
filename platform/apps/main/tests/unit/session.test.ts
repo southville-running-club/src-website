@@ -36,6 +36,7 @@ const {
   ACCESS_COOKIE,
   EXPIRY_COOKIE,
   IDLE_TIMEOUT_SECONDS,
+  KEEP_ALIVE_REFRESH_WINDOW_SECONDS,
   REFRESH_COOKIE,
   clearedSessionCookies,
   newSessionCookies,
@@ -287,6 +288,95 @@ describe('readSession, with a healthy access token', () => {
     for (const cookie of result.setCookies) {
       expect(maxAgeOf(cookie)).toBe(600);
     }
+  });
+});
+
+/**
+ * `/account/keep-alive/`'s wider window. The marshal screen polls every five minutes, and a
+ * five-minute poll almost never lands in the ordinary last sixty seconds — so the token used to
+ * expire between two polls, and the timing Worker refused a marshal who was still signed in.
+ */
+describe('readSession, with a token five minutes from expiry', () => {
+  const FIVE_MINUTES_LEFT = NOW + 5 * 60;
+
+  function header(): string {
+    return cookieHeader({
+      [ACCESS_COOKIE]: jwt(FIVE_MINUTES_LEFT),
+      [REFRESH_COOKIE]: 'zz-old-refresh',
+      [EXPIRY_COOKIE]: String(LIVE_DEADLINE),
+    });
+  }
+
+  it('leaves it alone on an ordinary request', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'zz-person' } }, error: null });
+
+    const result = await readSession(CONFIG, header(), NOW, true);
+
+    expect(result.session).not.toBeNull();
+    expect(refreshSession).not.toHaveBeenCalled();
+  });
+
+  it('refreshes it when asked to with the keep-alive window', async () => {
+    refreshSession.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: 'zz-person' },
+          access_token: 'zz-new-access',
+          refresh_token: 'zz-new-refresh',
+          expires_in: 3600,
+        },
+      },
+      error: null,
+    });
+
+    const result = await readSession(
+      CONFIG,
+      header(),
+      NOW,
+      true,
+      KEEP_ALIVE_REFRESH_WINDOW_SECONDS,
+    );
+
+    expect(refreshSession).toHaveBeenCalledWith({ refresh_token: 'zz-old-refresh' });
+    expect(getUser).not.toHaveBeenCalled();
+    expect(result.session).toEqual({ userId: 'zz-person', accessToken: 'zz-new-access' });
+    expect(result.setCookies.some((c) => c.startsWith('src_at=zz-new-access'))).toBe(
+      true,
+    );
+  });
+
+  it('still carries the absolute deadline through, and never mints a new one', async () => {
+    refreshSession.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: 'zz-person' },
+          access_token: 'zz-new-access',
+          refresh_token: 'zz-new-refresh',
+          expires_in: 3600,
+        },
+      },
+      error: null,
+    });
+
+    const result = await readSession(
+      CONFIG,
+      header(),
+      NOW,
+      true,
+      KEEP_ALIVE_REFRESH_WINDOW_SECONDS,
+    );
+
+    expect(cookieNamed(result.setCookies, EXPIRY_COOKIE)).toContain(
+      `${EXPIRY_COOKIE}=${LIVE_DEADLINE};`,
+    );
+  });
+
+  /**
+   * The relationship, not the number: the window has to be wider than the marshal screen's
+   * poll, or a poll can miss it again. `apps/timing/lib/keep-alive.ts` says five minutes.
+   */
+  it('is at least twice a five-minute poll', () => {
+    expect(KEEP_ALIVE_REFRESH_WINDOW_SECONDS).toBeGreaterThanOrEqual(2 * 5 * 60);
   });
 });
 

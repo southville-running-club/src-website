@@ -1997,6 +1997,135 @@ test.describe('recording a crossing', () => {
 });
 
 /**
+ * Staying signed in on the capture screen — `apps/timing/lib/keep-alive.ts`, 25 October 2026.
+ *
+ * ⚠️ **Two ways a working marshal was signed out mid-race, and each test here is one of them.**
+ * The wait before the first runner, when nothing was tapped for long enough that the keep-alive
+ * stopped — a finish marshal who opened the screen at the 10:30 briefing was signed out at about
+ * 11:20, before the winner. And an access token that expired between two polls, which made the
+ * door refuse a session that was perfectly alive and put "you have been signed out" on the
+ * screen of somebody who had not been.
+ *
+ * The rules are `apps/timing/tests/unit/keep-alive.test.ts`. What is here is what only a
+ * browser can say: that the prompt appears on the page's own clock, that its button really
+ * calls the club's Worker, and that a refused sync is retried before anybody is told anything.
+ *
+ * ⚠️ **Service workers are blocked in this block**, because `page.route` does not reliably see
+ * a request a service worker controls, and the capture screen's worker claims the page the
+ * moment it installs. Nothing here is about working offline.
+ */
+/** Leg 1 of a team that does not exist: lands as an orphan, flagged by nothing. */
+const BIB_RETRIED = '155';
+/** Never lands — every sync it is in is refused. */
+const BIB_REFUSED = '156';
+
+const DOOR_REFUSED = /no longer being let in/;
+
+test.describe('staying signed in on the capture screen', () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('offers to keep a quiet marshal signed in, and the button really does @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    // The page's own clock, so twenty minutes is a line of test rather than twenty minutes. The
+    // session's cookies are the browser's and are not faked — which is the point: the keep-alive
+    // the button sends has to reach a session that is really there.
+    await page.clock.install();
+    await page.goto(capturePath(testInfo.project.name));
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    const prompt = page.getByRole('button', { name: 'Keep me signed in' });
+
+    await page.clock.fastForward('19:00');
+    await expect(prompt).toHaveCount(0);
+
+    // Twenty-six minutes in: past the prompt, *and* past the point the five-minute poll stops —
+    // so a keep-alive after this can only be the button's. That is the case that matters: a
+    // marshal who notices the prompt late must still be saved by pressing it.
+    await page.clock.fastForward('07:00');
+    await expect(prompt).toBeVisible();
+
+    const keptAlive = page.waitForRequest(
+      (request) => new URL(request.url()).pathname === '/account/keep-alive/',
+    );
+    await prompt.click();
+    await keptAlive;
+
+    await expect(prompt).toHaveCount(0);
+    await expect(page.getByText(DOOR_REFUSED)).toHaveCount(0);
+  });
+
+  test('retries a refused sync after a keep-alive, and tells the marshal nothing @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const path = capturePath(testInfo.project.name);
+
+    // ⚠️ **The door's refusal, once** — exactly what an access token that expired a minute ago
+    // looks like from the screen. Every later sync goes through to the real Worker.
+    let refusals = 0;
+    await page.route(`**${path}/sync`, async (route) => {
+      if (refusals === 0) {
+        refusals += 1;
+        await route.fulfill({ status: 404, body: '' });
+        return;
+      }
+      await route.continue();
+    });
+
+    // In the order the page sent them, so the keep-alive is shown to sit *between* the two.
+    const calls: string[] = [];
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname;
+      if (pathname === '/account/keep-alive/') calls.push('keep-alive');
+      if (pathname === `${path}/sync`) calls.push('sync');
+    });
+
+    await page.goto(path);
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, BIB_RETRIED);
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(DOOR_REFUSED)).toHaveCount(0);
+
+    expect(refusals).toBe(1);
+    // The screen's own keep-alive on opening may come first; from the first sync on, it is
+    // refused, renewed, resent — and nothing else.
+    expect(calls.slice(calls.indexOf('sync'))).toEqual(['sync', 'keep-alive', 'sync']);
+    expect(
+      (await captureCrossings(testInfo.project.name)).some((c) => c.bib === BIB_RETRIED),
+    ).toBe(true);
+  });
+
+  /**
+   * **The retry must not hide a real refusal.** A session that has ended, or a marshal taken off
+   * the roster, still has to reach the screen as the notice that says so.
+   */
+  test('still says so when the retry is refused too @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    const path = capturePath(testInfo.project.name);
+    await page.route(`**${path}/sync`, (route) =>
+      route.fulfill({ status: 404, body: '' }),
+    );
+
+    await page.goto(path);
+    await page.getByRole('button', { name: 'Crossed now' }).click();
+    await typeBib(page, BIB_REFUSED);
+    await page.getByRole('button', { name: 'Confirm bib' }).click();
+
+    await expect(page.getByText(DOOR_REFUSED)).toBeVisible({ timeout: 15_000 });
+    // And the crossing is still on the phone: nothing about it was wrong.
+    await expect(page.getByRole('heading', { name: 'Queue’s empty.' })).toHaveCount(0);
+  });
+});
+
+/**
  * Resolving an anomaly, and correcting the timing log —
  * [#252](https://github.com/southville-running-club/src-website/issues/252).
  *

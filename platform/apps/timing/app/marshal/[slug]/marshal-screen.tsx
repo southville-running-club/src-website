@@ -7,6 +7,14 @@ import {
   formatAnomalyMessage,
   type EventFormat,
 } from '@src/shared/timing/anomaly';
+import {
+  KEEP_ALIVE_MS,
+  STAY_CHECK_MS,
+  isActive,
+  sendKeepAlive,
+  shouldOfferStay,
+  throughDoor,
+} from '../../../lib/keep-alive';
 import { allCards, deleteCards, openQueue, putCard } from '../../../lib/queue-db';
 import {
   alreadyCaptured,
@@ -72,10 +80,6 @@ const DRAIN_MS = 30_000;
 /** How many crossings one request carries. The route refuses more — see its header. */
 const MAX_BATCH = 20;
 
-/** #244: the keep-alive's period, and the window that counts as *active*. */
-const KEEP_ALIVE_MS = 5 * 60_000;
-const ACTIVE_WINDOW_MS = 25 * 60_000;
-
 /**
  * A client-generated UUID, which is `timing.crossings.id`.
  *
@@ -138,6 +142,8 @@ export function MarshalScreen({
   // Assumed online until the browser says otherwise — the server render has no way to know,
   // and it is replaced on mount by what `navigator.onLine` says.
   const [online, setOnline] = useState(true);
+  /** Whether the "Keep me signed in" prompt is showing — `lib/keep-alive.ts`. */
+  const [offerStay, setOfferStay] = useState(false);
 
   /**
    * ⚠️ **Refs rather than state for these three, deliberately.** The drain is called from an
@@ -156,6 +162,29 @@ export function MarshalScreen({
     cardsRef.current = next;
     setCards(next);
   }, []);
+
+  /**
+   * Somebody did something: a tap on the screen, or a crossing that landed. **This is ADR-019's
+   * definition of working**, and the only thing that moves the clock the keep-alive is judged
+   * against — it also takes the "Keep me signed in" prompt away, because the question is
+   * answered.
+   */
+  const markActive = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setOfferStay(false);
+  }, []);
+
+  /**
+   * Whether a refused request may be answered with a keep-alive and a retry: **the same test
+   * the five-minute poll uses**, so a retry can never hold open a session the poll would have
+   * let go. Online is not asked — a request that came back with a 404 had a network.
+   */
+  const mayRenew = useCallback(
+    () =>
+      document.visibilityState === 'visible' &&
+      isActive(lastActivityRef.current, Date.now()),
+    [],
+  );
 
   const persist = useCallback(async (card: QueueCard) => {
     const db = dbRef.current;
@@ -182,16 +211,22 @@ export function MarshalScreen({
    */
   const readKnown = useCallback(async (): Promise<KnownCrossing[] | null> => {
     try {
-      const response = await fetch(`/timing/marshal/${encodeURIComponent(slug)}/known`, {
-        // Same origin, and the cookie is the whole authorisation. The browser never holds the
-        // access token — #244.
-        credentials: 'same-origin',
-        headers: { accept: 'application/json' },
-      });
+      // ⚠️ **Through the door with one retry** — `throughDoor()` in `lib/keep-alive.ts`. A 404
+      // here is often just an access token that expired a minute ago inside a live session.
+      const response = await throughDoor(
+        () =>
+          fetch(`/timing/marshal/${encodeURIComponent(slug)}/known`, {
+            // Same origin, and the cookie is the whole authorisation. The browser never holds
+            // the access token — #244.
+            credentials: 'same-origin',
+            headers: { accept: 'application/json' },
+          }),
+        mayRenew,
+      );
 
       if (response.status === 404) {
-        // The door, refusing. See `SYNC_DOOR_REFUSED` — this is a session or a roster, and the
-        // screen cannot tell which.
+        // The door, refusing even after a keep-alive. See `SYNC_DOOR_REFUSED` — this is a
+        // session or a roster, and the screen cannot tell which.
         setDoorRefused(true);
         return null;
       }
@@ -206,7 +241,7 @@ export function MarshalScreen({
     } catch {
       return null;
     }
-  }, [slug]);
+  }, [mayRenew, slug]);
 
   /**
    * Send what is queued.
@@ -249,30 +284,36 @@ export function MarshalScreen({
 
         let outcomes: SyncOutcome[];
         try {
-          const response = await fetch(
-            `/timing/marshal/${encodeURIComponent(slug)}/sync`,
-            {
-              method: 'POST',
-              credentials: 'same-origin',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                crossings: batch.map((card) => ({
-                  id: card.id,
-                  bib: card.bib,
-                  capturedAt: card.capturedAt,
-                  anomalyFlag: card.anomalyFlag,
-                  anomalyReason: card.anomalyReason,
-                })),
+          const payload = JSON.stringify({
+            crossings: batch.map((card) => ({
+              id: card.id,
+              bib: card.bib,
+              capturedAt: card.capturedAt,
+              anomalyFlag: card.anomalyFlag,
+              anomalyReason: card.anomalyReason,
+            })),
+          });
+          // ⚠️ **Through the door with one retry.** A refusal is resent once after a keep-alive,
+          // which is safe: the refused request never reached the route, and `record_crossing()`
+          // is idempotent by the crossing's own id. See `throughDoor()`.
+          const response = await throughDoor(
+            () =>
+              fetch(`/timing/marshal/${encodeURIComponent(slug)}/sync`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'content-type': 'application/json' },
+                body: payload,
               }),
-            },
+            mayRenew,
           );
 
           if (response.status === 404) {
             // ⚠️ **The door refusing, and it is not a card failure.** `middleware.ts` rewrites a
             // refused request to an address that matches no route, so this is what a lapsed
-            // session and an un-rostered marshal both look like. The cards go back to `queued`
-            // — nothing about them is wrong — and the screen says so once, at the top, rather
-            // than on twenty cards.
+            // session and an un-rostered marshal both look like — and since 25 October 2026 it
+            // has already survived one keep-alive and a retry, so an access token that merely
+            // expired is not what this is. The cards go back to `queued` — nothing about them
+            // is wrong — and the screen says so once, at the top, rather than on twenty cards.
             setDoorRefused(true);
             const back = cardsRef.current.map((card) =>
               inFlight.has(card.id) ? { ...card, state: 'queued' as const } : card,
@@ -346,7 +387,7 @@ export function MarshalScreen({
         );
 
         if (landed.length > 0) {
-          lastActivityRef.current = Date.now();
+          markActive();
           const db = dbRef.current;
           if (db !== null) {
             try {
@@ -367,7 +408,7 @@ export function MarshalScreen({
         drainingRef.current = false;
       }
     },
-    [commit, persist, readKnown, slug],
+    [commit, markActive, mayRenew, persist, readKnown, slug],
   );
 
   /**
@@ -595,10 +636,38 @@ export function MarshalScreen({
   }, [ready]);
 
   /**
-   * **A drain the moment the phone is unlocked or the tab comes back**, as well as on the
-   * thirty-second clock and the `online` event. A phone in a pocket with no signal does not
+   * #244's keep-alive, once: `/account/keep-alive/` on the club's own Worker, which is the same
+   * hostname — **if this page is visible, has a network, and somebody has done something in the
+   * last twenty-five minutes**.
+   *
+   * ⚠️ **All three conditions are the decision rather than caution.** ADR-019's idle window is
+   * thirty minutes and a phone left face-up on a table is idle — it should lapse, exactly as it
+   * would anywhere else on this platform. What must not lapse is a marshal who is working, and
+   * *working* is a tap or a crossing that landed. `lib/keep-alive.ts` holds the numbers.
+   *
+   * Skipped offline rather than queued: a keep-alive that arrived twenty minutes late would be
+   * sliding a window that had already closed.
+   */
+  const keepAliveIfWorking = useCallback(() => {
+    if (document.visibilityState !== 'visible' || !navigator.onLine) {
+      return;
+    }
+    if (!isActive(lastActivityRef.current, Date.now())) {
+      return;
+    }
+    void sendKeepAlive();
+  }, []);
+
+  /**
+   * **A drain and a keep-alive the moment the phone is unlocked or the tab comes back**, as well
+   * as on their own clocks and the `online` event. A phone in a pocket with no signal does not
    * always fire `online` when it finds one — iOS in particular — and a marshal who unlocks it to
    * look should see the queue start moving then rather than up to thirty seconds later.
+   *
+   * ⚠️ **The keep-alive half arrived on 25 October 2026.** A hidden page sends none, so a phone
+   * that locked itself — low-power mode refuses the wake lock — came back with its session
+   * nearly spent and waited up to five more minutes for the next poll, which is long enough for
+   * it to run out in between.
    */
   useEffect(() => {
     if (!ready) {
@@ -607,50 +676,83 @@ export function MarshalScreen({
     const onVisible = () => {
       if (document.visibilityState === 'visible' && navigator.onLine) {
         void drain();
+        keepAliveIfWorking();
       }
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [drain, ready]);
+  }, [drain, keepAliveIfWorking, ready]);
 
   /**
-   * #244's keep-alive: `/account/keep-alive/` on the club's own Worker, which is the same
-   * hostname, every five minutes **while this page is visible and somebody has done something
-   * in the last twenty-five**.
+   * The keep-alive every five minutes, **and once the moment the screen is ready**.
    *
-   * ⚠️ **Both conditions are the decision rather than caution.** ADR-019's idle window is
-   * thirty minutes and a phone left face-up on a table in a marshal's pocket is idle — it
-   * should lapse, exactly as it would anywhere else on this platform. What must not lapse is a
-   * marshal who is working, and *working* is a tap or a crossing that landed.
-   *
-   * Skipped offline rather than queued: a keep-alive that arrived twenty minutes late would be
-   * sliding a window that had already closed.
+   * ⚠️ **The one at once is not tidiness.** Nothing on `/timing` slides the session, so the
+   * cookies a marshal arrives with may have only a few minutes left — somebody who signed in,
+   * then spent twenty-eight minutes reading the Roster, opened this screen with two minutes to
+   * go and lost the session before the first poll. Opening the screen is activity already; this
+   * is it being said to the club's Worker straight away.
    */
   useEffect(() => {
     if (!ready) {
       return;
     }
 
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== 'visible' || !navigator.onLine) {
-        return;
-      }
-
-      if (Date.now() - lastActivityRef.current > ACTIVE_WINDOW_MS) {
-        return;
-      }
-
-      void fetch('/account/keep-alive/', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      }).catch(() => {
-        // Offline, or the club's Worker is having a moment. The session lapses on its own
-        // schedule and the queue survives it either way.
-      });
-    }, KEEP_ALIVE_MS);
-
+    keepAliveIfWorking();
+    const id = window.setInterval(keepAliveIfWorking, KEEP_ALIVE_MS);
     return () => window.clearInterval(id);
+  }, [keepAliveIfWorking, ready]);
+
+  /**
+   * **The "Keep me signed in" prompt** — `lib/keep-alive.ts`, 25 October 2026.
+   *
+   * ⚠️ **The case it exists for is the wait before the first runner.** A finish marshal who
+   * opens the screen at the briefing and touches nothing until the winner arrives would be
+   * signed out before the winner: the keep-alive stops at twenty-five idle minutes and the
+   * session ends thirty after the last one. After twenty minutes with nothing touched, the
+   * prompt offers one large button, and pressing it is a tap — ADR-019's own definition of
+   * working — so nothing about the idle window is widened. A marshal who is there has about half
+   * an hour to notice it; a phone nobody is near still lapses, as it should.
+   *
+   * Judged on a coarse clock and again whenever the page comes back into view, because a page
+   * that was hidden has had no clock at all.
+   */
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    const check = () => {
+      if (shouldOfferStay(lastActivityRef.current, Date.now())) {
+        setOfferStay(true);
+      }
+    };
+    const id = window.setInterval(check, STAY_CHECK_MS);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', check);
+    };
   }, [ready]);
+
+  /**
+   * The prompt's button: a tap, then a keep-alive at once rather than at the next poll — which
+   * matters if the prompt has sat there past twenty-five minutes and the poll has stopped.
+   *
+   * ⚠️ **Then a read through the door, because the keep-alive's answer says nothing.** It
+   * answers 204 whether the session was alive or not, deliberately (ADR-019). If the session had
+   * already ended, the read is what puts the "signed out" notice up, instead of the prompt
+   * vanishing and the marshal believing they are still signed in.
+   */
+  const stay = useCallback(() => {
+    markActive();
+    void (async () => {
+      await sendKeepAlive();
+      const fresh = await readKnown();
+      if (fresh !== null) {
+        setKnown(fresh);
+      }
+    })();
+  }, [markActive, readKnown]);
 
   /**
    * The tap. ⚠️ **Nothing between the press and the time**: `Date.now()` first, everything
@@ -658,10 +760,10 @@ export function MarshalScreen({
    */
   const capture = useCallback(() => {
     const card = newCard(newId(), slug, new Date().toISOString());
-    lastActivityRef.current = Date.now();
+    markActive();
     commit(sortCards([...cardsRef.current, card]));
     void persist(card);
-  }, [commit, persist, slug]);
+  }, [commit, markActive, persist, slug]);
 
   const confirm = useCallback(
     (card: QueueCard) => {
@@ -678,7 +780,7 @@ export function MarshalScreen({
         return;
       }
 
-      lastActivityRef.current = Date.now();
+      markActive();
       commit(cardsRef.current.map((c) => (c.id === card.id ? next : c)));
       setDrafts((d) => {
         const { [card.id]: _dropped, ...rest } = d;
@@ -686,7 +788,7 @@ export function MarshalScreen({
       });
       void persist(next).then(() => drain());
     },
-    [commit, drafts, drain, format, known, persist],
+    [commit, drafts, drain, format, known, markActive, persist],
   );
 
   /**
@@ -706,22 +808,33 @@ export function MarshalScreen({
         return;
       }
 
+      markActive();
       commit(cardsRef.current.filter((c) => c.id !== card.id));
       const db = dbRef.current;
       if (db !== null) {
         void deleteCards(db, [card.id]).catch(() => setStorageLost(true));
       }
     },
-    [commit],
+    [commit, markActive],
   );
 
-  const press = useCallback((cardId: string, digit: string) => {
-    setDrafts((d) => ({ ...d, [cardId]: `${d[cardId] ?? ''}${digit}` }));
-  }, []);
+  // ⚠️ **A keypad press is a tap**, and it counts as one since 25 October 2026 — a marshal
+  // part-way through a bib is working, and must not be shown a prompt asking if they are there.
+  const press = useCallback(
+    (cardId: string, digit: string) => {
+      markActive();
+      setDrafts((d) => ({ ...d, [cardId]: `${d[cardId] ?? ''}${digit}` }));
+    },
+    [markActive],
+  );
 
-  const backspace = useCallback((cardId: string) => {
-    setDrafts((d) => ({ ...d, [cardId]: (d[cardId] ?? '').slice(0, -1) }));
-  }, []);
+  const backspace = useCallback(
+    (cardId: string) => {
+      markActive();
+      setDrafts((d) => ({ ...d, [cardId]: (d[cardId] ?? '').slice(0, -1) }));
+    },
+    [markActive],
+  );
 
   if (!ready) {
     return (
@@ -802,6 +915,28 @@ export function MarshalScreen({
         >
           {offlineLine}
         </p>
+
+        {/* ⚠️ **Below the tile, never above it.** Anything that appears above "Crossed now"
+          moves the button the marshal is about to press — the trap the root CLAUDE.md records
+          twice over for the entry form. Down here it can only take height from the tile's
+          bottom edge. Hidden once the door has refused: "keep me signed in" beside "you have
+          been signed out" would be two contradictory instructions. */}
+        {offerStay && !doorRefused ? (
+          <div className="notice timing-stay" role="alert">
+            <p>
+              <strong>Still marshalling?</strong> Nothing has been tapped on this screen
+              for a while, and the club&rsquo;s site will sign you out soon if that
+              carries on.
+            </p>
+            <button
+              type="button"
+              className="club-btn club-btn-primary timing-stay-button"
+              onClick={stay}
+            >
+              Keep me signed in
+            </button>
+          </div>
+        ) : null}
 
         {/* The queue is the one part of this screen that scrolls (T5): the tile and its hints
           stay put above it, so the button is always where the thumb left it. ⚠️ **A region in

@@ -109,6 +109,22 @@ export { ACCESS_COOKIE, EXPIRY_COOKIE, REFRESH_COOKIE };
 /** Refresh proactively once the access token is this close to expiring. */
 const REFRESH_WINDOW_SECONDS = 60;
 
+/**
+ * The window `/account/keep-alive/` refreshes in instead — **ten minutes, twice the marshal
+ * screen's five-minute poll**, so at least one poll always lands inside it.
+ *
+ * ⚠️ **Sixty seconds was right for a page somebody loads and wrong for a poll.** The access
+ * token lives an hour (`jwt_expiry` in `config.toml`), and a poll every five minutes lands in
+ * the last sixty seconds of that hour about one time in five. The other four times the token
+ * expired between two polls, and for up to four minutes the timing Worker — which reads the
+ * token and never refreshes it — turned the marshal's phone away and told them they had been
+ * signed out, mid-race, on a session that was perfectly alive. Refreshing earlier spends no
+ * more refreshes than before: one per hour per session either way, just a few minutes sooner.
+ *
+ * If the poll in `apps/timing/lib/keep-alive.ts` ever slows down, this has to grow with it.
+ */
+export const KEEP_ALIVE_REFRESH_WINDOW_SECONDS = 10 * 60;
+
 /** How long a session survives with nothing happening on it. Slid on every request that
  *  carries a live session. NIST SP 800-63B AAL2's inactivity limit, and the loose end of
  *  OWASP's 15–30 minutes for a low-risk application — see the file header and ADR-019. */
@@ -393,12 +409,19 @@ async function refresh(
  *
  * `nowSeconds` and `secure` are arguments rather than read from the clock or the request
  * directly, so a test can pin both — the same shape `readAdminSession` uses.
+ *
+ * `refreshWithinSeconds` is how close to expiry the access token may get before it is
+ * refreshed. Every caller but one leaves it alone; `/account/keep-alive/` passes
+ * `KEEP_ALIVE_REFRESH_WINDOW_SECONDS`, for the reason given there. It changes *when* a refresh
+ * happens and nothing about *whether* a session may continue — both deadlines are checked
+ * exactly as before.
  */
 export async function readSession(
   config: SupabaseConfig,
   cookieHeader: string | null,
   nowSeconds: number,
   secure: boolean,
+  refreshWithinSeconds: number = REFRESH_WINDOW_SECONDS,
 ): Promise<SessionResult> {
   const accessToken = cookieValue(cookieHeader, ACCESS_COOKIE);
   const refreshToken = cookieValue(cookieHeader, REFRESH_COOKIE);
@@ -418,7 +441,7 @@ export async function readSession(
 
   if (accessToken !== null && refreshToken !== null) {
     const expiry = expiryOf(accessToken);
-    const nearExpiry = expiry === null || expiry - nowSeconds <= REFRESH_WINDOW_SECONDS;
+    const nearExpiry = expiry === null || expiry - nowSeconds <= refreshWithinSeconds;
 
     if (!nearExpiry) {
       const { data, error } = await createAnonClient(config).auth.getUser(accessToken);

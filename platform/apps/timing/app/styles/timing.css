@@ -1257,6 +1257,24 @@ html:has(.timing-tool-page) {
   margin: 0;
 }
 
+/* "Still marshalling? Keep me signed in" — lib/keep-alive.ts. In the body's flex column, so its
+   margin is the column's gap rather than `.notice`'s own; the button is full width because it
+   is the one thing on the screen the marshal is being asked to press. */
+.timing-stay {
+  flex: 0 0 auto;
+  margin: 0;
+  border-left-color: var(--club-brand);
+}
+
+.timing-stay p {
+  max-width: none;
+  margin: 0 0 0.6rem;
+}
+
+.timing-stay-button {
+  width: 100%;
+}
+
 /* The queue takes its own height, up to just under half the screen when nobody is typing (a
    list of cards waiting for signal scrolls inside it), and as much as the open card needs
    while somebody is — the tile gives way first. Scrolling here is the last resort for a screen

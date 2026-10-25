@@ -277,6 +277,11 @@ wrong phrase instead.
 
 ### 2.2 — the phones 📱
 
+- [ ] ⚠️ **Each marshal signs in first, at `/account/sign-in/`, on the phone they will use —
+      in the same browser, or the same home-screen icon, that they will capture in.** The
+      practice in step 1.4 signed out long ago (a session lasts twelve hours at most), so
+      opening the screen without signing in gives **Not found** — which is the sign-in, not
+      the roster
 - [ ] Each marshal opens **`/timing/marshal/nn-2026/`** while there is still signal
 - [ ] Each one confirms the **"Saved for use without signal"** line, again — a phone that was
       cleared since the week before has lost the cache
@@ -285,11 +290,24 @@ wrong phrase instead.
 ⚠️ **A session lapses at thirty minutes idle and twelve hours absolute, and the timing app
 reads a session but never refreshes one.** The capture screen keeps its own alive by calling
 the club's site every five minutes **while the tab is visible and somebody has done something
-in the last twenty-five** — a phone face-down in a pocket lapses on purpose. **A marshal
-standing at a junction with nothing to do for forty minutes is exactly the case that lapses**,
-and the recovery is to sign in again at `/account/sign-in/`. **Nothing captured is lost**: the
-queue is on the phone, keyed to the origin rather than to the session, and it drains once they
-are let back in.
+in the last twenty-five** — a phone face-down in a pocket lapses on purpose.
+
+**The wait before the first runner is the case that used to lapse, and the screen now asks
+instead.** After twenty minutes with nothing tapped it shows **"Still marshalling?"** and a
+large **Keep me signed in** button. Pressing it is all that is needed, and there is about half
+an hour to notice it before the session would end. **Tell every marshal at the briefing**: a
+finish marshal who opens the screen at 10:30 and touches nothing until the winner arrives will
+see it once or twice. Any tap on the screen — Crossed now, a keypad key — answers it as well.
+
+**If nobody presses it for half an hour**, or the phone has no signal for that long, the
+session still ends, and the recovery is to sign in again at `/account/sign-in/` in the same
+browser or home-screen icon. **Nothing captured is lost**: the queue is on the phone, keyed to
+the origin rather than to the session, and it drains once they are let back in.
+
+- [ ] ⚠️ **On an iPhone, check in the rehearsal that a marshal using the home-screen icon can
+      sign in from inside it.** A home-screen web app keeps its own sign-in, separate from
+      Safari's, so signing in in Safari does not sign the icon in. *Not yet tried on a real
+      phone — [#207](https://github.com/southville-running-club/src-website/issues/207).*
 
 ### 2.3 — the start 🎛️ 🏛️
 
@@ -362,6 +380,9 @@ last one is anybody's problem.
 | **"Not sent."** | It did not land this time. Underneath it is the club's own wording for why — usually *"This crossing could not be sent just now — usually no signal. It is saved on this phone and will be sent again automatically."* | Nothing, unless the sentence below it says otherwise |
 | **"Not sent."** with ⚠️ **"This crossing has failed too many times to keep trying on its own."** | **Something.** The club refused it ten times. ⚠️ **No signal never counts**: a crossing waiting for signal keeps trying by itself for as long as it takes, however long the gap The message says *"Write the bib and the time down, tell whoever is running the race, and press **Retry** if you want to try again"* | **Write it on the paper**, tell race control, press **Retry now** if there is signal |
 
+**"Still marshalling?" with a Keep me signed in button is not a card and not an error.**
+Nothing has been tapped for twenty minutes; press the button and carry on.
+
 **Two messages name a fixable cause and are worth recognising:**
 
 - *"You are not on this race's marshal list, so this crossing was not accepted. Ask whoever set
@@ -369,7 +390,9 @@ last one is anybody's problem.
 - *"This phone is no longer being let in — either you have been signed out, or you have been
   taken off this race's marshal list."* — the two are deliberately indistinguishable at the
   door. Sign in again first; if that does not help, check the roster. **Every crossing on the
-  screen survives either way.**
+  screen survives either way.** Since 25 October 2026 the screen has already renewed the session
+  once and tried again before showing this, so a sign-in token that had merely run out no longer
+  causes it.
 
 ⚠️ **"This phone will not let the club's site save anything"** is the one message that changes
 what a marshal does with the phone: the crossings are held only while the page is open. **Do
@@ -561,8 +584,8 @@ what tells a missing role from a missing roster row.
 
 | What is reported | Almost always |
 | --- | --- |
-| "The marshal page says Not found" | Not on **this race's** roster — step 1.3. The role alone is not enough |
-| "It signed me out" | Thirty minutes idle. Sign in at `/account/sign-in/`; the queue survives |
+| "The marshal page says Not found" | On race morning: **not signed in yet** — step 2.2. Otherwise not on **this race's** roster — step 1.3. The role alone is not enough |
+| "It signed me out" | Nobody pressed **Keep me signed in** for about half an hour, or no signal for that long. Sign in at `/account/sign-in/` in the same browser or home-screen icon; the queue survives |
 | "My cards are not going" | Nothing, if they read **"Waiting to be sent."** Something only at the retry cap |
 | "The screen is blank / says to use paper" | JavaScript is off on that phone. Use the paper; do not spend race morning on it |
 | "The publish button refused me" | Not finished, or the triage list is not empty. The page says which |
