@@ -1388,6 +1388,38 @@ test.describe('the entry list', () => {
   });
 
   /**
+   * ⚠️ **ADR-067: Assign bibs numbers a guide in the same press**, straight after their runner,
+   * so the desk hands over two consecutive vests and types nothing afterwards. Its own names, so
+   * the labels cannot collide with the test above's entry.
+   */
+  test('numbers a guide straight after their runner when bibs are assigned', async ({
+    page,
+  }, testInfo) => {
+    await seedGuidedEntry(rosterEventSlug(testInfo.project.name), null, {
+      runner: ['Philomena', 'Zzpaired'],
+      guide: ['Barnaby', 'Zzpairguide'],
+    });
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(registrationPath(testInfo.project.name));
+
+    await page.getByRole('button', { name: 'Assign bibs' }).click();
+    await expect(page.getByText(/1 guide was given a number of their own/)).toBeVisible();
+
+    const card = page.locator('li.timing-entry', { hasText: 'Philomena Zzpaired' });
+    const runnerNumber = await card
+      .locator('dl > div')
+      .filter({ has: page.getByText('Number', { exact: true }) })
+      .locator('dd')
+      .innerText();
+    const guideNumber = await page
+      .getByLabel('Bib written on for Barnaby Zzpairguide (guide)')
+      .inputValue();
+
+    expect(runnerNumber).toMatch(/^\d+$/);
+    expect(Number(guideNumber)).toBe(Number(runnerNumber) + 1);
+  });
+
+  /**
    * ⚠️ **A refusal and a missing race are the same answer**, because `event_roster()` returns
    * `null` for both so a slug cannot be probed for existence.
    */

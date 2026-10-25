@@ -480,6 +480,7 @@ describe('starting Assign bibs at a number the desk chooses', () => {
     expect(await assignFromAs(IMPORTER, SOLO_SLUG, 150)).toEqual({
       ok: true,
       assigned: 3,
+      guides_numbered: 0,
       already_assigned: 0,
       first: '150',
       last: '152',
@@ -527,6 +528,7 @@ describe('starting Assign bibs at a number the desk chooses', () => {
     expect(await assignFromAs(IMPORTER, SOLO_SLUG, 500)).toEqual({
       ok: true,
       assigned: 0,
+      guides_numbered: 0,
       already_assigned: 1,
       first: null,
       last: null,
@@ -1076,6 +1078,150 @@ describe("a guide's own number on a solo race", () => {
       expect.objectContaining({ leg: 1, role: 'runner' }),
       expect.objectContaining({ leg: 2, role: 'guide' }),
     ]);
+  });
+
+  // ---------------------------------------------------------------------------------------
+  // ⚠️ ADR-067, 25 October 2026: Assign bibs numbers a guide in the same press — straight after
+  // their runner, or the next free number on an entry already numbered — so the desk has
+  // nothing to type afterwards. "Never renumbers anybody" is unchanged.
+  // ---------------------------------------------------------------------------------------
+
+  const pad3 = () =>
+    db.query('update timing.events set bib_pad_width = 3 where id = $1', [SOLO_EVENT]);
+
+  const bibsOf = async (teamId: string) => {
+    const { rows } = await db.query<{
+      team_number: string | null;
+      bib_leg2: string | null;
+    }>('select team_number, bib_leg2 from timing.teams where id = $1', [teamId]);
+    return rows[0];
+  };
+
+  /** Fixes the numbering order, so the answer cannot depend on two inserts' timestamps. */
+  const inOrder = async (...ids: string[]) => {
+    for (const [index, id] of ids.entries()) {
+      await db.query('update timing.teams set csv_row_index = $2 where id = $1', [
+        id,
+        index + 1,
+      ]);
+    }
+  };
+
+  it('numbers a guide straight after their runner, in the same press', async () => {
+    await pad3();
+    const guided = await makeGuidedTeam(SOLO_EVENT);
+    const plain = await makeTeam(SOLO_EVENT);
+    await inOrder(guided, plain);
+
+    expect(await assignBibsAs(IMPORTER, SOLO_SLUG)).toEqual({
+      ok: true,
+      assigned: 2,
+      guides_numbered: 1,
+      already_assigned: 0,
+      first: '001',
+      last: '003',
+    });
+    expect(await bibsOf(guided)).toEqual({ team_number: '001', bib_leg2: '002' });
+    expect(await bibsOf(plain)).toEqual({ team_number: '003', bib_leg2: null });
+
+    // The number given is a real one: a crossing typed on it lands on the guide's entry.
+    expect(await crossingOn(SOLO_EVENT, '002')).toBe(guided);
+  });
+
+  /**
+   * A guide added to an entry after it was numbered — a late re-import, or a number cleared —
+   * cannot sit beside their runner any more, because that number is somebody else's.
+   */
+  it('gives a guide on an entry already numbered the next free number', async () => {
+    await pad3();
+    const guided = await makeGuidedTeam(SOLO_EVENT, { team_number: '001' });
+    await makeTeam(SOLO_EVENT, { team_number: '002' });
+
+    expect(await assignBibsAs(IMPORTER, SOLO_SLUG)).toEqual({
+      ok: true,
+      assigned: 0,
+      guides_numbered: 1,
+      already_assigned: 2,
+      first: '003',
+      last: '003',
+    });
+    expect(await bibsOf(guided)).toEqual({ team_number: '001', bib_leg2: '003' });
+  });
+
+  it("keeps a guide's number once they have one, and moves nobody on a second press", async () => {
+    await pad3();
+    const typed = await makeGuidedTeam(SOLO_EVENT, { bib_leg2: '090' });
+    const fresh = await makeGuidedTeam(SOLO_EVENT);
+    await inOrder(typed, fresh);
+
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+    // The desk typed 090 for the first guide before pressing, and it stands.
+    expect(await bibsOf(typed)).toEqual({ team_number: '001', bib_leg2: '090' });
+    expect(await bibsOf(fresh)).toEqual({ team_number: '002', bib_leg2: '003' });
+
+    expect(await assignBibsAs(IMPORTER, SOLO_SLUG)).toMatchObject({
+      assigned: 0,
+      guides_numbered: 0,
+    });
+    expect(await bibsOf(typed)).toEqual({ team_number: '001', bib_leg2: '090' });
+    expect(await bibsOf(fresh)).toEqual({ team_number: '002', bib_leg2: '003' });
+  });
+
+  /** A spare vest written in as `003` means the guide who would have had it gets `004`. */
+  it('steps a guide past a number somebody is already wearing', async () => {
+    await pad3();
+    await makeTeam(SOLO_EVENT, { team_number: '001', bib_leg1: '003' });
+    const guided = await makeGuidedTeam(SOLO_EVENT);
+
+    await assignBibsAs(IMPORTER, SOLO_SLUG);
+
+    expect(await bibsOf(guided)).toEqual({ team_number: '002', bib_leg2: '004' });
+  });
+
+  it('starts at the first number given, with the guide straight after', async () => {
+    await pad3();
+    const guided = await makeGuidedTeam(SOLO_EVENT);
+    const plain = await makeTeam(SOLO_EVENT);
+    await inOrder(guided, plain);
+
+    expect(await assignFromAs(IMPORTER, SOLO_SLUG, 150)).toMatchObject({
+      assigned: 2,
+      guides_numbered: 1,
+      first: '150',
+      last: '152',
+    });
+    expect(await bibsOf(guided)).toEqual({ team_number: '150', bib_leg2: '151' });
+    expect(await bibsOf(plain)).toEqual({ team_number: '152', bib_leg2: null });
+  });
+
+  /** A relay's leg 2 is a runner who derives their own bib, so a relay is never touched. */
+  it('gives nothing on a relay a leg-2 number of its own', async () => {
+    const team = await makeTeam(RELAY_EVENT);
+    await db.query(
+      `insert into timing.runners (team_id, leg, firstname, lastname, role)
+       values ($1, 2, 'Octavius', 'Zzrelay', 'guide')`,
+      [team],
+    );
+
+    expect(await assignBibsAs(IMPORTER, RELAY_SLUG)).toMatchObject({
+      assigned: 1,
+      guides_numbered: 0,
+    });
+    expect(await bibsOf(team)).toEqual({ team_number: '1', bib_leg2: null });
+  });
+
+  /** The two helpers are reachable from `assign_bibs()` and from nobody directly. */
+  it('refuses its two helpers to a signed-in caller, with 42501', async () => {
+    await expect(
+      asPerson(IMPORTER, 'select timing.padded_bib(1, 3::smallint) as answer', []),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      asPerson(
+        IMPORTER,
+        "select timing.free_number_from($1, 'solo', 3::smallint, 1) as answer",
+        [SOLO_EVENT],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
   });
 });
 

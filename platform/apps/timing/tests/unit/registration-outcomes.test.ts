@@ -164,6 +164,40 @@ describe('what Assign bibs says about where it started', () => {
       outcomeFor('bibs-assigned', { assigned: 2, already: 0 })?.message ?? '';
     expect(message).toContain('2 entries were numbered, and');
   });
+
+  // ADR-067: guides are numbered in the same press, and the range covers their numbers.
+  it('names the guides numbered alongside the entries', () => {
+    const message =
+      outcomeFor('bibs-assigned', {
+        assigned: 2,
+        already: 0,
+        guides: 1,
+        first: '001',
+        last: '003',
+      })?.message ?? '';
+    expect(message).toContain(
+      '2 entries were numbered and 1 guide was given a number of their own, 001 to 003',
+    );
+  });
+
+  /**
+   * A press that numbered only late guides changed something, so it must not read as "0
+   * entries were numbered" or as "nothing was changed".
+   */
+  it('says plainly when only late guides were numbered', () => {
+    const message =
+      outcomeFor('bibs-assigned', {
+        assigned: 0,
+        already: 12,
+        guides: 2,
+        first: '013',
+        last: '014',
+      })?.message ?? '';
+    expect(message).toContain(
+      'Every entry already had a number, and 2 guides were given a number of their own, 013 to 014',
+    );
+    expect(message).not.toContain('0 entries');
+  });
 });
 
 describe('findings across the redirect', () => {

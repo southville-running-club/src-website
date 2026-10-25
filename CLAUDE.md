@@ -2561,12 +2561,20 @@ nothing** — [ADR-061](docs/architecture/decisions/adr-061-a-guide-wears-a-numb
 `import_from_entries()` puts a guide on their runner's team as leg 2. Until 23 October 2026 a
 solo leg 2 derived the team number and `set_bib_override()` refused it, so a guide read as
 wearing their runner's bib and the desk could not record theirs. Now the guide's number is the
-leg-2 override, typed into a **Guide's bib** box. `assign_bibs()` and `add_walk_in()` step past
-any number already held as an override, and a guide's crossing times nothing, because a solo
+leg-2 override, which a **Guide's bib** box can change. `assign_bibs()` and `add_walk_in()` step
+past any number already held as an override, and a guide's crossing times nothing, because a solo
 result reads leg 1 alone. **`derivedBib()` was ported unchanged and this is its one deliberate
-change**; `bib.ts` and `effective_bib()` carry it together. **Restating `assign_bibs()` again
-means restating `20261023160000`'s**: padding, the override skip, and the optional first number.
-An older copy silently drops one.
+change**; `bib.ts` and `effective_bib()` carry it together.
+
+⚠️ **Since 25 October 2026 Assign bibs numbers the guides too** —
+[ADR-067](docs/architecture/decisions/adr-067-assign-bibs-numbers-a-guide.md), taken on the first
+day of the change freeze and deployed inside it. A guide on an entry being numbered gets the
+number straight after their runner's; a guide on an entry already numbered, still without one,
+gets the next free number. Nobody who has a number loses it. The step past a worn number is one
+helper now, `timing.free_number_from()`, granted to nobody alongside `timing.padded_bib()`;
+`add_walk_in()` still carries its own copy, which is post-race tidying. **Restating
+`assign_bibs()` again means restating `20261025100000`'s**: padding, the override skip, the
+optional first number, and both guide passes. An older copy silently drops one.
 
 ⚠️ **Assign bibs takes an optional first number since 23 October 2026, and it can only move
 numbering up.** `assign_bibs(p_event_slug, p_start_from default null)` starts at the greater of

@@ -216,12 +216,14 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
       `timing.events.bib_pad_width`, set to 3 for `nn-2026`; a walk-in added at the desk is
       padded the same way. **A number that comes out as `1` will not match a vest reading 001**:
       stop and tell a maintainer rather than overriding bibs one by one
-- [ ] **Give every guide a number of their own** — ADR-061. Each entry with a guide on it has a
-      **Guide's bib** box on this page, reading *"Not given yet"* until somebody fills it in; on
-      the Roster the guide's bib reads "—". Type the number on the vest you hand them, exactly as
-      printed, and press **Save bib**. A number anybody else is wearing is refused, and so is the
-      runner's own. **Assign bibs never hands out a number a guide is already wearing**, so
-      re-running it after late entries is still safe
+- [ ] **Check every guide has a number of their own** — ADR-061 and ADR-067. **Assign bibs gives
+      each guide the number straight after their runner's** in the same press, and the message
+      says how many guides it numbered. Each entry with a guide has a **Guide's bib** box on this
+      page showing that number, so hand the runner and guide the two consecutive vests. A guide
+      added to an entry after it was numbered gets the next free number when you press **Assign
+      bibs** again; until then the box reads *"Not given yet"* and the Roster shows "—". To give
+      a guide a different vest, type it in the box and press **Save bib**. A number anybody else
+      is wearing is refused, and so is the runner's own
 - [ ] Re-run the import after any late transfer, cancellation or given place. It never touches
       a number somebody is already wearing
 

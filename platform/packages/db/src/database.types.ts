@@ -2276,6 +2276,15 @@ export type Database = {
       event_detail: { Args: { p_event_slug: string }; Returns: Json }
       event_roster: { Args: { p_event_slug: string }; Returns: Json }
       finish_event: { Args: { p_event_slug: string }; Returns: Json }
+      free_number_from: {
+        Args: {
+          p_event_id: string
+          p_format: string
+          p_from: number
+          p_width: number
+        }
+        Returns: number
+      }
       import_from_entries: { Args: { p_event_slug: string }; Returns: Json }
       import_registration: {
         Args: { p_event_slug: string; p_rows: Json }
@@ -2288,6 +2297,10 @@ export type Database = {
       my_marshal_events: { Args: never; Returns: Json }
       open_anomalies: { Args: { p_event_slug: string }; Returns: Json }
       open_anomaly_count: { Args: { p_event_id: string }; Returns: number }
+      padded_bib: {
+        Args: { p_number: number; p_width: number }
+        Returns: string
+      }
       publish_results: { Args: { p_event_slug: string }; Returns: Json }
       record_crossing: {
         Args: {

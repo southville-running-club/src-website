@@ -419,24 +419,42 @@ export async function seedRosterEvent(slug: string): Promise<void> {
  * ADR-061's guide's-own-number test.
  *
  * **Re-created rather than added to**, so a retried test starts from the same entry with no
- * number written in for the guide. The team number is the caller's and invented.
+ * number written in for the guide. The team number is the caller's and invented, and **null
+ * leaves the entry unnumbered**, for ADR-067's Assign bibs test.
+ *
+ * ⚠️ **Each test passes its own names.** The registration page's boxes are found by a label
+ * naming the guide, so two guided entries with the same names on one race would make every
+ * lookup ambiguous. The earlier entry is found and removed by the guide's surname, which is
+ * also what makes a null team number re-creatable.
  */
-export async function seedGuidedEntry(slug: string, teamNumber: string): Promise<void> {
+export async function seedGuidedEntry(
+  slug: string,
+  teamNumber: string | null,
+  names: { runner: [string, string]; guide: [string, string] } = {
+    runner: ['Perpetua', 'Zzguided'],
+    guide: ['Octavius', 'Zzguide'],
+  },
+): Promise<void> {
   await withClient(async (db) => {
     const eventId = fixtureEventId(slug);
-    await db.query('delete from timing.teams where event_id = $1 and team_number = $2', [
-      eventId,
-      teamNumber,
-    ]);
+    await db.query(
+      `delete from timing.teams t
+        where t.event_id = $1
+          and exists (
+            select 1 from timing.runners r
+             where r.team_id = t.id and r.role = 'guide' and r.lastname = $2
+          )`,
+      [eventId, names.guide[1]],
+    );
     const { rows } = await db.query<{ id: string }>(
       'insert into timing.teams (event_id, team_number) values ($1, $2) returning id',
       [eventId, teamNumber],
     );
     await db.query(
       `insert into timing.runners (team_id, leg, firstname, lastname, role)
-       values ($1, 1, 'Perpetua', 'Zzguided', 'runner'),
-              ($1, 2, 'Octavius', 'Zzguide', 'guide')`,
-      [rows[0]!.id],
+       values ($1, 1, $2, $3, 'runner'),
+              ($1, 2, $4, $5, 'guide')`,
+      [rows[0]!.id, ...names.runner, ...names.guide],
     );
   });
 }
