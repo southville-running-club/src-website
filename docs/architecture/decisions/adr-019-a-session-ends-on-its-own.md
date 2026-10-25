@@ -114,6 +114,31 @@ IndexedDB keyed to the origin rather than to the session, so the marshal signs i
 drain empties it. The race-night runbook says that in one sentence and the simulation does it
 once on purpose.
 
+### Two gaps in the keep-alive, closed 25 October 2026
+
+**The keep-alive as first built still signed a working marshal out, in two ways, and closing
+them changes nothing this record decided** — active is still a tap or a crossing that landed,
+the windows are still thirty minutes and twelve hours, and the route still answers 204 whoever
+asks.
+
+- **The wait before the first runner.** A finish marshal who opened the screen at the 10:30
+  briefing and touched nothing until the winner arrived was signed out at about 11:20, before
+  the winner: the poll stopped at twenty-five idle minutes and the cookies ran out thirty after
+  the last one. **The answer is a prompt rather than a longer window.** After twenty minutes
+  with nothing tapped the screen shows a large *Keep me signed in* button, and pressing it is a
+  tap — so a marshal who is there has about half an hour to notice it, and a phone nobody is
+  near still lapses exactly as above. A keypad press counts as a tap too, which it always was.
+- **An access token that expired between polls.** The token lives an hour, the timing Worker
+  refuses an expired one, and this route only renewed it in its last sixty seconds — which a
+  five-minute poll lands in about one time in five. The other four times, the door refused a
+  live session for up to four minutes and the screen said the marshal had been signed out. The
+  route now renews the token ten minutes early, for this address alone
+  (`KEEP_ALIVE_REFRESH_WINDOW_SECONDS`), and the screen answers a refusal with one keep-alive
+  and one retry before saying anything — only while it counts as active, so a retry can hold
+  nothing open that the poll would have let go.
+
+`apps/timing/lib/keep-alive.ts` carries the numbers and the reasoning.
+
 **The status is 204 whoever asks.** Answering one status for a live session and another for none
 would be an oracle for whether a copied cookie jar is still good, and the caller needs no such
 signal — what tells the marshal screen a session has ended is its next sync failing.

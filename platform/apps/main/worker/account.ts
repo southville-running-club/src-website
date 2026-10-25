@@ -45,6 +45,7 @@ import {
 } from './club-chrome';
 import { faviconLink } from './site-chrome';
 import {
+  KEEP_ALIVE_REFRESH_WINDOW_SECONDS,
   REFRESH_COOKIE,
   clearedSessionCookies,
   newSessionCookies,
@@ -216,14 +217,25 @@ export async function handleAccount(
   const nowSeconds = Math.floor(Date.now() / 1000);
   const cookieHeader = request.headers.get('cookie');
   const cfg = config(env);
+  const segments = accountSegments(url.pathname);
+  const isKeepAlive =
+    request.method === 'GET' && segments.length === 1 && segments[0] === 'keep-alive';
 
+  // ⚠️ **The keep-alive refreshes the access token ten minutes early, and nothing else does.**
+  // A poll every five minutes almost never lands in the ordinary last-sixty-seconds window,
+  // so the token used to expire between two polls and the timing Worker refused a marshal who
+  // was still signed in. `KEEP_ALIVE_REFRESH_WINDOW_SECONDS` carries the whole argument.
   const {
     session,
     setCookies: refreshedCookies,
     timedOut,
-  } = await readSession(cfg, cookieHeader, nowSeconds, secure);
-
-  const segments = accountSegments(url.pathname);
+  } = await readSession(
+    cfg,
+    cookieHeader,
+    nowSeconds,
+    secure,
+    isKeepAlive ? KEEP_ALIVE_REFRESH_WINDOW_SECONDS : undefined,
+  );
 
   // **Why a timed-out session is turned away here rather than at each address.** Every
   // address that needs a session already redirects to `/account/sign-in/` when there is
@@ -246,7 +258,7 @@ export async function handleAccount(
   // sign-in page**, which `fetch` follows by default: the page would silently download a
   // document it cannot use, and the only signal that the session had ended would be a
   // response the caller was told to ignore.
-  if (request.method === 'GET' && segments.length === 1 && segments[0] === 'keep-alive') {
+  if (isKeepAlive) {
     return keepAlive(refreshedCookies);
   }
 
@@ -1024,6 +1036,11 @@ function signInPage(
  * **GET only**, matched in the dispatcher above. Nothing here changes state, so there is
  * nothing for `worker/csrf.ts` to protect and a POST would imply there were; anything that is
  * not a GET falls through to the ordinary 404 at the foot of `handleAccount`.
+ *
+ * ⚠️ **It also renews the access token ten minutes before it expires**, not sixty seconds —
+ * `handleAccount` passes `KEEP_ALIVE_REFRESH_WINDOW_SECONDS` to `readSession` for this address
+ * alone. Sliding the cookies was never the whole job: the timing Worker reads the access token
+ * itself, and an hour-old token is refused there even inside a live session. 25 October 2026.
  */
 function keepAlive(refreshedCookies: string[]): Response {
   return noContent(refreshedCookies);

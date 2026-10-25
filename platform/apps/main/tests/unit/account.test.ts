@@ -2220,6 +2220,55 @@ describe('GET /account/keep-alive/', () => {
     expect(statuses).toEqual([204, 204, 204]);
   });
 
+  /**
+   * ⚠️ **Sliding the cookies was never the whole job.** The timing Worker reads the access token
+   * itself and never refreshes it, so an hour-old token is refused there even inside a live
+   * session. A five-minute poll almost never lands in the ordinary last-sixty-seconds window;
+   * this route refreshes ten minutes early so one always does — and an ordinary page, given the
+   * very same cookies, still does not.
+   */
+  it('renews an access token with five minutes left, which an ordinary page would not', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const fiveMinutesLeft = `${toBase64Url('{"alg":"none"}')}.${toBase64Url(
+      JSON.stringify({ exp: now + 5 * 60 }),
+    )}.sig`;
+    const cookie = [
+      `src_at=${fiveMinutesLeft}`,
+      'src_rt=zz-refresh-token',
+      `src_ax=${now + 3600}`,
+    ].join('; ');
+
+    refreshSession.mockResolvedValueOnce({
+      data: {
+        session: {
+          user: { id: 'zz-person' },
+          access_token: 'zz-new-access',
+          refresh_token: 'zz-new-refresh',
+          expires_in: 3600,
+        },
+      },
+      error: null,
+    });
+
+    const response = await keepAlive(cookie);
+
+    expect(response.status).toBe(204);
+    expect(refreshSession).toHaveBeenCalledWith({ refresh_token: 'zz-refresh-token' });
+    expect(setCookiesOf(response).some((c) => c.startsWith('src_at=zz-new-access'))).toBe(
+      true,
+    );
+
+    // The same cookies on `/account/` itself: still five minutes left, so no refresh.
+    refreshSession.mockClear();
+    signedIn();
+    await handleAccount(
+      get('/account/', cookie),
+      ENV,
+      new URL('http://localhost:8787/account/'),
+    );
+    expect(refreshSession).not.toHaveBeenCalled();
+  });
+
   it('is never cached, and never indexed', async () => {
     signedIn();
 
