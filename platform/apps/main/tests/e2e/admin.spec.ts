@@ -3143,7 +3143,12 @@ test.describe('race photos', () => {
     await expect(
       page.getByRole('heading', { level: 2, name: PHOTOS_EVENT_NAME }),
     ).toBeVisible();
-    await expect(page.getByText('Left to check')).toBeVisible();
+    // **Scoped to this running's own section**: the runner pages' fixtures (`nn-2093`,
+    // `nn-2094`) share the overview once `nn-photos.spec.ts` has seeded them, and each has a
+    // "Left to check" of its own.
+    await expect(
+      page.getByRole('region', { name: PHOTOS_EVENT_NAME }).getByText('Left to check'),
+    ).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 
