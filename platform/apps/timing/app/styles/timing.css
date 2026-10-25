@@ -2477,3 +2477,32 @@ html:has(.timing-tool-page) {
     min-height: 2.9rem;
   }
 }
+
+/* "Still there? Keep me signed in" on every staff page — app/chrome/stay-signed-in.tsx.
+   ⚠️ **Fixed, and it takes no space**, so appearing moves nothing on the page: a bar that pushed
+   the Start page down as somebody reached for the gun would move the gun. The page's text as
+   the background and the page's background as the text, the marshal bar's pair — 14.2:1 both
+   ways, measured in tests/unit/timing-contrast.test.ts. */
+.timing-stay-bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 50;
+  padding-block: 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  background: var(--club-text);
+  color: var(--club-background);
+  box-shadow: 0 -2px 12px rgb(0 0 0 / 0.25);
+}
+
+.timing-stay-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+}
+
+.timing-stay-bar-inner p {
+  max-width: 44rem;
+  margin: 0;
+  color: inherit;
+}

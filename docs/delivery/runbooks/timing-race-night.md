@@ -424,6 +424,19 @@ orphan and the page says so.
 else resolved this one first, so nothing was changed. Their decision stands."* Nothing is
 silently overwritten; nothing needs coordinating beyond reading the message.
 
+⚠️ **Race control's pages ask before they sign anybody out, since 25 October 2026.** Every page
+under `/timing` — Start, Anomalies, Timing log, Results, Prizes, Roster, Live — keeps its
+session while somebody is using it, and after twenty minutes with nothing touched shows a bar
+along the bottom: **"Still there?"** with a **Keep me signed in** button. Press it, or touch
+anything else on the page. Until then these pages renewed nothing at all, so whoever ran Start
+or Anomalies from the laptop was signed out half an hour after they last opened a page on the
+club's own site, however busy they were.
+
+- [ ] **The Live board needs a tap about every half hour.** It counts as idle while nobody
+      touches it, exactly as ADR-019 says a screen nobody touches should — so whoever is near it
+      presses **Keep me signed in** when the bar comes up. Left alone for half an hour, it stops
+      updating and says so; signing in again and reopening it brings it back
+
 ---
 
 ## Phase 4 — after the last runner
@@ -585,7 +598,8 @@ what tells a missing role from a missing roster row.
 | What is reported | Almost always |
 | --- | --- |
 | "The marshal page says Not found" | On race morning: **not signed in yet** — step 2.2. Otherwise not on **this race's** roster — step 1.3. The role alone is not enough |
-| "It signed me out" | Nobody pressed **Keep me signed in** for about half an hour, or no signal for that long. Sign in at `/account/sign-in/` in the same browser or home-screen icon; the queue survives |
+| "It signed me out" | Nobody pressed **Keep me signed in** for about half an hour, or no signal for that long — on the capture screen and on race control's pages alike. Sign in at `/account/sign-in/` in the same browser or home-screen icon; the queue survives |
+| "The live board stopped updating" | Nobody pressed **Keep me signed in** on it for half an hour. Sign in again and reopen **Live** |
 | "My cards are not going" | Nothing, if they read **"Waiting to be sent."** Something only at the retry cap |
 | "The screen is blank / says to use paper" | JavaScript is off on that phone. Use the paper; do not spend race morning on it |
 | "The publish button refused me" | Not finished, or the triage list is not empty. The page says which |

@@ -249,7 +249,10 @@ Work down this list. The first ✅ that turns into a ✗ is the answer.
 2. **Has their session lapsed?** Thirty minutes idle, twelve hours absolute —
    [ADR-019](../../architecture/decisions/adr-019-a-session-ends-on-its-own.md). ⚠️ **The
    timing app reads a session and never refreshes one**, so it cannot extend a lapsed one.
-   Opening any page on the club's side puts it right.
+   Opening any page on the club's side puts it right. Since 25 October 2026 every staff page
+   under `/timing` keeps a session it is being used on alive by asking the club's site, and
+   shows **"Still there?"** with a **Keep me signed in** button after twenty quiet minutes; a
+   lapse means nobody pressed it for about half an hour.
 3. **Do they hold the role?** `/admin/people/` shows every account and every role it holds.
    If the role is missing, the answer is step 2 above.
 4. **Do they hold the *right* role?** A `timing-marshal` is refused `/timing/events/`. That

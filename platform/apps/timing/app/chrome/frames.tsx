@@ -16,6 +16,7 @@ import {
 } from '../../lib/reads';
 import { AppFooter, AppHeader, SkipLink, TimingNav } from './app-shell';
 import { AreaBarScroll } from './area-bar-scroll';
+import { StaySignedIn } from './stay-signed-in';
 
 export { PlainFrame } from './app-shell';
 
@@ -111,6 +112,10 @@ async function AppShell({
         {children}
       </main>
       {tool ? null : <AppFooter />}
+      {/* ⚠️ **Every staff page keeps its session while somebody works on it**, 25 October 2026 —
+        `stay-signed-in.tsx`. Not the capture screen (`tool`), which keeps its own and must not
+        have two prompts. */}
+      {tool ? null : <StaySignedIn />}
     </div>
   );
 }
