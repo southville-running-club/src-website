@@ -430,6 +430,67 @@ test.describe('the dashboard', () => {
   });
 });
 
+/**
+ * "Still there? Keep me signed in" — `worker/admin-stay-signed-in.ts`, 25 October 2026.
+ *
+ * Every page load here slides the session and nothing between page loads did, so somebody
+ * reading or filling in one page for half an hour was signed out underneath it and met the
+ * ordinary 404 on their next click. The page's own clock is faked, so twenty minutes is a line
+ * of test; the session's cookies are the browser's and are not, which is the point — the
+ * keep-alive the button sends has to reach a session that is really there.
+ */
+test.describe('staying signed in', () => {
+  const button = (page: Page): Locator =>
+    page.getByRole('button', { name: 'Keep me signed in' });
+
+  test('asks after twenty quiet minutes, and the button keeps the session @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.clock.install();
+    await page.goto(ADMIN);
+    await expect(page.getByRole('heading', { name: 'Club admin' })).toBeVisible();
+
+    await page.clock.fastForward('19:00');
+    await expect(button(page)).toBeHidden();
+
+    await page.clock.fastForward('07:00');
+    await expect(button(page)).toBeVisible();
+
+    const keptAlive = page.waitForRequest(
+      (request) => new URL(request.url()).pathname === '/account/keep-alive/',
+    );
+    await button(page).click();
+    await keptAlive;
+    await expect(button(page)).toBeHidden();
+  });
+
+  test('counts a tap anywhere on the page as being there @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.clock.install();
+    await page.goto(ADMIN);
+    const heading = page.getByRole('heading', { name: 'Club admin' });
+    await expect(heading).toBeVisible();
+
+    await page.clock.fastForward('19:00');
+    await heading.click();
+
+    // Twenty-six minutes since the page opened, seven since the tap.
+    await page.clock.fastForward('07:00');
+    await expect(button(page)).toBeHidden();
+  });
+
+  /** With scripting off the page is the page it always was: the bar never shows. */
+  test('stays out of the way with scripting off', async ({ page }) => {
+    await signInAs(page, NN_ADMIN_EMAIL);
+    await page.goto(ADMIN);
+
+    await expect(button(page)).toBeHidden();
+  });
+});
+
 // -------------------------------------------------------------------------------------------
 // Where the surface used to live
 // -------------------------------------------------------------------------------------------

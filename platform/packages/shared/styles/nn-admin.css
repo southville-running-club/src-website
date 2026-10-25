@@ -3293,3 +3293,39 @@ a.admin-runner-email:focus-visible {
 .admin-photos-take-down {
   max-width: 26rem;
 }
+
+/* "Still there? Keep me signed in" — apps/main/worker/admin-stay-signed-in.ts.
+   ⚠️ **Fixed, and it takes no space**, so appearing moves nothing on the page. The page's text
+   as the background and the page's background as the text: the base palette's own pair, so it
+   holds in both schemes without a wash. */
+.admin-stay-bar {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 50;
+  padding: var(--space) var(--space) calc(var(--space) + env(safe-area-inset-bottom, 0px));
+  background: var(--colour-text);
+  color: var(--colour-background);
+}
+
+/* ⚠️ **Restated on purpose.** The browser's own `[hidden] { display: none }` loses to any class
+   that sets a `display`, so the day somebody gives the bar one it would be on screen from the
+   moment the page loaded. Saying it here keeps hidden meaning hidden. */
+.admin-stay-bar[hidden] {
+  display: none;
+}
+
+.admin-stay-bar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--space) * 0.6) var(--space);
+  max-width: 75rem;
+  margin-inline: auto;
+}
+
+.admin-stay-bar-inner p {
+  max-width: 44rem;
+  margin: 0;
+  color: inherit;
+}
