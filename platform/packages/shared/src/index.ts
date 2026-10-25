@@ -178,8 +178,8 @@ export {
   fetchServablePhoto,
   isLinkToken,
   linkTokenHash,
+  deriveLinkToken,
   mailtoLink,
-  mintLinkToken,
   photoDownloadName,
   type CouldBePhoto,
   type RunnerOnePhoto,
@@ -189,6 +189,20 @@ export {
   type RunnerPhoto,
   type ServableResult,
 } from './photos-runner';
+
+export {
+  claimPhotosOutboxBatch,
+  fetchSendFigures,
+  photosLinkEmailBody,
+  PHOTOS_EMAIL_COPY,
+  recordPhotosSendResult,
+  requestPhotoLink,
+  sendPhotoLinks,
+  type PhotoSendFigures,
+  type PhotosLinkMessage,
+  type SendFiguresResult,
+  type SendLinksResult,
+} from './photos-links';
 
 export { formatPence, formatPriceWords } from './money';
 
