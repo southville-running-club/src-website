@@ -2284,19 +2284,105 @@ html:has(.timing-tool-page) {
   font-weight: 700;
 }
 
-/* The face-down card: a winner who has not been revealed yet. */
-.timing-presenter-card {
-  display: grid;
-  place-items: center;
-  width: 9rem;
-  height: 12rem;
+/* The reels: one per digit of the winner's race number, face down until **Reveal**, then club
+   green with its ink once they have a number on them — the pair the primary button already
+   carries. `lib/prize-reel.ts` builds what each shows; nothing here knows a digit.
+
+   ⚠️ **A spinning reel is the landed reel with a `from` keyframe.** The strip's own transform is
+   where it lands, and the animation only says where it starts, so a reel whose animation never
+   runs — reduced motion, or an engine that skips it — shows the right digit rather than `?`. The
+   same goes for the caption: `both` holds it hidden through the delay, and without the animation
+   it is simply there. Sized in em off one font size so three reels fit 320px. */
+.timing-reels {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  font: 800 clamp(3rem, 12vw, 5.5rem) / 1 var(--club-font-display);
+}
+
+.timing-reel {
+  --reel-cell: 1.6em;
+  display: block;
+  width: 1.2em;
+  height: var(--reel-cell);
+  overflow: hidden;
   border: 3px solid var(--club-background);
   border-radius: var(--club-radius-card);
-  font: 800 5rem / 1 var(--club-font-display);
+}
+
+.timing-reel-landed,
+.timing-reel-spinning {
+  border-color: var(--club-brand);
+  background: var(--club-brand);
+  color: var(--club-on-brand);
+}
+
+.timing-reel-strip {
+  display: block;
+  transform: translateY(calc(var(--reel-stop, 0) * -1 * var(--reel-cell)));
+}
+
+.timing-reel-strip > span {
+  display: block;
+  height: var(--reel-cell);
+  line-height: var(--reel-cell);
+  text-align: center;
+}
+
+/* Fast at first and slowing to a stop on the digit — the slot machine's whole effect. */
+.timing-reel-spinning .timing-reel-strip {
+  animation: timing-reel-spin var(--reel-ms) cubic-bezier(0.1, 0.65, 0.2, 1) both;
+}
+
+@keyframes timing-reel-spin {
+  from {
+    transform: translateY(0);
+  }
+}
+
+.timing-presenter-reveal {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+}
+
+/* Held back until the last reel lands — `--reel-total-ms`, set beside it from the same reels. */
+.timing-presenter-held {
+  animation: timing-presenter-land 450ms ease-out var(--reel-total-ms, 0ms) both;
+}
+
+@keyframes timing-presenter-land {
+  from {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timing-reel-spinning .timing-reel-strip,
+  .timing-presenter-held {
+    animation: none;
+  }
+}
+
+/* Over everything for a few seconds and then gone; never in the way of a click. */
+.timing-fireworks {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .timing-presenter-winner {
   font: 800 clamp(2.25rem, 6vw, 4rem) / 1.1 var(--club-font-display);
+}
+
+.timing-presenter-number {
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 
 .timing-presenter-time {

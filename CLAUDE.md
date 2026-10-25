@@ -2406,7 +2406,13 @@ page: a searched view is a URL somebody may have sent.
   them mid-ceremony; the prize export re-reads the same choices rather than recomputing, so the
   file cannot name a different winner than the one who was handed the prize. **Every cell of the
   `.xlsx` is an `inlineStr`**, which is the only thing that stops Excel reading a bib of `0311`
-  as `311`.
+  as `311`. ⚠️ **The presenter's Reveal is a slot machine since 25 October 2026, and it
+  cannot choose the winner**: one reel per digit spins through 0–9 — never anybody's name,
+  because the screen is a projector before publication — and lands on the bib the prize export
+  prints, then the name and fireworks. The winner is server-rendered every time and only CSS
+  holds it back; `?spin=1` is a one-shot only the presenter's script writes, and takes back
+  out, so scripting off and `prefers-reduced-motion` both show the winner at once.
+  `lib/prize-reel.ts` argues it.
 - **`/timing/events/<slug>/leaderboard/`** — the live board, on **Durable Objects** (#204,
   ADR-034), behind **either** `timing.event.manage` **or** `timing.crossing.resolve`, which is
   the only two-permission row in `lib/access.ts` and is ADR-038's own pair.

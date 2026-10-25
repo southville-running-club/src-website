@@ -52,6 +52,12 @@ const SHOTS: readonly (readonly [string, string, string | null])[] = [
   ['admin-race-crossings', `${RACE}/crossings`, TIMING_ADMIN_EMAIL],
   ['admin-race-prizes', `${RACE}/prizes`, TIMING_ADMIN_EMAIL],
   ['admin-race-prizes-presenter', `${RACE}/prizes?present=1&prize=7`, TIMING_ADMIN_EMAIL],
+  // The slot-machine reveal, landed: `animations: 'disabled'` finishes the reels.
+  [
+    'admin-race-prizes-presenter-revealed',
+    `${RACE}/prizes?present=1&prize=7&reveal=1`,
+    TIMING_ADMIN_EMAIL,
+  ],
   ['admin-race-roster', `${RACE}/roster`, TIMING_ADMIN_EMAIL],
   [
     'marshal-capture',

@@ -3273,10 +3273,112 @@ test.describe('the prize presenter', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('1st Male');
     await expect(page.getByText('Grace Hopper')).toHaveCount(0);
     await page.getByRole('link', { name: 'Reveal' }).click();
-    await expect(page.getByText('Grace Hopper')).toBeVisible();
+    // ⚠️ `exact`, because once the reels land the name is also in the status line that
+    // announces it. With scripting on the reels spin for a few seconds first.
+    const winner = page.getByText('Grace Hopper', { exact: true });
+    await expect(winner).toBeVisible({ timeout: 10_000 });
     // Revealed survives a reload, because it is in the address.
     await page.reload();
-    await expect(page.getByText('Grace Hopper')).toBeVisible();
+    await expect(winner).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **The slot-machine reveal is an enhancement, and the winner never waits on it.** An
+   * address the presenter's own script did not mark to spin shows the winner at once, on the
+   * reels it would have landed on — which is every reveal there is with scripting off.
+   */
+  test('shows the winner at once, on landed reels, when nothing asked for a spin', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7&reveal=1`);
+
+    await expect(page.getByText('Grace Hopper', { exact: true })).toBeVisible();
+    await expect(page.getByText('Bib 701', { exact: true })).toBeVisible();
+    // Nothing is held back and nothing spins: the caption carries no animation at all.
+    await expect(page.locator('[data-reel-reveal]')).toHaveCount(0);
+    await expect(page.locator('[data-reel-spin]')).toHaveCount(0);
+    // The reels are decoration — the number is the line of text under the name.
+    await expect(page.locator('.timing-reels')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  test('reveals without a spin with scripting off', async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'no-javascript',
+      'Only the no-javascript project has scripting off',
+    );
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
+
+    await page.getByRole('link', { name: 'Reveal' }).click();
+
+    await expect(page).toHaveURL(/[?&]reveal=1(&|$)/u);
+    expect(new URL(page.url()).searchParams.has('spin')).toBe(false);
+    await expect(page.locator('[data-reel-reveal]')).toHaveCount(0);
+    await expect(page.getByText('Grace Hopper', { exact: true })).toBeVisible();
+  });
+
+  /**
+   * The reveal itself: the reels spin with the winner already in the page, held back by CSS
+   * until they land; then the name, one announcement, and fireworks that clear themselves away.
+   */
+  test('spins the reels to the winner’s bib, then names them once @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
+    // The Reveal link spins only once the page has hydrated, which is when the keys go live.
+    await expect(page.locator('html[data-presenter-keys="on"]')).toHaveCount(1);
+
+    await page.getByRole('link', { name: 'Reveal' }).click();
+
+    await expect(page.locator('[data-reel-spin]')).toHaveCount(1);
+    const winner = page.getByText('Grace Hopper', { exact: true });
+    await expect(winner).toBeHidden();
+    // The one-shot spin comes straight back out of the address, so a refresh shows the winner.
+    await expect.poll(() => new URL(page.url()).searchParams.has('spin')).toBe(false);
+
+    await expect(winner).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('[data-reel-announce]')).toHaveText(
+      /^Grace Hopper, Bib 701, \d/u,
+    );
+    const fireworks = page.locator('[data-presenter-fireworks]');
+    await expect(fireworks).toHaveCount(1);
+    await expect(fireworks).toHaveAttribute('aria-hidden', 'true');
+    await expect(fireworks).toHaveCount(0, { timeout: 10_000 });
+
+    await page.reload();
+    await expect(page.locator('[data-reel-spin]')).toHaveCount(0);
+    await expect(winner).toBeVisible();
+  });
+
+  test('skips the spin and the fireworks for a browser that asks for less motion @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
+    await expect(page.locator('html[data-presenter-keys="on"]')).toHaveCount(1);
+
+    await page.getByRole('link', { name: 'Reveal' }).click();
+
+    await expect(page).toHaveURL(/[?&]reveal=1(&|$)/u);
+    expect(new URL(page.url()).searchParams.has('spin')).toBe(false);
+    await expect(page.locator('[data-reel-spin]')).toHaveCount(0);
+    await expect(page.getByText('Grace Hopper', { exact: true })).toBeVisible();
+
+    // An address that does ask for a spin is shown at once all the same: the stylesheet drops
+    // the animations, so the caption is never held and nothing waits for it.
+    await page.goto(
+      `${prizePath(testInfo.project.name)}?present=1&prize=7&reveal=1&spin=1`,
+    );
+    await expect(page.locator('[data-reel-reveal]')).toHaveCSS('animation-name', 'none');
+    await expect(page.getByText('Grace Hopper', { exact: true })).toBeVisible();
+    await expect(page.locator('[data-reel-announce]')).toHaveText(
+      /^Grace Hopper, Bib 701/u,
+    );
+    await expect(page.locator('[data-presenter-fireworks]')).toHaveCount(0);
   });
 
   test('ends the presentation with every prize awarded', async ({ page }, testInfo) => {
@@ -3314,6 +3416,26 @@ test.describe('the prize presenter', () => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
     await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7`);
 
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  /**
+   * Revealed, both ways: plain, and after a spin has landed. Asked for less motion so that axe
+   * reads a page that has finished arriving rather than one halfway through a reel.
+   */
+  test('has no accessibility violations once a winner is revealed @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=7&reveal=1`);
+    expect(await axeViolations(page)).toEqual([]);
+
+    await page.goto(
+      `${prizePath(testInfo.project.name)}?present=1&prize=7&reveal=1&spin=1`,
+    );
+    await expect(page.locator('[data-reel-announce]')).toHaveText(/Grace Hopper/u);
     expect(await axeViolations(page)).toEqual([]);
   });
 
