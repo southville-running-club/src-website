@@ -16,6 +16,13 @@ import {
   PHOTOS_EVENT_SLUG,
   REGISTERED_EMAIL,
 } from '../../admin-fixtures';
+import {
+  RUNNER_ADDRESS,
+  RUNNER_EVENT_SLUG,
+  SEND_EVENT_SLUG,
+  UNPUBLISHED_EVENT_SLUG,
+  lostLinkPath,
+} from '../../photos-runner-fixtures';
 
 /**
  * `/admin/photos/`, in the real Workers runtime — the race photos check page (brief slice 3,
@@ -407,5 +414,117 @@ describe('taking a photo down', () => {
     );
 
     expect(response.status).toBe(404);
+  });
+});
+
+/** One running's own panel on the overview, so other fixtures' runnings cannot answer for it. */
+function panelFor(markup: string, slug: string): string {
+  const panel = new RegExp(`aria-labelledby="photos-${slug}"[\\s\\S]*?</section>`).exec(
+    markup,
+  )?.[0];
+  expect(panel, `no panel for ${slug}`).toBeDefined();
+  return panel!;
+}
+
+function waitingIn(panel: string): number {
+  const value =
+    /Waiting to send<\/p>\s*<p class="admin-fig-value">\s*<span class="admin-mono">(\d+)/.exec(
+      panel,
+    )?.[1];
+  expect(value, 'no "Waiting to send" figure').toBeDefined();
+  return Number(value);
+}
+
+describe('sending the links (slice 5)', () => {
+  it('shows a photo-admin how the links are going, and offers Send while somebody is waiting for one', async () => {
+    const { markup } = await open(OVERVIEW, photoAdmin);
+    const panel = panelFor(markup, SEND_EVENT_SLUG);
+
+    expect(panel).toContain('Links to runners');
+    expect(panel).toContain('Runners with photos');
+    expect(panel).toContain('1 runner will be emailed a link to their own photos.');
+    expect(panel).toContain('Send the links');
+    // Counts only: no runner and no address on the page.
+    expect(panel).not.toContain('@');
+  });
+
+  it('shows a checker nothing about the links, and makes no extra call to', async () => {
+    const { markup } = await open(OVERVIEW, checker);
+
+    expect(markup).not.toContain('Links to runners');
+  });
+
+  it('answers 404 to a checker who tries to send, before anything is read', async () => {
+    const { cookie, field } = await open(OVERVIEW, checker);
+    const response = await post(
+      OVERVIEW,
+      { csrf_token: field, action: 'send_links', event: SEND_EVENT_SLUG },
+      cookie,
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it('sends nothing for photos that are not published', async () => {
+    const { cookie, field } = await open(OVERVIEW, photoAdmin);
+    const response = await post(
+      OVERVIEW,
+      { csrf_token: field, action: 'send_links', event: UNPUBLISHED_EVENT_SLUG },
+      cookie,
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/admin/photos/?result=not_published');
+  });
+
+  it('queues the links once, and nobody twice', async () => {
+    const first = await open(OVERVIEW, photoAdmin);
+    const sent = await post(
+      OVERVIEW,
+      { csrf_token: first.field, action: 'send_links', event: SEND_EVENT_SLUG },
+      first.cookie,
+    );
+    expect(sent.status).toBe(303);
+    expect(sent.headers.get('location')).toBe('/admin/photos/?result=links_queued');
+
+    const after = await open(OVERVIEW, photoAdmin);
+    const panel = panelFor(after.markup, SEND_EVENT_SLUG);
+    // The button goes once nobody new is waiting for a link.
+    expect(panel).not.toContain('Send the links');
+    expect(panel).toContain(
+      'Every runner with a photo and an email address has been sent a link',
+    );
+    expect(waitingIn(panel)).toBe(1);
+
+    const again = await post(
+      OVERVIEW,
+      { csrf_token: after.field, action: 'send_links', event: SEND_EVENT_SLUG },
+      after.cookie,
+    );
+    expect(again.headers.get('location')).toBe('/admin/photos/?result=links_none_new');
+    expect(
+      waitingIn(panelFor((await open(OVERVIEW, photoAdmin)).markup, SEND_EVENT_SLUG)),
+    ).toBe(1);
+  });
+
+  it('records a lost-link request where the photo-admin can see it waiting', async () => {
+    const before = waitingIn(
+      panelFor((await open(OVERVIEW, photoAdmin)).markup, RUNNER_EVENT_SLUG),
+    );
+
+    const asked = await SELF.fetch(`${SITE}${lostLinkPath()}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ email: RUNNER_ADDRESS }),
+      redirect: 'manual',
+    });
+    expect(asked.status).toBe(303);
+
+    const after = waitingIn(
+      panelFor((await open(OVERVIEW, photoAdmin)).markup, RUNNER_EVENT_SLUG),
+    );
+    // Greater rather than one more: `nn-photos.test.ts` asks for the same runner, and the two
+    // files may run side by side. The point is that the form reached the database at all.
+    expect(after).toBeGreaterThan(before);
   });
 });

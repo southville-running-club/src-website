@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PHOTO_CREDIT,
   REPLACED_TOKEN,
+  RUNNER_ADDRESS,
   RUNNER_BIB,
   RUNNER_CONTACT,
   RUNNER_EVENT_NAME,
@@ -13,6 +14,7 @@ import {
   RUNNER_YEAR,
   UNPUBLISHED_TOKEN,
   UNPUBLISHED_YEAR,
+  lostLinkPath,
   runnerImagePath,
   runnerObjectKey,
   runnerPagePath,
@@ -101,6 +103,12 @@ describe("a runner's private page", () => {
       expectPrivateHeaders(response);
       expect(await markup(response), path).toContain('This link is not working');
     }
+  });
+
+  it('offers the way to a new link on the page that says this one is not working', async () => {
+    const page = await markup(await get(runnerPagePath(REPLACED_TOKEN)));
+
+    expect(page).toContain(`<a href="${lostLinkPath()}">Get a new link</a>`);
   });
 });
 
@@ -212,5 +220,102 @@ describe('the results page', () => {
     const page = await markup(await get('/nn/2095/results/'));
 
     expect(page).not.toContain('photos are ready');
+  });
+});
+
+function postForm(path: string, body: Record<string, string>): Promise<Response> {
+  return SELF.fetch(`${SITE}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body),
+    redirect: 'manual',
+  });
+}
+
+/** Everything a visitor could compare between two answers: the status, where, and how. */
+function shapeOf(response: Response): Record<string, string | number | null> {
+  return {
+    status: response.status,
+    location: response.headers.get('location'),
+    cache: response.headers.get('cache-control'),
+    referrer: response.headers.get('referrer-policy'),
+  };
+}
+
+describe('the lost-link form (slice 5)', () => {
+  it('asks for the email somebody entered with, on a private page that works without script', async () => {
+    const response = await get(lostLinkPath());
+    const page = await markup(response);
+
+    expect(response.status).toBe(200);
+    expectPrivateHeaders(response);
+    expect(page).toContain(`action="${lostLinkPath()}"`);
+    expect(page).toContain('method="post"');
+    // A real label for the one field, matched loosely because Prettier reflows the template.
+    expect(page).toMatch(
+      /<label class="field-label" for="photos-email"\s*>\s*The email you entered with\s*<\/label\s*>/,
+    );
+    expect(page).toContain('type="email"');
+    expect(page).not.toContain('<script');
+  });
+
+  it('answers the unslashed address with the slashed one, keeping a POST a POST', async () => {
+    const get301 = await get(lostLinkPath().replace(/\/$/, ''));
+    expect(get301.status).toBe(301);
+    expect(get301.headers.get('location')).toBe(lostLinkPath());
+
+    const post308 = await postForm(lostLinkPath().replace(/\/$/, ''), {
+      email: RUNNER_ADDRESS,
+    });
+    expect(post308.status).toBe(308);
+  });
+
+  it('answers an address that entered and one that did not in exactly the same way', async () => {
+    const known = await postForm(lostLinkPath(), { email: RUNNER_ADDRESS });
+    const unknown = await postForm(lostLinkPath(), { email: 'never-ran@example.com' });
+
+    expect(shapeOf(known)).toEqual(shapeOf(unknown));
+    expect(shapeOf(known)).toEqual({
+      status: 303,
+      location: `${lostLinkPath()}?sent=1`,
+      cache: 'private, no-store',
+      referrer: 'no-referrer',
+    });
+    // The address never travels in the redirect.
+    expect(known.headers.get('location')).not.toContain('@');
+  });
+
+  it('says the brief’s sentence once a request is made, whoever made it', async () => {
+    const page = await markup(await get(`${lostLinkPath()}?sent=1`));
+
+    expect(page).toContain(
+      `If that address entered ${RUNNER_EVENT_NAME}, a new link is on its way. It can take a few minutes, so check your junk folder too.`,
+    );
+  });
+
+  it('sends back an address that is not one, saying what to type, and records nothing', async () => {
+    const response = await postForm(lostLinkPath(), { email: 'not an address' });
+    const page = await markup(response);
+
+    expect(response.status).toBe(422);
+    expectPrivateHeaders(response);
+    expect(page).toContain('Enter an email address, like name@example.com.');
+    expect(page).toContain('aria-invalid="true"');
+  });
+
+  it('says the photos are not up yet for a running whose links have not gone out', async () => {
+    const response = await get(lostLinkPath(UNPUBLISHED_YEAR));
+    const page = await markup(response);
+
+    expect(response.status).toBe(200);
+    expectPrivateHeaders(response);
+    expect(page).toContain('The photos aren&#39;t up yet.');
+    expect(page).not.toContain('<form');
+
+    const posted = await postForm(lostLinkPath(UNPUBLISHED_YEAR), {
+      email: RUNNER_ADDRESS,
+    });
+    expect(posted.status).toBe(303);
+    expect(posted.headers.get('location')).toBe(lostLinkPath(UNPUBLISHED_YEAR));
   });
 });

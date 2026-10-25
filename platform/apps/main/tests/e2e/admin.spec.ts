@@ -43,6 +43,8 @@ import {
   SUPER_ADMIN_EMAIL,
   SECOND_AFFILIATED_LAST_NAME,
 } from '../admin-fixtures';
+import { seedRunnerPhotoFixtures } from '../photos-runner-db';
+import { SEND_EVENT_NAME } from '../photos-runner-fixtures';
 
 /**
  * The club's back office in a real browser — `/admin/`, `/admin/nn/` and `/admin/people/`.
@@ -3192,6 +3194,22 @@ test.describe('the club side and the timing app are different doors', () => {
  * axe can see — each carries its alt text — and the image route is the Worker layer's.
  */
 test.describe('race photos', () => {
+  test('shows a photo-admin how the links are going, with no violations @requires-js', async ({
+    page,
+  }) => {
+    // Create-if-absent under a lock and never cleared, so a second spec calling it is safe
+    // (`photos-runner-db.ts` says why); `nn-2092` is the running whose links are not sent.
+    await seedRunnerPhotoFixtures();
+    await signInAs(page, PHOTO_ADMIN_EMAIL);
+    await page.goto('/admin/photos/');
+
+    const running = page.getByRole('region', { name: SEND_EVENT_NAME });
+    const links = running.getByRole('group', { name: 'Links to runners' });
+    await expect(links).toBeVisible();
+    await expect(links.getByText('Runners with photos')).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
   test('the overview names the running and shows what is left @requires-js', async ({
     page,
   }) => {
