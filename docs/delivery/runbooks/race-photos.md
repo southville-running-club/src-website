@@ -169,8 +169,19 @@ A photo-admin opens **`/admin/photos/`**. The **Publish the photos** button appe
 every unsure photo has been checked; until then the page says how many are left. Publishing is
 done once and records who did it.
 
-⚠️ **Until the runners' pages are built (slice 4), publishing shows nothing to anybody**: it
-records that the photos are ready. The links go out with slice 5.
+⚠️ **Until the links are sent (slice 5), publishing shows nothing to anybody**: the runners'
+pages answer only to a private link, and nobody has one yet. Once the links have gone, the
+results page also says the photos are ready.
+
+### What a runner sees once the links go out
+
+Each runner's email (slice 5) carries a private link, `/nn/<year>/photos/p/<token>/`. It shows
+their bib, their finish time once the results are published, their own photos, and a "Could
+be you" section for photos whose number could only partly be read. **There is no search and no
+account**: the link is the only way in, and a replaced link stops working
+([ADR-067](../../architecture/decisions/adr-067-runners-reach-their-photos-through-a-private-link.md)).
+"That's me" and "Ask us to take it down" both open an email to the race's reply address; they
+change nothing, and a person answers them — the second by step 13.
 
 ### 13. Take a photo down
 
