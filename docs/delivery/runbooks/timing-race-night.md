@@ -437,9 +437,10 @@ status changes what the table says and the table is about to be read.
 - [ ] **Prizes** — `/timing/events/nn-2026/prizes` — is the same results read a second way, in the order
       they are read out. **They are the race's own prizes and nothing else**: three fancy dress
       (judged on the day, so the screen has no winner for them), 1st to 3rd female and male,
-      and 1st Vet 40, Vet 50 and Vet 60 female and male. ⚠️ **One prize each**: a runner placed
-      1st to 3rd is passed over for a veteran prize, which goes to the next in the band. The
-      runner-voted marshals' award is not on it.
+      and 1st Vet 40, Vet 50, Vet 60 and Vet 70 female and male — **Vet 60 is 60–69 and Vet 70
+      is 70 and over**, since 24 October 2026. ⚠️ **One prize each**: a runner placed 1st to 3rd
+      is passed over for a veteran prize, which goes to the next in the band. The runner-voted
+      marshals' award is not on it.
 - [ ] **Present the prizes** puts it on the projector one prize at a time: **Reveal**, then
       **Next**, or ← and → on the keyboard. **Not here — pass to the next** takes that runner
       out of **every** prize; **Start again** on the list puts every pass-over back. ⚠️

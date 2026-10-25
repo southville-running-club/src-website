@@ -91,16 +91,16 @@ export const SEARCH_MAX = 100;
 /**
  * A row's place in the prize list, or the honest reason it has none.
  *
- * The four bands come from `age-category.ts` and from nothing else; the three after them are
+ * The five bands come from `age-category.ts` and from nothing else; the three after them are
  * the states `ageCategoryFor()` and the entry's role can produce.
  */
 export type CategoryKey = AgeCategoryCode | 'under-18' | 'no-category' | 'guide';
 
 /**
- * Prize-list order: Senior, Vet 40, Vet 50, Vet 60, then the rows nobody is placing.
+ * Prize-list order: Senior, Vet 40, Vet 50, Vet 60, Vet 70, then the rows nobody is placing.
  *
- * Built from `AGE_CATEGORY_CODES` rather than written out, so a fifth band is one edit in
- * `age-category.ts` and this order follows it.
+ * Built from `AGE_CATEGORY_CODES` rather than written out, so a new band is one edit in
+ * `age-category.ts` and this order follows it — which is how Vet 70 arrived on 24 October 2026.
  */
 export const CATEGORY_ORDER = [
   ...AGE_CATEGORY_CODES,
@@ -550,7 +550,7 @@ export function viewEntries(
   );
 }
 
-/** The category options a filter offers: the four bands always, the others only when present. */
+/** The category options a filter offers: the five bands always, the others only when present. */
 export function categoryOptions(entries: readonly AdminEntry[]): CategoryKey[] {
   const present = new Set(entries.map(categoryKeyOf));
 

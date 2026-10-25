@@ -3307,7 +3307,8 @@ test.describe('the prize presenter', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'Best Fancy Dress (1 of 3)',
     );
-    await expect(page.getByText('Prize 1 of 15')).toBeVisible();
+    // Seventeen since 24 October 2026, when the club added Vet 70 for female and male runners.
+    await expect(page.getByText('Prize 1 of 17')).toBeVisible();
     await expect(page.getByText(/Judged on the day/).first()).toBeVisible();
 
     // Prize 7 is 1st Male: face down until revealed.
@@ -3323,7 +3324,7 @@ test.describe('the prize presenter', () => {
 
   test('ends the presentation with every prize awarded', async ({ page }, testInfo) => {
     await signInAs(page, TIMING_ADMIN_EMAIL);
-    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=16`);
+    await page.goto(`${prizePath(testInfo.project.name)}?present=1&prize=18`);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'All prizes awarded.',
@@ -3344,10 +3345,10 @@ test.describe('the prize presenter', () => {
     const keysLive = page.locator('html[data-presenter-keys="on"]');
     await expect(keysLive).toHaveCount(1);
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('Prize 3 of 15')).toBeVisible();
+    await expect(page.getByText('Prize 3 of 17')).toBeVisible();
     await expect(keysLive).toHaveCount(1);
     await page.keyboard.press('ArrowLeft');
-    await expect(page.getByText('Prize 2 of 15')).toBeVisible();
+    await expect(page.getByText('Prize 2 of 17')).toBeVisible();
   });
 
   test('has no accessibility violations in presenter mode @requires-js', async ({

@@ -28,8 +28,12 @@
  *
  * ## What is confirmed, and what is not
  *
- * The four bands and their boundaries are the club's, from the prize list on `/nn/`:
- * **Senior 18–39, Vet 40–49, Vet 50–59, Vet 60+**, awarded to female and male runners.
+ * The five bands and their boundaries are the club's, from the prize list on `/nn/`:
+ * **Senior 18–39, Vet 40–49, Vet 50–59, Vet 60–69, Vet 70+**, awarded to female and male
+ * runners. ⚠️ **Vet 70 is new on 24 October 2026**, when the club's updated prize list added
+ * a 1st Vet 70 prize for female and male runners; until then Vet 60 was the top band and meant
+ * 60 and over. A 70-year-old who would have been a Vet 60 is a Vet 70 now, and nowhere stores
+ * the old answer — which is the reason the category is derived rather than kept.
  *
  * Two gaps are real and neither is filled by guessing:
  *
@@ -65,8 +69,8 @@ export interface CivilDate {
  */
 export type Gender = 'female' | 'male' | 'non_binary';
 
-/** The four bands, in the order the prize list gives them. */
-export const AGE_CATEGORY_CODES = ['senior', 'vet40', 'vet50', 'vet60'] as const;
+/** The five bands, in the order the prize list gives them. */
+export const AGE_CATEGORY_CODES = ['senior', 'vet40', 'vet50', 'vet60', 'vet70'] as const;
 
 export type AgeCategoryCode = (typeof AGE_CATEGORY_CODES)[number];
 
@@ -91,6 +95,7 @@ const CATEGORY_LABELS: Record<AgeCategoryCode, string> = {
   vet40: 'Vet 40',
   vet50: 'Vet 50',
   vet60: 'Vet 60',
+  vet70: 'Vet 70',
 };
 
 /** The label the club puts on a band — "Vet 40", as the prize list and the mockup say. */
@@ -271,7 +276,15 @@ export function ageCategoryFor(
   }
 
   const code: AgeCategoryCode =
-    age >= 60 ? 'vet60' : age >= 50 ? 'vet50' : age >= 40 ? 'vet40' : 'senior';
+    age >= 70
+      ? 'vet70'
+      : age >= 60
+        ? 'vet60'
+        : age >= 50
+          ? 'vet50'
+          : age >= 40
+            ? 'vet40'
+            : 'senior';
 
   return { known: true, code, label: CATEGORY_LABELS[code], age };
 }

@@ -1002,7 +1002,7 @@ function categoriesSection(list: AdminEntryList): Html {
   const guides = paid.length - runners.length;
   const capped = list.returned < list.total;
 
-  // The four bands in prize-list order, then the two honest non-answers, then anybody whose
+  // The five bands in prize-list order, then the two honest non-answers, then anybody whose
   // details a refund removed. Built as an array rather than a `Map` so the order on the page is
   // the order it is written in here.
   const rows: { label: string; count: number }[] = [
@@ -1666,7 +1666,7 @@ function ariaSort(sort: Sort, base: 'name' | 'category'): Html | null {
 function sortCaption(sort: Sort): string {
   if (sort === 'name-desc') return 'sorted by surname, Z to A';
   if (sort === 'category') return 'sorted by category, Senior first';
-  if (sort === 'category-desc') return 'sorted by category, Vet 60 first';
+  if (sort === 'category-desc') return 'sorted by category, Vet 70 first';
   if (sort === 'entered') return 'newest first';
 
   return 'sorted by surname';
@@ -3311,7 +3311,7 @@ function feeFilterLabel(fee: string, list: AdminEntryList): string {
 function sortLabel(sort: Sort): string {
   if (sort === 'name-desc') return 'Surname, Z to A';
   if (sort === 'category') return 'Category, Senior first';
-  if (sort === 'category-desc') return 'Category, Vet 60 first';
+  if (sort === 'category-desc') return 'Category, Vet 70 first';
   if (sort === 'entered') return 'Newest first';
 
   return 'Surname, A to Z';
