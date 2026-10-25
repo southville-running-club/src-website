@@ -2,6 +2,7 @@ import {
   createUserClient,
   fetchNextPhoto,
   fetchPhotoProgress,
+  fetchSendFigures,
   formatLondon,
   isPartRead,
   isPhotoSize,
@@ -12,10 +13,12 @@ import {
   plural,
   publishPhotos,
   recordPhotoDecision,
+  sendPhotoLinks,
   takeDownPhoto,
   undoPhotoDecision,
   type DecisionAction,
   type PhotoEventProgress,
+  type PhotoSendFigures,
   type PhotoToCheck,
   type SupabaseConfig,
 } from '@src/shared';
@@ -24,6 +27,7 @@ import { html, raw, type Html } from './html';
 import { can, masthead, notFound, page, type AdminViewer } from './admin-shell';
 import { CSRF_COOKIE, CSRF_FIELD, csrfCookie, csrfOk, mintCsrfToken } from './csrf';
 import { cookieValue } from './cookies';
+import { nnPhotosPath } from './routing';
 
 /**
  * `/admin/photos/` — the race photos, once the laptop has uploaded them (brief slice 3).
@@ -31,8 +35,9 @@ import { cookieValue } from './cookies';
  * ## Three pages and an image route
  *
  *   * **`/admin/photos/`** — how it is going: per running, how many photos, how many are left
- *     to check, whether they are published. The photo-admin publishes from here, and anybody
- *     holding `nn.photo.hide` takes a photo down by its short ID.
+ *     to check, whether they are published. The photo-admin publishes from here and, since
+ *     slice 5, sends every runner their link (`nn.photo.send`, ADR-069); anybody holding
+ *     `nn.photo.hide` takes a photo down by its short ID.
  *   * **`/admin/photos/check/`** — the shared check queue (ADR-065): one photo at a time,
  *     large, with the bibs that fit as numbered buttons, held for this checker for ten minutes.
  *     The same keys as the laptop's own check screen, and buttons big enough for a thumb.
@@ -179,6 +184,20 @@ const RESULTS: Record<string, { tone: 'notice' | 'error'; words: string }> = {
     words:
       'That is not a photo ID. It looks like NN26-0412, and it is under every photo.',
   },
+  links_queued: {
+    tone: 'notice',
+    words:
+      'The links are queued. They go out a few at a time, within the daily limit, and the figures below show how many have gone.',
+  },
+  links_none_new: {
+    tone: 'notice',
+    words:
+      'Nobody new to send a link to: every runner with a photo and an email address has one queued or sent.',
+  },
+  not_published: {
+    tone: 'error',
+    words: 'No links were sent, because the photos are not published yet.',
+  },
   unavailable: {
     tone: 'error',
     words: 'That could not be done just now. Try again in a moment.',
@@ -210,7 +229,27 @@ async function overviewPage(
     );
   }
 
-  const acts = can(viewer, 'nn.photo.publish') || can(viewer, 'nn.photo.hide');
+  // **Read only by somebody who may send**, so a checker's page makes no second call and the
+  // figures — counts, never an address — reach nobody the button is not for.
+  let sending: Map<string, PhotoSendFigures> | 'unavailable' | null = null;
+  if (can(viewer, 'nn.photo.send')) {
+    const figures = await fetchSendFigures(client);
+    if (figures.status === 'ok') {
+      sending = new Map(figures.events.map((event) => [event.slug, event]));
+    } else {
+      // `unauthorised` here means the database and the session disagree; either way the page
+      // still renders, and says the figures could not be read.
+      if (figures.status === 'unavailable') {
+        console.error(`photos.send_figures unavailable — ${figures.error}`);
+      }
+      sending = 'unavailable';
+    }
+  }
+
+  const acts =
+    can(viewer, 'nn.photo.publish') ||
+    can(viewer, 'nn.photo.hide') ||
+    can(viewer, 'nn.photo.send');
   const token = acts ? mintCsrfToken() : null;
   const result = RESULTS[url.searchParams.get('result') ?? ''] ?? null;
   const left = Number.parseInt(url.searchParams.get('left') ?? '', 10);
@@ -240,7 +279,7 @@ async function overviewPage(
               No photos yet. They arrive when the laptop's upload and its SQL file have
               both been run — see the race photos runbook.
             </p>`
-          : progress.events.map((event) => eventPanel(viewer, event, token))
+          : progress.events.map((event) => eventPanel(viewer, event, token, sending))
       }
       ${can(viewer, 'nn.photo.hide') && token !== null ? takeDownPanel(progress.events, token) : null}
     </main>`;
@@ -254,6 +293,7 @@ function eventPanel(
   viewer: AdminViewer,
   event: PhotoEventProgress,
   token: string | null,
+  sending: Map<string, PhotoSendFigures> | 'unavailable' | null,
 ): Html {
   const name = event.name ?? event.slug;
   const headingId = `photos-${event.slug}`;
@@ -288,8 +328,112 @@ function eventPanel(
           : null
       }
       ${can(viewer, 'nn.photo.publish') && token !== null ? publishBlock(event, token) : null}
+      ${
+        sending !== null && token !== null
+          ? sendBlock(
+              event,
+              sending === 'unavailable' ? 'unavailable' : sending.get(event.slug),
+              token,
+            )
+          : null
+      }
     </div>
   </section>`;
+}
+
+/**
+ * Sending every runner their link (slice 5, ADR-069).
+ *
+ * **No button until the photos are published, and none once there is nobody new to send to**
+ * — the publish block's rule, for its reason: a control that does nothing teaches a volunteer
+ * the page cannot be trusted. `photos.send_links()` refuses both anyway, and a second press
+ * queues nobody twice. Every figure is a count; the page never names a runner or an address.
+ */
+function sendBlock(
+  event: PhotoEventProgress,
+  figures: PhotoSendFigures | 'unavailable' | undefined,
+  token: string,
+): Html {
+  const headingId = `photos-send-${event.slug}`;
+  const heading = html`<h3 id="${headingId}">Links to runners</h3>`;
+
+  if (event.publishedAt === null) {
+    return html`<div
+      class="admin-photos-send"
+      role="group"
+      aria-labelledby="${headingId}"
+    >
+      ${heading}
+      <p>The links can be sent once the photos are published.</p>
+    </div>`;
+  }
+
+  if (figures === undefined || figures === 'unavailable') {
+    return html`<div
+      class="admin-photos-send"
+      role="group"
+      aria-labelledby="${headingId}"
+    >
+      ${heading}
+      <p class="admin-error">
+        How the links are going could not be read. Try again in a moment.
+      </p>
+    </div>`;
+  }
+
+  const lostLinkPath = nnPhotosPath(event.slug);
+  const limit = figures.dailySendLimit;
+  const today =
+    limit === null
+      ? String(figures.sentLastDay)
+      : `${String(figures.sentLastDay)} of ${String(limit)}`;
+
+  return html`<div class="admin-photos-send" role="group" aria-labelledby="${headingId}">
+    ${heading}
+    <div class="admin-figs">
+      ${figure('Runners with photos', figures.runners)}
+      ${figure('No email address', figures.noAddress)}
+      ${figure('Waiting to send', figures.waiting)} ${figure('Sent', figures.sent)}
+      ${figure('Failed', figures.failed)}
+      <div class="admin-fig">
+        <p class="admin-fig-label">First links sent in the last 24 hours</p>
+        <p class="admin-fig-value"><span class="admin-mono">${today}</span></p>
+      </div>
+    </div>
+    ${
+      figures.toSend > 0
+        ? html`<form method="post" action="${HERE}" class="admin-actions">
+            <input type="hidden" name="${raw(CSRF_FIELD)}" value="${token}" />
+            <input type="hidden" name="action" value="send_links" />
+            <input type="hidden" name="event" value="${event.slug}" />
+            <p>
+              ${plural(figures.toSend, '1 runner', `${String(figures.toSend)} runners`)}
+              will be emailed a link to their own photos.
+              ${
+                limit === null
+                  ? null
+                  : html`At most ${String(limit)} go out in any 24 hours, so the rest
+                    follow over the next days.`
+              }
+            </p>
+            <button type="submit" class="admin-button">Send the links</button>
+          </form>`
+        : figures.runners === 0
+          ? html`<p>
+              There is nobody to send a link to: no runner has a photo of their own.
+            </p>`
+          : html`<p>
+              Every runner with a photo and an email address has been sent a link, or has
+              one waiting.
+              ${
+                lostLinkPath === null
+                  ? null
+                  : html`Somebody who has lost theirs can ask for a new one at
+                      <span class="admin-mono">${lostLinkPath}</span>.`
+              }
+            </p>`
+    }
+  </div>`;
 }
 
 function figure(label: string, value: number): Html {
@@ -426,6 +570,28 @@ async function handleOverviewPost(
         return notFound();
       case 'unavailable':
         console.error(`photos.publish unavailable — ${outcome.error}`);
+        return seeOther(`${HERE}?result=unavailable`);
+    }
+  }
+
+  if (action === 'send_links') {
+    if (!can(viewer, 'nn.photo.send')) return notFound();
+
+    const outcome = await sendPhotoLinks(client, event);
+
+    switch (outcome.status) {
+      case 'ok':
+        return seeOther(
+          `${HERE}?result=${outcome.queued > 0 ? 'links_queued' : 'links_none_new'}`,
+        );
+      case 'not-published':
+        return seeOther(`${HERE}?result=not_published`);
+      case 'no-such-event':
+        return seeOther(`${HERE}?result=no_such_event`);
+      case 'unauthorised':
+        return notFound();
+      case 'unavailable':
+        console.error(`photos.send_links unavailable — ${outcome.error}`);
         return seeOther(`${HERE}?result=unavailable`);
     }
   }
