@@ -49,7 +49,8 @@ export default async function PrizesPage({
 
   // ⚠️ **Presenter mode** (ADR-055) — one prize at a time on a dark screen, for the projector at
   // HQ. Its place is in the address too (`?present=1&prize=N&reveal=1`), so a refresh loses
-  // nothing; `presenter.tsx` carries the rest.
+  // nothing; `presenter.tsx` carries the rest. `spin=1` is the one-shot slot-machine reveal,
+  // which only the presenter's own script asks for — `lib/prize-reel.ts`.
   if (query.present === '1') {
     const prize = Number(typeof query.prize === 'string' ? query.prize : '1');
     return (
@@ -57,10 +58,12 @@ export default async function PrizesPage({
         <Presenter
           slug={slug}
           raceName={payload.event.name}
+          format={payload.event.format}
           awards={resolvePrizeAwards(payload, choices)}
           choices={choices}
           prize={Number.isInteger(prize) && prize >= 1 ? prize : 1}
           reveal={query.reveal === '1'}
+          spin={query.spin === '1'}
         />
       </RaceFrame>
     );

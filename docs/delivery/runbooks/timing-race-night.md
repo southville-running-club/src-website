@@ -446,6 +446,13 @@ status changes what the table says and the table is about to be read.
       out of **every** prize; **Start again** on the list puts every pass-over back. ⚠️
       **Every choice made on that screen lives in the address bar**, so it survives a refresh
       mid-ceremony and does **not** survive navigating away and coming back
+- [ ] **Reveal**, or Enter, spins three reels to the winner's race number, then shows the name
+      and sets off fireworks — about three seconds, so **wait for the name before reading it
+      out**. **Not here — pass to the next** spins again to whoever is next. The reels only
+      ever show digits, never anybody else's name. ⚠️ **A laptop set to Reduce motion**
+      (macOS: System Settings › Accessibility › Display), or with scripting off, shows the
+      winner at once with no spin and no fireworks — check that setting on the projector laptop
+      beforehand if the spin is wanted. A refresh shows the winner without spinning again
 - [ ] Somebody holding **`nn-results`** opens **`/nn/2026/results/`** on the club's site and
       reads the same table. It says *"These results are not published… this page is visible
       only to people the club has given permission to read them"*
