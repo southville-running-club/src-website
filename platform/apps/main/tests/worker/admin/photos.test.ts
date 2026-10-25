@@ -196,13 +196,19 @@ describe('the overview', () => {
   it('shows each running by its own name, with what is left to check', async () => {
     const { markup } = await open(OVERVIEW, photoAdmin);
 
-    expect(markup).toContain(PHOTOS_EVENT_NAME);
-    expect(markup).toContain('Left to check');
-    expect(markup).toContain(
-      'Publishing waits until every unsure photo has been checked',
-    );
+    // This running's own panel. **Scoped rather than the whole page**, because other
+    // fixtures' runnings share the overview — the runner pages' `nn-2094` is unpublished with
+    // nothing left to check, so it rightly offers a Publish button of its own.
+    const panel = /aria-labelledby="photos-zz-admin-photos"[\s\S]*?<\/section>/.exec(
+      markup,
+    )?.[0];
+    expect(panel, 'no panel for this running').toBeDefined();
+
+    expect(panel).toContain(PHOTOS_EVENT_NAME);
+    expect(panel).toContain('Left to check');
+    expect(panel).toContain('Publishing waits until every unsure photo has been checked');
     // No publish button while anything is left: the refusal is not offered as a control.
-    expect(markup).not.toContain('Publish the photos');
+    expect(panel).not.toContain('Publish the photos');
   });
 
   it('refuses to publish while anything is left to check, and says how much', async () => {

@@ -69,6 +69,7 @@ import {
   ageCategoryLabel,
   createAnonClient,
   createUserClient,
+  fetchPhotosReady,
   type SupabaseConfig,
 } from '@src/shared';
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -472,6 +473,18 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
       </p>`;
 }
 
+/**
+ * The race photos are out — brief slice 4, decision 5 of its plan.
+ *
+ * ⚠️ **Shown only once the photos are published and the runners' links have gone** —
+ * `photos.photos_ready()` — so it can never send somebody looking for a link that has not been
+ * sent. The words are the brief's own draft subject line, **for Kayleigh's sign-off**; slice 5
+ * adds the way to ask for a lost link, which is where this will point.
+ */
+function photosBanner(): Html {
+  return html`<p class="results-photos">Your Nightingale Nightmare photos are ready</p>`;
+}
+
 export async function handleNnResults(
   request: Request,
   env: NnResultsEnv,
@@ -537,15 +550,86 @@ export async function handleNnResults(
   const visibility: Visibility =
     published && setCookies.length === 0 ? 'public' : 'private';
 
+  // Only a published race can say its photos are out, and only once they are.
+  const photosReady = published
+    ? await fetchPhotosReady(createAnonClient(cfg), slug)
+    : false;
+
   const body = html`<main class="results-page" id="main">
     <h1>${payload.event.name} — results</h1>
-    ${previewBanner(payload.event)} ${resultsTable(payload)}
+    ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
+    ${resultsTable(payload)}
   </main>`;
 
   return withCookies(
     page(`${payload.event.name} results`, body, url.pathname, 200, visibility),
     setCookies,
   );
+}
+
+// ===========================================================================================
+// One runner's time, for their race photos page
+// ===========================================================================================
+
+/**
+ * One bib's finish time, as this page prints it — or `null`.
+ *
+ * **For the runner's private photos page** (`nn-photos.ts`, brief slice 4), which shows the bib
+ * and its time beside the photos. It reads the same `results_for_event()` this page does, as
+ * `anon`, so it answers only for a race whose results are **published** and discloses nothing
+ * the public table does not; and it builds the results the same way, so the two pages cannot
+ * print different times for one runner.
+ *
+ * **Solo only, and a runner's leg-1 bib only.** A guide's number times nothing (ADR-061), and a
+ * relay pair's time is not one runner's. Every failure is `null`: the photos page reads fine
+ * without a time, and a time that might be wrong is worse than none.
+ */
+export async function finishTimeForBib(
+  env: NnResultsEnv,
+  eventSlug: string,
+  bib: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await createAnonClient({
+      url: env.PUBLIC_SUPABASE_URL,
+      anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+    })
+      .schema('timing')
+      .rpc('results_for_event', { p_event_slug: eventSlug });
+
+    if (error || data === null) {
+      return null;
+    }
+
+    const payload = data as unknown as ResultsPayload;
+
+    if (payload.event.results_published_at === null || payload.event.format !== 'solo') {
+      return null;
+    }
+
+    const team = payload.teams.find(
+      (candidate) =>
+        effectiveBib(candidate, 1, 'solo') === bib &&
+        candidate.runners[0]?.role !== 'guide',
+    );
+
+    if (team === undefined) {
+      return null;
+    }
+
+    const result = buildResults(payload.event, payload.teams, payload.crossings).find(
+      (candidate) => candidate.team.id === team.id,
+    );
+
+    return result?.status === 'finished' ? formatDuration(result.totalMs) : null;
+  } catch (cause) {
+    console.error(
+      `timing: results read for a finish time threw — ${
+        cause instanceof Error ? cause.name : 'unknown'
+      }`,
+    );
+    return null;
+  }
 }
 
 // ===========================================================================================

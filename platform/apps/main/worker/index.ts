@@ -48,6 +48,7 @@ import {
   isNnMastheadPath,
   isNnPlacesRemainingPath,
   isNnResultsPath,
+  nnPhotosRoute,
   isNnRacePath,
   isNnWebhookPath,
   isNnYearPath,
@@ -61,6 +62,7 @@ import {
 } from './routing';
 import { handleAdmin } from './admin';
 import { handleNnResults, renderNnResultsLink, resolveNnResultsLink } from './nn-results';
+import { handleNnPhotos } from './nn-photos';
 import { handleAccount } from './account';
 import { sweepExpiredMedicalNotes } from './medical-retention';
 import { handleStripeWebhook } from './stripe-webhook';
@@ -496,6 +498,16 @@ export default {
     // everybody else — see `nn-results.ts` for why the refusal is a 404 and not a 403.
     if (request.method === 'GET' && isNnResultsPath(url.pathname)) {
       return handleNnResults(request, env, url);
+    }
+
+    // **A runner's race photos**, brief slice 4 — their private page, one photo, and the
+    // images. Before the assets binding for the results page's reason: what may be read here
+    // is decided per request by a link's hash and whether the photos are published, and
+    // nothing at these addresses is in `dist/`. Anything but GET and HEAD falls through to the
+    // binding, which answers it as it answers any other address.
+    const photosRoute = nnPhotosRoute(url.pathname);
+    if (photosRoute !== null && (request.method === 'GET' || request.method === 'HEAD')) {
+      return handleNnPhotos(request, env, url, photosRoute);
     }
 
     const response = await env.ASSETS.fetch(request);

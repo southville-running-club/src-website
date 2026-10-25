@@ -2859,12 +2859,13 @@ Three things about it are load-bearing:
 
 ## How race photos behave
 
-**Slices 1 to 3 of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
+**Slices 1 to 4 of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
 laptop tool (`tools/photos/`, ADR-058 to ADR-060), the `photos` schema with the real upload to
-R2 and the SQL file (ADR-062 to ADR-064), and the shared check page at `/admin/photos/`
-(ADR-065, ADR-066). **Slices 4 and 5 are not**: there is no runner's page, no public image
-route and no link email, so publishing records that the photos are ready and shows nothing to
-anybody. [The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
+R2 and the SQL file (ADR-062 to ADR-064), the shared check page at `/admin/photos/` (ADR-065,
+ADR-066), and the runners' private pages and images under `/nn/<year>/photos/` (ADR-068).
+**Slice 5 is not**: nothing mints or sends a link yet and there is no lost-link form, so no
+runner can open a page and publishing shows nothing to anybody.
+[The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
 
 ⚠️ **The laptop's SQL file and the website share the same rows, and one bargain keeps them from
 fighting**: the file never touches a photo once `photo.checked_by` is set, nor a bib row once
@@ -2894,3 +2895,26 @@ the id again for a photo already hidden, so doing it again finishes the job.
 them (ADR-066): the volunteers checking photos see photos, bibs and photographers' credits, and
 the `photos` schema holds no runner's name or address (brief §3). `admin.ts` opens the section on
 `nn.photo.read`; every door inside asks its own permission and answers the same 404 without it.
+
+**A runner's private link is a key, and four `photos` functions are `anon`'s because a runner is
+signed out** (ADR-068): `runner_photos`, `runner_photo`, `servable_photo` and `photos_ready`,
+each answering one `null` to every refusal. `photos.test.ts` names every function and who may
+call it, so a fifth `anon` grant is a decision taken in a diff. The token is 43 URL-safe
+characters and `packages/shared/src/photos-runner.ts` is the one place it becomes the SHA-256
+`photos.link` holds.
+
+⚠️ **Every private page sends `private, no-store`, `no-referrer` and `noindex`, and has no
+form.** `no-referrer` is what makes a browser send `Origin: null` with a form post (the trap
+above), so the first form added to `worker/nn-photos.ts` meets it. "That's me" and a takedown
+request are `mailto:` links, which is also what keeps them from changing any data.
+
+⚠️ **The photo pages wear the race theme and so draw no club navigation bar**, as `Base.astro`
+draws none for `theme: 'nn'`: the bar's links are coloured for a white page and came out bone
+on white, 1.06:1, the first time axe looked. Every word a runner reads is in `PHOTOS_COPY`, for
+Kayleigh's sign-off.
+
+**Their test fixtures are two years that will not happen, `nn-2093` and `nn-2094`**, seeded once
+under an advisory lock and never written by a test (`tests/photos-runner-db.ts`), so
+`nn-photos.spec.ts`'s projects can share them — and so `/admin/photos/` shows those two runnings
+beside the check page's own `zz-admin-photos`. A check-page assertion about "the" running has to
+look inside that running's own section.

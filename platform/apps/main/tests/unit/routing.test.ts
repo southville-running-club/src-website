@@ -31,6 +31,8 @@ import {
   TIMING_PREFIX,
   socialSlugForCompletePath,
   socialSlugForEventsPath,
+  nnPhotosPath,
+  nnPhotosRoute,
 } from '../../worker/routing';
 
 /**
@@ -527,5 +529,61 @@ describe("one running's results, at /nn/<year>/results/", () => {
     expect(nnResultsPath('/nn/2026/')).toBe('/nn/2026/results/');
     expect(isNnResultsPath(nnResultsPath('/nn/2026/'))).toBe(true);
     expect(nnEventSlugForResultsPath(nnResultsPath('/nn/2026/'))).toBe('nn-2026');
+  });
+});
+
+describe("a runner's race photos", () => {
+  const TOKEN = 'a'.repeat(43);
+
+  it('reads the private page, with and without its slash', () => {
+    expect(nnPhotosRoute(`/nn/2026/photos/p/${TOKEN}/`)).toEqual({
+      kind: 'page',
+      eventSlug: 'nn-2026',
+      token: TOKEN,
+      slashed: true,
+    });
+    expect(nnPhotosRoute(`/nn/2026/photos/p/${TOKEN}`)).toMatchObject({
+      kind: 'page',
+      slashed: false,
+    });
+  });
+
+  it('reads one photo by its short ID', () => {
+    expect(nnPhotosRoute(`/nn/2026/photos/p/${TOKEN}/NN26-0412/`)).toEqual({
+      kind: 'photo',
+      eventSlug: 'nn-2026',
+      token: TOKEN,
+      shortId: 'NN26-0412',
+      slashed: true,
+    });
+  });
+
+  it('reads an image by photo ID and size', () => {
+    expect(
+      nnPhotosRoute('/nn/2026/photos/img/00000000-0000-4000-8000-000000000001/thumb.jpg'),
+    ).toEqual({
+      kind: 'image',
+      eventSlug: 'nn-2026',
+      photoId: '00000000-0000-4000-8000-000000000001',
+      size: 'thumb',
+    });
+  });
+
+  it('routes a mangled token to the page that says so, rather than past it', () => {
+    expect(nnPhotosRoute('/nn/2026/photos/p/not-a-token/')).toMatchObject({
+      kind: 'page',
+      token: 'not-a-token',
+    });
+  });
+
+  it('leaves the lost-link address and anything deeper alone', () => {
+    expect(nnPhotosRoute('/nn/2026/photos/')).toBeNull();
+    expect(nnPhotosRoute(`/nn/2026/photos/p/${TOKEN}/NN26-0412/extra/`)).toBeNull();
+    expect(nnPhotosRoute('/nn/202/photos/p/x/')).toBeNull();
+  });
+
+  it('names where a running\u2019s photos live', () => {
+    expect(nnPhotosPath('nn-2026')).toBe('/nn/2026/photos/');
+    expect(nnPhotosPath('zz-admin-photos')).toBeNull();
   });
 });

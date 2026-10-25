@@ -101,3 +101,14 @@
     padding: 0.5rem;
   }
 }
+
+/* The race photos are out (brief slice 4). Shown above the table only once the photos are
+   published and the runners' links have gone, so it is a fact rather than a promise. */
+.results-photos {
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--src-rule);
+  border-radius: var(--src-radius-card);
+  background: var(--src-paper);
+  font-weight: 600;
+}

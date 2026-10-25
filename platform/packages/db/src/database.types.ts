@@ -1487,6 +1487,7 @@ export type Database = {
         Args: { p_action: string; p_bibs?: string[]; p_photo_id: string }
         Returns: Json
       }
+      fits_bib: { Args: { p_bib: string; p_read: string }; Returns: boolean }
       is_unsure: {
         Args: {
           p_check_state: string
@@ -1500,8 +1501,22 @@ export type Database = {
       photo_for_admin_image: { Args: { p_photo_id: string }; Returns: Json }
       photo_for_checking: { Args: { p_photo_id: string }; Returns: Json }
       photo_state: { Args: { p_photo_id: string }; Returns: Json }
+      photos_ready: { Args: { p_event_slug: string }; Returns: boolean }
       progress: { Args: never; Returns: Json }
       publish: { Args: { p_event_slug: string }; Returns: Json }
+      runner_card: { Args: { p_photo_id: string }; Returns: Json }
+      runner_photo: {
+        Args: { p_event_slug: string; p_short_id: string; p_token_hash: string }
+        Returns: Json
+      }
+      runner_photos: {
+        Args: { p_event_slug: string; p_token_hash: string }
+        Returns: Json
+      }
+      servable_photo: {
+        Args: { p_event_slug: string; p_photo_id: string }
+        Returns: Json
+      }
       take_down: {
         Args: { p_event_slug: string; p_short_id: string }
         Returns: Json
