@@ -2126,6 +2126,100 @@ test.describe('staying signed in on the capture screen', () => {
 });
 
 /**
+ * Staying signed in on every other staff page — `apps/timing/app/chrome/stay-signed-in.tsx`,
+ * 25 October 2026.
+ *
+ * ⚠️ **These pages renewed nothing at all**, which was worse than the capture screen's gaps: the
+ * timing Worker never writes a cookie, so ADR-019's thirty minutes ran from the last page opened
+ * on the club's own site, however busy somebody was in here. On race morning that is whoever has
+ * Start or Anomalies open on the laptop, and the live board.
+ *
+ * The races list stands in for every page `AppShell` draws, because the component is in the
+ * shell and not in any page.
+ */
+const KEEP_ALIVE = (request: { url(): string }): boolean =>
+  new URL(request.url()).pathname === '/account/keep-alive/';
+
+test.describe("staying signed in on race control's pages", () => {
+  test.use({ serviceWorkers: 'block' });
+
+  test('tells the club the page is open, the moment it opens @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+
+    const keptAlive = page.waitForRequest(KEEP_ALIVE);
+    await page.goto(EVENTS);
+    await keptAlive;
+  });
+
+  test('asks a quiet volunteer whether they are still there @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.clock.install();
+    await page.goto(EVENTS);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Races');
+
+    const bar = page.getByRole('alert').filter({ hasText: 'Still there?' });
+    const button = page.getByRole('button', { name: 'Keep me signed in' });
+
+    await page.clock.fastForward('19:00');
+    await expect(button).toHaveCount(0);
+
+    // Twenty-six minutes: past the prompt and past the point the poll stops, so a keep-alive
+    // after this is the button's.
+    await page.clock.fastForward('07:00');
+    await expect(bar).toBeVisible();
+
+    const keptAlive = page.waitForRequest(KEEP_ALIVE);
+    await button.click();
+    await keptAlive;
+    await expect(button).toHaveCount(0);
+  });
+
+  test('counts a tap anywhere on the page as being there @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.clock.install();
+    await page.goto(EVENTS);
+    const heading = page.getByRole('heading', { level: 1 });
+    await expect(heading).toHaveText('Races');
+
+    const button = page.getByRole('button', { name: 'Keep me signed in' });
+
+    await page.clock.fastForward('19:00');
+    await heading.click();
+
+    // Twenty-six minutes since the page opened, but seven since the tap.
+    await page.clock.fastForward('07:00');
+    await expect(button).toHaveCount(0);
+
+    // Twenty-one since the tap.
+    await page.clock.fastForward('14:00');
+    await expect(button).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **The capture screen keeps its own, and must not get a second.** Two "Keep me signed in"
+   * buttons on the phone at the line would be one too many things to read.
+   */
+  test('leaves the capture screen with its own prompt and no other @requires-js', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_MARSHAL_EMAIL);
+    await page.clock.install();
+    await page.goto(capturePath(testInfo.project.name));
+    await expect(page.getByRole('button', { name: 'Crossed now' })).toBeVisible();
+
+    await page.clock.fastForward('26:00');
+    await expect(page.getByRole('button', { name: 'Keep me signed in' })).toHaveCount(1);
+    await expect(page.getByText('Still there?')).toHaveCount(0);
+  });
+});
+
+/**
  * Resolving an anomaly, and correcting the timing log —
  * [#252](https://github.com/southville-running-club/src-website/issues/252).
  *

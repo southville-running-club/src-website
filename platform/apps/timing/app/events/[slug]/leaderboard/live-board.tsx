@@ -9,7 +9,9 @@ import {
   type LeaderboardRow,
 } from '@src/shared/timing/leaderboard';
 import { isGuide, resultCategoryLabel } from '@src/shared/timing/result-category';
+import { throughDoor } from '../../../../lib/keep-alive';
 import type { LeaderboardPayload } from '../../../../lib/leaderboard';
+import { pageIsBeingWorkedOn } from '../../../../lib/page-activity';
 import {
   boardCaveats,
   CONNECTION_WORDS,
@@ -340,9 +342,16 @@ export function LiveBoard({
      */
     async function refresh(): Promise<void> {
       try {
-        const response = await fetch(
-          `/timing/events/${encodeURIComponent(slug)}/leaderboard/snapshot`,
-          { cache: 'no-store' },
+        // ⚠️ **Through the door with one retry**, 25 October 2026 — `throughDoor()`. A 404 here is
+        // often an access token that expired a minute ago inside a live session, and the board
+        // would otherwise report itself stopped for no reason. Only while somebody is working on
+        // the page, so a board nobody has touched still lapses as ADR-019 says it should.
+        const response = await throughDoor(
+          () =>
+            fetch(`/timing/events/${encodeURIComponent(slug)}/leaderboard/snapshot`, {
+              cache: 'no-store',
+            }),
+          () => pageIsBeingWorkedOn(),
         );
 
         if (!response.ok) {

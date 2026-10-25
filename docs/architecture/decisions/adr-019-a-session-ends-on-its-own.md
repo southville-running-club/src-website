@@ -139,6 +139,14 @@ asks.
 
 `apps/timing/lib/keep-alive.ts` carries the numbers and the reasoning.
 
+**And every other staff page under `/timing` had no keep-alive at all**, which "about ninety
+minutes on `/timing`" above understated: nothing there writes a cookie, so the thirty minutes
+ran from the last page opened on the club's side, however busy somebody was on race control.
+`app/chrome/stay-signed-in.tsx` gives every page `AppShell` draws — not the capture screen,
+which has its own — the same poll, the same rule for active (a tap or key on the page, or
+opening it), and the same prompt, as a bar fixed to the foot of the screen so that appearing
+moves nothing. The live board counts as idle while nobody touches it, so it asks too.
+
 **The status is 204 whoever asks.** Answering one status for a live session and another for none
 would be an oracle for whether a copied cookie jar is still good, and the caller needs no such
 signal — what tells the marshal screen a session has ended is its next sync failing.

@@ -62,6 +62,13 @@ import { holdsPermissionFor, surfaceFor } from './lib/access';
  * Worker, which is the same origin — so the one case where thirty minutes was genuinely too
  * short is answered without this file learning to write a cookie.
  *
+ * ⚠️ **"A volunteer whose token lapsed after thirty idle minutes" understated it, and every
+ * other staff page now polls too** (25 October 2026, `app/chrome/stay-signed-in.tsx`). Because
+ * nothing here refreshes, the thirty minutes ran from the last page opened on the club's side,
+ * not from the last thing done in here — so a race director working on Start or Anomalies was
+ * signed out half an hour in however busy they were. The fix stayed on the same side of the line
+ * as #244's: the page asks the club's Worker, and this file still never writes a cookie.
+ *
  * ## Why the permission check is here and not in each page — #243
  *
  * ⚠️ **This door used to admit anybody holding *any* `timing.*` permission**, which was right
