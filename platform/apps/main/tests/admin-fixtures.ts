@@ -127,6 +127,16 @@ export const LAPSED_EMAIL = 'zz-admin-worker-lapsed@example.com';
 export const NN_RESULTS_EMAIL = 'zz-admin-worker-results@example.com';
 
 /**
+ * The two race photo roles (ADR-066): one who checks photos and one who publishes them.
+ *
+ * **Each holds exactly one role**, so a page that answers one of them and refuses the other is
+ * telling `nn.photo.check` from `nn.photo.publish` rather than a staff role from none. Neither
+ * holds `nn-admin`, which is what lets `photos.test.ts` assert they never reach `/admin/nn/`.
+ */
+export const PHOTO_CHECKER_EMAIL = 'zz-admin-worker-photo-checker@example.com';
+export const PHOTO_ADMIN_EMAIL = 'zz-admin-worker-photo-admin@example.com';
+
+/**
  * Timing staff, for `/timing`'s own pages — #247 and #245.
  *
  * ⚠️ **Deliberately NOT in `FIXTURE_PEOPLE_EMAILS`, and that is the whole point.** These two
@@ -180,7 +190,38 @@ export const FIXTURE_PEOPLE_EMAILS = [
   ENTRANT_EMAIL,
   LAPSED_EMAIL,
   NN_RESULTS_EMAIL,
+  PHOTO_CHECKER_EMAIL,
+  PHOTO_ADMIN_EMAIL,
 ] as const;
+
+/**
+ * A fabricated running with race photos, and **never `nn-2026`**: `packages/db/tests` clears
+ * every `photos` table between its own tests, and the real running's roster is not this
+ * file's to add to. It has a timing record of its own, because a photo is filed against a
+ * running in `timing.events` and the bibs a part read fits come from that running's roster.
+ *
+ * Four photos, each in a different state, and a fifth kept back for the one test that takes a
+ * photo down, so that test cannot leave another without its photo.
+ */
+export const PHOTOS_EVENT_SLUG = 'zz-admin-photos';
+export const PHOTOS_EVENT_ID = '0b0b0b0b-0000-4000-8000-000000000100';
+export const PHOTOS_EVENT_NAME = 'Photos Fixture Race';
+export const PHOTOS_WORN_BIBS = ['120', '125', '128'] as const;
+
+export const PHOTO_UNSURE_ID = '0b0b0b0b-0000-4000-8000-000000000101';
+export const PHOTO_PART_ID = '0b0b0b0b-0000-4000-8000-000000000102';
+export const PHOTO_TAGGED_ID = '0b0b0b0b-0000-4000-8000-000000000103';
+export const PHOTO_HIDDEN_ID = '0b0b0b0b-0000-4000-8000-000000000104';
+export const PHOTO_TO_TAKE_DOWN_ID = '0b0b0b0b-0000-4000-8000-000000000105';
+
+export const PHOTO_UNSURE_SHORT_ID = 'ZZ26-0001';
+export const PHOTO_PART_SHORT_ID = 'ZZ26-0002';
+export const PHOTO_TAGGED_SHORT_ID = 'ZZ26-0003';
+export const PHOTO_HIDDEN_SHORT_ID = 'ZZ26-0004';
+export const PHOTO_TO_TAKE_DOWN_SHORT_ID = 'ZZ26-0005';
+
+/** A credit with an apostrophe in it, because that is what breaks rendering. */
+export const PHOTO_CREDIT = "Ross O'Neill";
 
 /**
  * A fabricated running, and **never a running of `nn`**.

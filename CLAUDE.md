@@ -320,7 +320,11 @@ re-run.
   `/admin/nn/entry/` had rendered one `email_outbox.attempts` row as _"3 attempts"_ and _"Failed
   after 3 tries"_. The club's word is **attempt**, which is the one
   [the email runbook](docs/delivery/runbooks/entries-email.md) already used throughout.
-- **A seventh role, or a twelfth permission.** **Trigger: exactly what the heading says** —
+- **A seventh role, or a twelfth permission.** ⚠️ **The counts in this bullet are long stale
+  and the trigger is not**: there are eleven roles and twenty-three permissions since the race
+  photos' two and four arrived on 24 October 2026 (ADR-066). **Trigger: any role or permission
+  not already named in `packages/db/tests/identity-permissions.test.ts`** — read the test, not
+  this prose. The rest of the bullet is the history. **Trigger: exactly what the heading says** —
   the **six** roles and **eleven** permissions are asserted in
   `packages/db/tests/identity-permissions.test.ts`, and a seventh or twelfth is a decision, not
   a side effect. **This said five and ten until 6 September 2026**, when the club took both at
@@ -424,7 +428,7 @@ One hostname, several paths — the same locally and in production:
 | `/nn`      | Nightingale Nightmare — `apps/main`. **`/nn/<year>/results/` is locked behind `nn.results.read` until the race's results are published**, and answers 404 to everybody else, the signed-out public included. Publication is an explicit act — ADR-042 — so finishing a race does not do it. **Since #242 the page opens to the public the moment it happens**: cacheable for sixty seconds, indexable, and linked from `/nn/` and `/nn/<year>/` — and from neither before, because a link to a 404 is a claim about a record |
 | `/events`  | The races the club puts on and the socials in between — `apps/main`. **The index moved onto the club surface on 26 September 2026** and is headed "Races and events": it renders through `ClubBase`, and `/events/<slug>/` — which takes the money — keeps `Base` and today's chrome until after the race, which is the split ADR-048 fenced. **The index paints the social's date, times and venue onto its row** from the record `hideUnpublishedLinks()` was already fetching to decide whether to show that row — no extra read, and no date in markup, so confirming one stays an `update` and no deploy; the row ships "TBC" and every failure leaves it there. **The schema calls a party `store.socials`, never an event**: the glossary reserves _event_ for one running of one race in one year, and neither word is on the page — the club bar says "Races and events" and the frozen bar still says "Events", both pointing here — ADR-033 |
 | `/account` | Sign up, sign in, sign out, the password pages, and **`/account/entries/`** — what the club has recorded about the races this person has entered. `apps/main`                                                                                                                                                          |
-| `/admin`   | The club's back office — the entries, the interest list, the exports and the roles page. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
+| `/admin`   | The club's back office — the entries, the interest list, the exports, the roles page and, since 24 October 2026, the race photos check page at `/admin/photos/`. `apps/main`, behind a session and a staff role, and **404 at every address to anybody who has neither**. `/nn/admin/*` redirects here                                                                                         |
 | `/timing`  | Race timing — `apps/timing`, a different Worker. **Staff-only since 11 September 2026**: it answers 404 to anybody without a `timing.*` permission, the signed-out public included, and is **linked only for those who may open it** — a "Race timing" tab in the account section bar for anybody holding a `timing.*` permission (ADR-052; it was a link in `/account/`'s body until then), from the same `holdsAnyTimingPermission()` the door asks, and one in `/admin/`'s bar behind `timing.event.manage`. `/timing/health` stays public for the smoke test |
 
 ---
@@ -2835,3 +2839,44 @@ Three things about it are load-bearing:
   every page view — `/`, `/privacy/`, every account page — to paint a menu. It costs nothing
   extra in practice, because a social already needs its own content page and is therefore
   already a deploy.
+
+
+---
+
+## How race photos behave
+
+**Slices 1 to 3 of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
+laptop tool (`tools/photos/`, ADR-058 to ADR-060), the `photos` schema with the real upload to
+R2 and the SQL file (ADR-062 to ADR-064), and the shared check page at `/admin/photos/`
+(ADR-065, ADR-066). **Slices 4 and 5 are not**: there is no runner's page, no public image
+route and no link email, so publishing records that the photos are ready and shows nothing to
+anybody. [The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
+
+⚠️ **The laptop's SQL file and the website share the same rows, and one bargain keeps them from
+fighting**: the file never touches a photo once `photo.checked_by` is set, nor a bib row once
+`photo_bib.decided_by` is set. **So the website marks rows and never deletes them.** A read a
+checker sets aside stays, `dismissed` with `decided_by` set, because a deleted one would be put
+back by the file's next run as "Could be you". `photos-check.test.ts` runs the golden file again
+after real decisions to hold that. **Slice 4 reads the marks**: a confirmed row is a runner's own
+photo, an unconfirmed row that is not dismissed is "Could be you", and a dismissed row is shown to
+nobody.
+
+⚠️ **"Left to check" is one statement, `photos.is_unsure()`**, read by the queue, the progress
+figures and the refusal in `photos.publish()`. Another copy of the predicate is how the timing
+hub came to read *"0 open anomalies"* beside a publish button refusing for open anomalies; do not
+write one.
+
+⚠️ **The `PHOTOS` binding fails the deploy until the bucket exists.** It is in `wrangler.jsonc`
+since slice 3, in both blocks, with `"jurisdiction": "eu"` in production — so the account holder
+creates `src-race-photos` (runbook steps 1 to 3) **before** that change merges, or no change to
+the site can deploy while it is red.
+
+**A takedown tells the database first and the bucket second**: `photos.take_down()` hides the
+photo, then the Worker deletes its three copies in one call. A failure between the two leaves a
+photo that is hidden with its files still stored, which is the safe half; `take_down()` answers
+the id again for a photo already hidden, so doing it again finishes the job.
+
+**The two roles carry no `nn.entry.*` permission between them**, and that is the point of having
+them (ADR-066): the volunteers checking photos see photos, bibs and photographers' credits, and
+the `photos` schema holds no runner's name or address (brief §3). `admin.ts` opens the section on
+`nn.photo.read`; every door inside asks its own permission and answers the same 404 without it.

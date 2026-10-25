@@ -141,6 +141,36 @@ export {
   type ResendResult,
 } from './admin-outbox';
 
+export {
+  DECISION_ACTIONS,
+  PHOTO_SIZES,
+  fetchNextPhoto,
+  fetchPhotoProgress,
+  isPartRead,
+  isPhotoSize,
+  parseTypedBibs,
+  photoForAdminImage,
+  photoObjectKey,
+  publishPhotos,
+  recordPhotoDecision,
+  takeDownPhoto,
+  undoPhotoDecision,
+  type AdminImageResult,
+  type DecisionAction,
+  type DecisionRefusal,
+  type DecisionResult,
+  type NextPhotoResult,
+  type PhotoEventProgress,
+  type PhotoRead,
+  type PhotoSize,
+  type PhotoToCheck,
+  type ProgressResult,
+  type PublishResult,
+  type TakeDownResult,
+  type UndoRefusal,
+  type UndoResult,
+} from './photos-check';
+
 export { formatPence, formatPriceWords } from './money';
 
 export { plural } from './plural';

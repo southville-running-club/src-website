@@ -36,6 +36,10 @@ import {
   PAID_GENDER_IDENTITY,
   PAID_NON_ASCII_LAST_NAME,
   PEOPLE_ADMIN_EMAIL,
+  PHOTO_ADMIN_EMAIL,
+  PHOTO_CHECKER_EMAIL,
+  PHOTO_TAGGED_ID,
+  PHOTOS_EVENT_NAME,
   SUPER_ADMIN_EMAIL,
   SECOND_AFFILIATED_LAST_NAME,
 } from '../admin-fixtures';
@@ -3104,5 +3108,110 @@ test.describe('the club side and the timing app are different doors', () => {
     expect((await page.goto('/timing'))?.status(), 'the same session at /timing').toBe(
       404,
     );
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Race photos — /admin/photos/ and the shared check page (brief slice 3, ADR-065)
+// -------------------------------------------------------------------------------------------
+
+/**
+ * **What the browser layer adds to `tests/worker/admin/photos.test.ts`**: zero axe violations
+ * on the three pages, no sideways scroll from 320px up, and a decision made both ways the
+ * page offers — by its button with scripting off, and by its key with scripting on.
+ *
+ * ⚠️ **Skip is the decision these tests make, and that is deliberate.** This file's fixtures
+ * are shared by its three projects, which can run two at a time (see `CLAUDE.md`, "a second
+ * race of the same kind"), and every project signs in as the same checker. Skip changes no
+ * bib and settles no photo, so two projects skipping at once agree; a confirm in one would
+ * change what the other sees. What a confirm does is the database layer's
+ * (`packages/db/tests/photos-check.test.ts`) and the Worker layer's to assert.
+ *
+ * The images are not in the local bucket here, so every `<img>` is a 404. That costs nothing
+ * axe can see — each carries its alt text — and the image route is the Worker layer's.
+ */
+test.describe('race photos', () => {
+  test('the overview names the running and shows what is left @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, PHOTO_ADMIN_EMAIL);
+    await page.goto('/admin/photos/');
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Race photos' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 2, name: PHOTOS_EVENT_NAME }),
+    ).toBeVisible();
+    await expect(page.getByText('Left to check')).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('the check page shows one photo with its choices, with no violations @requires-js', async ({
+    page,
+  }) => {
+    await signInAs(page, PHOTO_CHECKER_EMAIL);
+    await page.goto('/admin/photos/check/');
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Check photos' }),
+    ).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Which bib is it?' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Skip S' })).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('the takedown confirmation has no violations @requires-js', async ({ page }) => {
+    await signInAs(page, PHOTO_CHECKER_EMAIL);
+    await page.goto(`/admin/photos/take-down/${PHOTO_TAGGED_ID}/`);
+
+    await expect(page.getByRole('button', { name: 'Yes, take it down' })).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+  });
+
+  test('neither page scrolls sideways, from a phone up', async ({ page }) => {
+    await signInAs(page, PHOTO_CHECKER_EMAIL);
+
+    for (const width of [320, 390, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 800 });
+
+      await page.goto('/admin/photos/');
+      await expectNoSidewaysScroll(page, `the overview at ${width}px`);
+
+      await page.goto('/admin/photos/check/');
+      await expectNoSidewaysScroll(page, `the check page at ${width}px`);
+    }
+  });
+
+  test('skips a photo by its button, which needs no script', async ({ page }) => {
+    await signInAs(page, PHOTO_CHECKER_EMAIL);
+    await page.goto('/admin/photos/check/');
+
+    await page.getByRole('button', { name: 'Skip S' }).click();
+
+    await expect(page).toHaveURL(/\/admin\/photos\/check\/\?done=skip$/);
+    await expect(page.getByRole('status')).toContainText('Skipped.');
+  });
+
+  test('skips a photo by its key, as on the laptop @requires-js', async ({ page }) => {
+    await signInAs(page, PHOTO_CHECKER_EMAIL);
+    await page.goto('/admin/photos/check/');
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Check photos' }),
+    ).toBeVisible();
+
+    await page.keyboard.press('s');
+
+    await expect(page).toHaveURL(/\/admin\/photos\/check\/\?done=skip$/);
+    await expect(page.getByRole('status')).toContainText('Skipped.');
+  });
+
+  test('keeps the queue from a photo-admin, who publishes and does not check', async ({
+    page,
+  }) => {
+    await signInAs(page, PHOTO_ADMIN_EMAIL);
+
+    expect((await page.goto('/admin/photos/check/'))?.status()).toBe(404);
+    expect((await page.goto('/admin/nn/'))?.status()).toBe(404);
   });
 });

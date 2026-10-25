@@ -96,6 +96,21 @@
   },
 
   // ---------------------------------------------------------------------------------
+  // The race photos bucket — a binding, never a credential
+  // ---------------------------------------------------------------------------------
+  // ADR-062 and ADR-063: the Worker reads and deletes race photos through this binding and
+  // holds no storage key of its own. Locally it is Wrangler's own simulated bucket, empty
+  // until a test or a person puts something in it; nothing here reaches the real one.
+  //
+  // Declared in both blocks because Wrangler does not inherit bindings into an environment.
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "src-race-photos",
+    },
+  ],
+
+  // ---------------------------------------------------------------------------------
   // `--env production` is what actually deploys. Worker name: `src-main-production`.
   // ---------------------------------------------------------------------------------
   // Wrangler appends the environment to the name and will not let it be overridden, so
@@ -150,6 +165,21 @@
       "triggers": {
         "crons": ["*/5 * * * *"],
       },
+
+      // **The real bucket, in the EU jurisdiction it was created in** (ADR-062). The
+      // jurisdiction has to be named here as well as at creation, or the binding looks for a
+      // bucket of that name outside the EU and finds none.
+      //
+      // ⚠️ **A deploy with this binding fails until the bucket exists**, so the account
+      // holder creates it (docs/delivery/runbooks/race-photos.md, steps 1 to 3) before the
+      // change that adds this line is merged.
+      "r2_buckets": [
+        {
+          "binding": "PHOTOS",
+          "bucket_name": "src-race-photos",
+          "jurisdiction": "eu",
+        },
+      ],
 
       "observability": {
         "enabled": true,

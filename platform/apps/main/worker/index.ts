@@ -140,6 +140,13 @@ import { readSession } from './session';
 
 interface Env {
   ASSETS: Fetcher;
+  /**
+   * The race photos bucket, `src-race-photos` (ADR-062), **as a binding and never a key**: the
+   * Worker reads and deletes photos through it and holds no storage credential. Optional
+   * because a Worker without it is a state `admin-photos.ts` answers — a 404 and a log line —
+   * rather than one that takes every page down.
+   */
+  PHOTOS?: R2Bucket;
   /** Safe to expose. */
   PUBLIC_SUPABASE_URL: string;
   /** Safe to expose — row-level security is what enforces access. */

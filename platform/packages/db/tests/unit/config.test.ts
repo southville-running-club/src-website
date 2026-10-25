@@ -98,7 +98,17 @@ describe('what the Data API can route to', () => {
     expect(exposedSchemas()).toContain('store');
   });
 
-  it('exposes nothing beyond public, graphql_public, intake, entries, identity, store, timing and membership', () => {
+  it('exposes photos, for the check page and nothing a browser can call signed out', () => {
+    // Brief slice 3. `/admin/photos/` calls the `photos` functions behind the shared check
+    // page, each granted to `authenticated` alone and each asking `identity.has_permission()`
+    // inside itself. **The same argument that makes `store` safe makes this safe**: every
+    // `photos` table has RLS on, no policy and no grant to either role, so PostgREST routes
+    // the request and Postgres answers `42501`. `tests/photos.test.ts` walks the tables by
+    // error code and names every granted function, so a grant to `anon` fails there.
+    expect(exposedSchemas()).toContain('photos');
+  });
+
+  it('exposes nothing beyond public, graphql_public, intake, entries, identity, store, timing, membership and photos', () => {
     // Deliberately exact rather than a subset check. A schema arriving on this list
     // silently is precisely the failure this file exists to prevent — and it worked: adding
     // `store` to `config.toml` for ADR-033 turned this line red before anything else noticed,
@@ -120,12 +130,18 @@ describe('what the Data API can route to', () => {
     // `membership_applications` table — a date of birth, a home address, a phone number — is a
     // committee decision, and `tests/membership.test.ts` asserts it does not exist so that
     // adding it fails loudly for whoever has the committee's answer.
+    //
+    // **`photos` is the ninth**, added on 24 October 2026 with the shared check page (brief
+    // slice 3), for functions granted to `authenticated` only. It holds no runner's name or
+    // email address — a bib is the only link to a runner (ADR-058) — and every table refuses
+    // both roles; `tests/photos.test.ts` walks them.
     expect(exposedSchemas().sort()).toEqual([
       'entries',
       'graphql_public',
       'identity',
       'intake',
       'membership',
+      'photos',
       'public',
       'store',
       'timing',

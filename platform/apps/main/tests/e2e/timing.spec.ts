@@ -723,8 +723,18 @@ test.describe('a race that has not started', () => {
      * ⚠️ **The migration's own rule, on the page.** A clock reaching zero starts nothing;
      * `start_event()` stores `now()` and never reads `start_at`. If this sentence ever goes,
      * somebody will build a screen that fires on a timer.
+     *
+     * ⚠️ **Matched up to "Pressing the button", because the clock repeats the phrase once the
+     * scheduled start has passed.** `race-clock.tsx`'s caption then reads "Past the scheduled
+     * start. A clock reaching zero starts nothing — the button below does." That is two
+     * matches and a strict-mode failure, but only with scripting on (the clock is client-side)
+     * and only after `seedStartEvents()`'s fixed `2026-10-25T00:00:00Z`. So this test went red
+     * on every branch on 25 October 2026 without anybody changing the page. The sentence this
+     * guards is the static one beside the button, which renders whatever the date.
      */
-    await expect(page.getByText(/A clock reaching zero starts nothing/)).toBeVisible();
+    await expect(
+      page.getByText(/A clock reaching zero starts nothing\. Pressing the button/),
+    ).toBeVisible();
 
     // And the sentence that stops a double press being read as a failure.
     await expect(

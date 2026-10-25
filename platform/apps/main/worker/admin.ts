@@ -13,6 +13,7 @@ import { handleNnSection } from './nn-admin';
 import { handlePeopleSection } from './admin-people';
 import { handleEmailsSection } from './admin-emails';
 import { handleEventsSection } from './admin-events';
+import { handlePhotosSection, type PhotosEnv } from './admin-photos';
 import { readSession } from './session';
 import { adminSegments } from './routing';
 import type { StripeEnv } from './stripe';
@@ -68,7 +69,7 @@ import type { StripeEnv } from './stripe';
  * optional on `StripeEnv` and unset in production today, which is the state that makes the
  * cancel button say so plainly rather than half-cancel an entry.
  */
-export interface AdminEnv extends StripeEnv {
+export interface AdminEnv extends StripeEnv, PhotosEnv {
   PUBLIC_SUPABASE_URL: string;
   PUBLIC_SUPABASE_ANON_KEY: string;
 }
@@ -213,6 +214,14 @@ export async function handleAdmin(
     response = can(viewer, 'store.ticket.read')
       ? await handleEventsSection(request, viewer, cfg, path.slice(1))
       : notFound();
+  } else if (path[0] === 'photos') {
+    // **The progress figures open the section; each door inside asks its own permission.**
+    // Both photo roles hold `nn.photo.read`, and `admin-photos.ts` refuses the check queue to
+    // anybody without `nn.photo.check`, publishing without `nn.photo.publish` and a takedown
+    // without `nn.photo.hide`, each with the same 404 (ADR-066).
+    response = can(viewer, 'nn.photo.read')
+      ? await handlePhotosSection(request, viewer, cfg, env, path.slice(1), url, secure)
+      : notFound();
   } else if (path[0] === 'people') {
     // **The read opens the section; the grant opens the buttons inside it.** `people-admin`
     // reaches this page and gets a table with no controls on it, and `handlePeopleSection`
@@ -253,6 +262,18 @@ function dashboard(viewer: AdminViewer): Response {
           can(viewer, 'nn.email.read')
             ? html`<a href="/admin/emails/">Emails</a> — what the club has told people,
                 and what it still owes them.`
+            : null
+        }
+      </p>
+      <p>
+        ${
+          can(viewer, 'nn.photo.read')
+            ? html`<a href="/admin/photos/">Race photos</a> —
+                ${
+                  can(viewer, 'nn.photo.check')
+                    ? 'check the bib numbers the laptop was unsure of, and take a photo down.'
+                    : 'how the checking is going, publishing, and taking a photo down.'
+                }`
             : null
         }
       </p>
