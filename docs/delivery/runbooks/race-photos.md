@@ -1,4 +1,4 @@
-# Runbook — race photos: the bucket, the upload, checking and publishing
+# Runbook — race photos: the bucket, the upload, checking, publishing and sending the links
 
 Where the race photos live, the two hand steps every upload needs, and what the team does
 with them on the website afterwards. **About twenty minutes the first time**; after that, a
@@ -6,14 +6,15 @@ few minutes per upload, and an evening of checking after a race.
 
 **Who:** the bucket and the token are made by **the Cloudflare account holder**. The upload
 and the SQL are run by **whoever is on the tagging laptop**, with the token the account
-holder gives them. Checking is **the photo-checkers**, publishing **the photo-admins**, and
-the roles are granted by somebody who may grant roles.
+holder gives them. Checking is **the photo-checkers**, publishing and sending the links **the
+photo-admins**, and the roles are granted by somebody who may grant roles. The three sending
+keys are made by **the Cloudflare account holder**.
 
 **Prerequisites:** [the Cloudflare runbook](cloudflare-setup.md) is done, the tagging laptop
 is set up as in [`tools/photos/README.md`](../../../tools/photos/README.md), and the photos
 have been tagged and every camera's clock decided.
 
-Why it works this way is in five decisions:
+Why it works this way is in seven decisions:
 [ADR-062](../../architecture/decisions/adr-062-race-photos-live-in-one-private-eu-bucket.md)
 (the bucket),
 [ADR-063](../../architecture/decisions/adr-063-the-laptop-uploads-with-a-token-revoked-after-each-upload.md)
@@ -23,7 +24,11 @@ Why it works this way is in five decisions:
 [ADR-065](../../architecture/decisions/adr-065-unsure-photos-are-checked-together-on-the-website.md)
 (checking together) and
 [ADR-066](../../architecture/decisions/adr-066-two-narrow-roles-for-race-photos.md)
-(the two roles).
+(the two roles),
+[ADR-068](../../architecture/decisions/adr-068-runners-reach-their-photos-through-a-private-link.md)
+(the runners' private links) and
+[ADR-069](../../architecture/decisions/adr-069-runners-are-emailed-their-links-a-few-a-day.md)
+(emailing them).
 
 ---
 
@@ -143,7 +148,8 @@ the **Nightingale Nightmare** card:
 
 - **Photo checker** (`nn-photo-checker`) for each person checking: Bindal, Andrew, Adrian and
   Ross.
-- **Photo admin** (`nn-photo-admin`) for each person publishing: Bindal and Mark.
+- **Photo admin** (`nn-photo-admin`) for each person publishing and sending the links: Bindal
+  and Mark.
 
 Neither role opens the entry list. Directors (`src-admin`) can already do everything here;
 a super-admin cannot until they grant themselves one of these.
@@ -169,19 +175,26 @@ A photo-admin opens **`/admin/photos/`**. The **Publish the photos** button appe
 every unsure photo has been checked; until then the page says how many are left. Publishing is
 done once and records who did it.
 
-⚠️ **Until the links are sent (slice 5), publishing shows nothing to anybody**: the runners'
-pages answer only to a private link, and nobody has one yet. Once the links have gone, the
-results page also says the photos are ready.
+⚠️ **Publishing shows nothing to anybody until step 17 sends the links**: the runners' pages
+answer only to a private link, and nobody has one yet. Once the links have gone, the results
+page also says the photos are ready.
 
 ### What a runner sees once the links go out
 
-Each runner's email (slice 5) carries a private link, `/nn/<year>/photos/p/<token>/`. It shows
+Each runner's email carries a private link, `/nn/<year>/photos/p/<token>/`, under the subject
+**"Your Nightingale Nightmare photos are ready"**. It shows
 their bib, their finish time once the results are published, their own photos, and a "Could
 be you" section for photos whose number could only partly be read. **There is no search and no
 account**: the link is the only way in, and a replaced link stops working
 ([ADR-068](../../architecture/decisions/adr-068-runners-reach-their-photos-through-a-private-link.md)).
 "That's me" and "Ask us to take it down" both open an email to the race's reply address; they
 change nothing, and a person answers them — the second by step 13.
+
+**A runner who has lost the email** goes to **`/nn/<year>/photos/`** and types the address they
+entered with. Whatever they type, the page says the same thing — that *if* the address entered,
+a new link is on its way — so it cannot be used to find out who ran. A new link replaces the old
+one, and at most three are sent a day for one runner. This is also the answer to *"my link does
+not work"*: the page that says so links straight to the form.
 
 ### 13. Take a photo down
 
@@ -193,6 +206,109 @@ it down**. Checkers can also do it from the check page with **H**.
 If the page says the files could not be deleted, the photo is already hidden and shown to
 nobody; take it down again to finish. A takedown a runner asked for is a request about their
 data: answer and record it as [the data-requests runbook](data-requests.md) says, in step 3b.
+
+---
+
+## Once: the three keys for sending the links
+
+The account holder does these, **before** step 17, in the order given. Each key is 32 random
+bytes, in the club password store and nowhere else. The pattern is
+[the membership keys runbook](membership-keys.md)'s, with a third key that the database never
+sees.
+
+### 14. Mint three keys
+
+```bash
+openssl rand -base64 32
+```
+
+Run it three times. All three must be different: one key opening two doors is one rotation
+closing both.
+
+### 15. Give them to the Worker
+
+From **`platform/`**. Each prompts for its value.
+
+```bash
+npx wrangler secret put PHOTOS_ENTRY_KEY --env production --config apps/main/wrangler.jsonc
+```
+
+```bash
+npx wrangler secret put PHOTOS_WEBHOOK_KEY --env production --config apps/main/wrangler.jsonc
+```
+
+```bash
+npx wrangler secret put PHOTOS_LINK_KEY --env production --config apps/main/wrangler.jsonc
+```
+
+- `PHOTOS_ENTRY_KEY` opens the lost-link form.
+- `PHOTOS_WEBHOOK_KEY` opens the drain that sends the emails.
+- `PHOTOS_LINK_KEY` makes each runner's link. ⚠️ **It never goes in the database**, unlike the
+  other two: it is what turns an email into a working link, so it stays in the Worker.
+
+No deploy is needed; a secret takes effect on the next request.
+
+### 16. Give the database two digests, never the keys
+
+Supabase dashboard → **SQL Editor**, replacing each placeholder with the matching key from step
+14. **Only the entry and webhook keys.** The link key has no digest anywhere.
+
+```sql
+update photos.api_secrets
+   set key_sha256 = encode(sha256(convert_to('PASTE-THE-ENTRY-KEY', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'entry';
+
+update photos.api_secrets
+   set key_sha256 = encode(sha256(convert_to('PASTE-THE-WEBHOOK-KEY', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'webhook';
+```
+
+Check both landed without printing either digest:
+
+```sql
+select name, key_sha256 is not null as installed, updated_at
+  from photos.api_secrets order by name;
+```
+
+Both rows must say `true`.
+
+---
+
+## Sending the links
+
+### 17. Send the links — once Mark has agreed
+
+⚠️ **Emailing every runner is Mark's decision** (brief §15), separate from publishing. Do not
+press this until he has said yes.
+
+A photo-admin opens **`/admin/photos/`**. Under the published race, **Links to runners** shows:
+
+| Figure | What it means |
+| --- | --- |
+| Runners with photos | Runners with at least one photo of their own |
+| No email address | Of those, how many the club cannot email: a walk-in, a refunded entry, or a bib two people seem to share |
+| Waiting to send | Queued and not gone yet |
+| Sent | Gone |
+| Failed | Tried three times and stopped. See the table below |
+| First links sent in the last 24 hours | Against the daily limit |
+
+Press **Send the links**. It queues one email for every runner who has photos and an email
+address, and **pressing it again queues nobody twice**. A runner whose only photos are "Could be
+you" is not sent one: they can still use the lost-link form.
+
+**The emails go a few at a time**: at most 80 first links in any 24 hours, so about three days
+for the whole field. That keeps the race's other emails, and every password reset, inside
+Resend's daily allowance. The first batch goes straight away, and the rest follow every five
+minutes until the day's allowance is spent. **To change the limit**, in the SQL editor:
+
+```sql
+update photos.event set daily_send_limit = 150 where slug = 'nn-2026';
+```
+
+`null` lifts it altogether. Only do that once the treasurer has confirmed the club pays for
+Resend.
 
 ---
 
@@ -210,6 +326,12 @@ data: answer and record it as [the data-requests runbook](data-requests.md) says
 | "That photo has changed since, so it was not undone" | A later decision or SQL file run changed it. Ask the person who decided it |
 | Every photo on the check page is a broken image | The bucket binding is missing, or the photos were never uploaded. Steps 5 and 7 |
 | "Its files could not be deleted from storage" | The photo is hidden. Take it down again (step 13) to finish deleting it |
+| **Waiting to send** never goes down | One of the three keys is missing or wrong (steps 15 and 16), or `RESEND_API_KEY` is. The Worker's log names `photos.claim_outbox_batch` if it is the webhook key |
+| **Waiting to send** goes down by about 80 a day | The daily limit doing its job. See step 17 to change it |
+| **Failed** with `no_address` or `no_photos` | The runner's entry was refunded or moved, or their photos were taken down, after the links were queued. Nothing to send |
+| **Failed** with `http 422` | Resend refused the address, usually a typo when they entered. Email them from the race mailbox |
+| A runner says their link does not work | Send them to `/nn/<year>/photos/` for a new one. The page their link opens already links there |
+| The lost-link form says the photos are not up yet | They are not published, or step 17 has not been done |
 
 ---
 
@@ -222,3 +344,5 @@ Each hand step, as it is done: what, by whom, when.
 | 2. Bucket created, EU jurisdiction | Bindal | 24 October 2026, 22:09 | Dashboard, **Specify jurisdiction → European Union**, storage class Standard. The bucket's dashboard address is under `/r2/eu/` |
 | 3. Public access checked off | Bindal | 24 October 2026 | The bucket's page shows **Public Access: Disabled**; nothing was switched on |
 | 4. Retention rule | | | Waits on the committee |
+| 14–16. The three sending keys | | | |
+| 17. Links sent | | | Mark's agreement first |
