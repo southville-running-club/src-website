@@ -12,6 +12,7 @@
     "./styles/nn-admin.css": "./styles/nn-admin.css",
     "./styles/account.css": "./styles/account.css",
     "./styles/nn-results.css": "./styles/nn-results.css",
+    "./styles/nn-photos.css": "./styles/nn-photos.css",
     "./styles/club.css": "./styles/club.css",
     "./styles/club-chrome.css": "./styles/club-chrome.css",
     "./account": "./src/account.ts",

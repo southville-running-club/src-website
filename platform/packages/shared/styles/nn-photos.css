@@ -1,0 +1,122 @@
+/*
+ * A runner's race photos — `/nn/<year>/photos/p/<token>/` and one photo beneath it (brief
+ * slice 4, ADR-067). Loaded after `nn-theme.css`, by `/nn/photos.css`.
+ *
+ * **The race's look, not the club's**, which is the brief's call (§10) and the opposite of
+ * `nn-results.css`: these pages are read by the runners the race page spoke to. The race title
+ * is the hero's Nosifer `h1`; everything a runner reads sits inside `.nn-card`, whose white
+ * surface the theme already sets every text colour against, so **no colour here was computed
+ * against the gradient** — the trap `NnSchedule` fell into (CLAUDE.md). Not one new colour:
+ * every value is a theme token.
+ */
+
+.theme-nn .nn-photos-hero {
+  padding-top: 28px;
+  padding-bottom: 20px;
+}
+
+/* A heading inside a card, in Inter, for the pages whose hero is not shown. */
+.theme-nn .nn-photos-plain {
+  margin: 0 0 12px;
+  font-family: var(--nn-body);
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+/* Bib and finish time, or a photo's ID, spot, time and credit: label above value. */
+.theme-nn .nn-photos-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 0 0 20px;
+}
+
+.theme-nn .nn-photos-facts dt {
+  color: var(--nn-slate);
+  font-size: 14px;
+}
+
+.theme-nn .nn-photos-facts dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Thumbnails as many to a row as fit, two at the narrowest phone. `minmax(0, 1fr)` so a long
+   spot name wraps inside its column rather than pushing the page sideways at 320px. */
+.theme-nn .nn-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 40%), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-nn .nn-photos-item {
+  min-width: 0;
+}
+
+.theme-nn .nn-photos-item p {
+  margin: 6px 0 0;
+  overflow-wrap: break-word;
+}
+
+.theme-nn .nn-photos-thumb {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--nn-card-muted);
+}
+
+/* The width and height attributes reserve the photo's shape before it arrives, so the grid
+   does not jump as thumbnails load lazily; these let it scale to the column. */
+.theme-nn .nn-photos-thumb img,
+.theme-nn .nn-photos-one img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.theme-nn .nn-photos-thumb img {
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+
+.theme-nn .nn-photos-caption {
+  color: var(--nn-slate);
+  font-size: 14px;
+}
+
+.theme-nn .nn-photos-one {
+  margin: 0 0 20px;
+}
+
+.theme-nn .nn-photos-one img {
+  max-height: 75vh;
+  object-fit: contain;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: var(--nn-card-muted);
+}
+
+.theme-nn .nn-photos-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+/* The way back sits on the gradient, so it is drawn in the theme's bone, which the theme
+   already pairs with the gradient for its own links. */
+.theme-nn .nn-photos-back {
+  margin: 20px 0 16px;
+}
+
+.theme-nn .nn-photos-back a {
+  color: var(--nn-bone);
+}
+
+.theme-nn .nn-photos-notice {
+  margin-top: 32px;
+}
