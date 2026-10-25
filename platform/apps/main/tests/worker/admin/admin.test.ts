@@ -442,6 +442,9 @@ describe('the door', () => {
       expect(body, address).not.toContain(AWKWARD_LAST_NAME);
       expect(body.toLowerCase(), address).not.toContain('sign in');
       expect(body.toLowerCase(), address).not.toContain('admin key');
+      // ⚠️ **No "Keep me signed in" either** (25 October 2026): a sign-out prompt on the 404
+      // would say the address is a door. It rides on the club header, which this never has.
+      expect(body, address).not.toContain('data-stay-signed-in');
     });
 
     it(`answers ${address} with a 404 to somebody who only holds member`, async () => {
@@ -451,7 +454,9 @@ describe('the door', () => {
       const response = await get(address, member);
 
       expect(response.status, address).toBe(404);
-      expect(await pageText(response), address).not.toContain(AWKWARD_LAST_NAME);
+      const body = await pageText(response);
+      expect(body, address).not.toContain(AWKWARD_LAST_NAME);
+      expect(body, address).not.toContain('data-stay-signed-in');
     });
   }
 
@@ -612,6 +617,36 @@ describe('the door', () => {
 // -----------------------------------------------------------------------------------------
 // The shell
 // -----------------------------------------------------------------------------------------
+
+/**
+ * "Still there? Keep me signed in" — `worker/admin-stay-signed-in.ts`, 25 October 2026.
+ *
+ * Every page load here slides the session and nothing between page loads did, so a volunteer
+ * reading or filling in one page for half an hour was signed out underneath it and met the 404
+ * on their next click. What only this layer can say is where the prompt is in the markup: on
+ * every signed-in page, hidden until the page's own script shows it, and on no 404 — the door
+ * section above asserts that half.
+ */
+describe('staying signed in', () => {
+  for (const [label, address, who] of [
+    ['the dashboard', ADMIN, () => nnAdmin],
+    ['the entries list', `${NN}entries/${ADMIN_EVENT_SLUG}/`, () => nnAdmin],
+    ['the people page', PEOPLE, () => superAdmin],
+  ] as const) {
+    it(`carries the prompt, hidden, on ${label}`, async () => {
+      const response = await get(address, who());
+
+      expect(response.status, address).toBe(200);
+      const body = await pageText(response);
+      expect(body, address).toMatch(
+        /<div class="admin-stay-bar"[^>]*data-stay-signed-in hidden>/,
+      );
+      expect(body, address).toContain('Keep me signed in');
+      expect(body, address).toContain('<script data-stay-signed-in-script>');
+      expect(body, address).toContain('/account/keep-alive/');
+    });
+  }
+});
 
 /**
  * The navigation, painted from `identity.my_roles()`.
@@ -1215,7 +1250,15 @@ describe('the filters', () => {
     // filtered view an address exactly as a link does, which was the old argument's point.
     expect(body).toMatch(/<form class="admin-refine" method="get"/);
     expect(body).toContain('Apply');
-    expect(body.toLowerCase()).not.toContain('<script');
+    // ⚠️ **No script drives the filters.** Since 25 October 2026 every signed-in admin page
+    // carries one script, and it is about the session rather than about this page — the "Still
+    // there? Keep me signed in" prompt, `worker/admin-stay-signed-in.ts`. It is taken out
+    // before asking, so this still fails on any script the filters come to depend on.
+    const withoutSessionScript = body.replace(
+      /<script data-stay-signed-in-script>[\s\S]*?<\/script>/,
+      '',
+    );
+    expect(withoutSessionScript.toLowerCase()).not.toContain('<script');
   });
 
   it('searches by POST, and never reads a search term out of a URL', async () => {

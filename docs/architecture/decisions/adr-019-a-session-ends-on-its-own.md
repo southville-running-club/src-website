@@ -130,6 +130,17 @@ plausibly ship with.
 `/admin/` is unchanged and says nothing: an expired session there gets the same ordinary 404
 every other unauthorised request gets, because a 403 discloses that the address exists.
 
+⚠️ **`/admin/` now asks before it lets somebody go — 25 October 2026.** It still says nothing
+*after* a session has ended, and the 404 is unchanged; what changed is that a signed-in page no
+longer lets one end silently underneath somebody who is using it. Every page load here slides
+the window and nothing between page loads did, so a volunteer reading a long list or filling in
+a form for half an hour met the 404 on their next click. `worker/admin-stay-signed-in.ts` gives
+every signed-in page the capture screen's rules: a keep-alive every five minutes while it is
+being worked on (visible, and a tap or key in the last twenty-five), and after twenty quiet
+minutes a *Keep me signed in* bar fixed to the foot of the screen. What counts as active, both
+windows and the 404 a stranger gets are all as above — the bar rides on the club header, which
+the 404 never carries.
+
 ## What the alternatives lose
 
 ### Supabase's own session limits

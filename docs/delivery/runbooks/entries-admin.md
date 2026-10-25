@@ -56,6 +56,15 @@ granted `nn-admin` and mistypes the address gets the same blank as an attacker.*
 says "it 404s for me", the first question is whether they are signed in, and the second is
 whether they hold the role — `/admin/people/` shows both.
 
+**The commonest "it 404s for me" is a session that ran out on an open page.** ADR-019 signs
+somebody out after thirty minutes with nothing sent to the site, and reading a long list or
+filling in a form sends nothing until it is submitted — so the next click met the 404, and a
+half-filled form went with it. **Since 25 October 2026 every signed-in page here asks first**:
+after twenty minutes with nothing touched, a bar along the bottom says **"Still there?"** with a
+**Keep me signed in** button. Press it, or touch anything else on the page, and carry on. A tap
+or a key on the page also keeps the session going on its own while somebody is working. Nobody
+there for half an hour means signed out, as before; sign in again at `/account/sign-in/`.
+
 ---
 
 ## Bootstrapping the first super-admin

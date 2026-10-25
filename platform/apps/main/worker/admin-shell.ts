@@ -1,4 +1,5 @@
 import { clubFooter, clubHeader, clubSkipLink } from './club-chrome';
+import { staySignedIn } from './admin-stay-signed-in';
 import { html, type Html } from './html';
 import { ADMIN_PREFIX } from './routing';
 import { faviconLink } from './site-chrome';
@@ -292,6 +293,10 @@ export function masthead(viewer: AdminViewer): Html {
  * somebody's details, and nothing between the Worker and the person reading it may keep a
  * copy. The `x-robots-tag` header **and** the meta element, because the two are read by
  * different things and neither covers the other.
+ *
+ * ⚠️ **A signed-in page also carries "Still there? Keep me signed in"** since 25 October 2026 —
+ * `admin-stay-signed-in.ts`, which says why. Keyed on the club header like the footer, so the
+ * bare 404 a stranger gets carries neither.
  */
 export function page(
   title: string,
@@ -313,6 +318,7 @@ export function page(
       </head>
       <body class="admin">
         ${body} ${hasClubHeader ? clubFooter() : ''}
+        ${hasClubHeader ? staySignedIn() : ''}
       </body>
     </html>`;
 
