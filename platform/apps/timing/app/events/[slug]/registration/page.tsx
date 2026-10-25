@@ -253,6 +253,7 @@ export default async function RegistrationPage({
     first: digitsFrom(query.first),
     last: digitsFrom(query.last),
     asked: digitsFrom(query.asked),
+    guides: intFrom(query.guides),
   });
   const findings = findingsFrom(query.f);
 
@@ -472,6 +473,14 @@ export default async function RegistrationPage({
               renumbers a field. A bib written in below always beats the number an entry
               derives.
             </p>
+            {event.format === 'solo' ? (
+              <p className="club-small">
+                A guide is given the number straight after their runner&rsquo;s. A guide
+                on an entry that already had a number gets the next free one. A guide who
+                already has a number keeps it, and the Guide&rsquo;s bib box below still
+                changes it.
+              </p>
+            ) : null}
 
             <ul className="timing-stack">
               {teams.map((team) => (

@@ -125,6 +125,9 @@ export async function POST(
 
     const assigned = Number(result.data['assigned'] ?? 0);
     const already = Number(result.data['already_assigned'] ?? 0);
+    // ADR-067: guides given a number of their own in the same press. Absent from an older
+    // database's answer, which reads as none.
+    const guides = Number(result.data['guides_numbered'] ?? 0);
 
     // The first and last numbers handed out, as the database wrote them — padding and all. Only
     // a string of digits crosses the redirect; anything else is left off, and the wording then
@@ -137,12 +140,14 @@ export async function POST(
     // ⚠️ **"Nothing was numbered" is a success and has to read like one.** `assign_bibs()` is
     // idempotent by skipping, so a second press is meant to do nothing — and a message saying
     // *"0 entries were numbered"* invites somebody to conclude it failed and go looking for a
-    // problem that does not exist.
-    return assigned === 0
+    // problem that does not exist. ⚠️ A press that numbered only late guides did change
+    // something, so it is not "nothing was changed".
+    return assigned === 0 && guides === 0
       ? backTo(request, slug, 'bibs-already-assigned')
       : backTo(request, slug, 'bibs-assigned', {
           assigned,
           already,
+          guides,
           ...(first === undefined ? {} : { first }),
           ...(last === undefined ? {} : { last }),
           ...(startRaw === null ? {} : { asked: startRaw }),

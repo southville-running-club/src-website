@@ -59,6 +59,11 @@ export interface OutcomeCounts {
   first?: string | undefined;
   last?: string | undefined;
   asked?: string | undefined;
+  /**
+   * Guides given a number of their own by the same press — ADR-067. Missing reads as none, so
+   * a page that was not told says nothing about guides rather than claiming there were none.
+   */
+  guides?: number | undefined;
 }
 
 /** `, 150 to 152` / `, number 150`, or nothing when the range did not survive the redirect. */
@@ -152,18 +157,31 @@ const OUTCOMES: Record<string, Wording> = {
   ),
 
   // --- bibs --------------------------------------------------------------------------------
-  'bibs-assigned': (counts) => ({
-    tone: 'ok',
-    message: `Bibs were assigned: ${count(
-      counts.assigned,
-      'entry was numbered',
-      'entries were numbered',
-    )}${range(counts)}, and ${count(
-      counts.already,
-      'already had a number',
-      'already had numbers',
-    )}.${startNote(counts)} Running this again never renumbers anybody.`,
-  }),
+  // ADR-067: a guide is numbered in the same press, straight after their runner, so the range
+  // quoted covers their numbers too. A press can number only late guides, and then no entry was
+  // numbered at all, which is said plainly rather than as "0 entries were numbered".
+  'bibs-assigned': (counts) => {
+    const guides = counts.guides ?? 0;
+    const guideWords = count(guides, 'guide was', 'guides were');
+    if (counts.assigned === 0 && guides > 0) {
+      return {
+        tone: 'ok',
+        message: `Every entry already had a number, and ${guideWords} given a number of their own${range(counts)}. Running this again never renumbers anybody.`,
+      };
+    }
+    return {
+      tone: 'ok',
+      message: `Bibs were assigned: ${count(
+        counts.assigned,
+        'entry was numbered',
+        'entries were numbered',
+      )}${guides > 0 ? ` and ${guideWords} given a number of their own` : ''}${range(counts)}, and ${count(
+        counts.already,
+        'already had a number',
+        'already had numbers',
+      )}.${startNote(counts)} Running this again never renumbers anybody.`,
+    };
+  },
   invalid_start: bad(
     'A first number is digits only and at least 1 — up to six digits — so nothing was numbered.',
   ),
