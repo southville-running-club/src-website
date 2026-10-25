@@ -346,6 +346,8 @@ describe('categoryKeyOf', () => {
     expect(categoryKeyOf(entry({ age: 44 }))).toBe('vet40');
     expect(categoryKeyOf(apostrophe)).toBe('vet50');
     expect(categoryKeyOf(nonAscii)).toBe('vet60');
+    expect(categoryKeyOf(entry({ age: 69 }))).toBe('vet60');
+    expect(categoryKeyOf(entry({ age: 70 }))).toBe('vet70');
   });
 
   it('names the rows nobody is placing', () => {
@@ -354,17 +356,30 @@ describe('categoryKeyOf', () => {
     expect(categoryKeyOf(refunded)).toBeNull();
   });
 
-  it('orders the prize list Senior, Vet 40, Vet 50, Vet 60', () => {
-    expect(CATEGORY_ORDER.slice(0, 4)).toEqual(['senior', 'vet40', 'vet50', 'vet60']);
+  it('orders the prize list Senior, Vet 40, Vet 50, Vet 60, Vet 70', () => {
+    expect(CATEGORY_ORDER.slice(0, 5)).toEqual([
+      'senior',
+      'vet40',
+      'vet50',
+      'vet60',
+      'vet70',
+    ]);
   });
 
-  it('offers the four bands always, and the other categories only when a row has one', () => {
-    expect(categoryOptions([entry()])).toEqual(['senior', 'vet40', 'vet50', 'vet60']);
+  it('offers the five bands always, and the other categories only when a row has one', () => {
+    expect(categoryOptions([entry()])).toEqual([
+      'senior',
+      'vet40',
+      'vet50',
+      'vet60',
+      'vet70',
+    ]);
     expect(categoryOptions([unplaced, guide])).toEqual([
       'senior',
       'vet40',
       'vet50',
       'vet60',
+      'vet70',
       'no-category',
       'guide',
     ]);

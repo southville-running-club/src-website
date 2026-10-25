@@ -54,9 +54,9 @@ export type AwardKind =
   | 'fastest_individual_male'
   | 'fastest_individual_female'
   // **Nightingale Nightmare's own prize list** — a solo race, and `/nn/`'s published prizes:
-  // three judged fancy-dress prizes, 1st to 3rd female and male, and 1st Vet 40, Vet 50 and
-  // Vet 60 female and male. Named kinds rather than one parameterised kind, because every other
-  // award here is a named constant and a prize list is read aloud rather than computed.
+  // three judged fancy-dress prizes, 1st to 3rd female and male, and 1st Vet 40, Vet 50, Vet 60
+  // and Vet 70 female and male. Named kinds rather than one parameterised kind, because every
+  // other award here is a named constant and a prize list is read aloud rather than computed.
   | 'fancy_dress_1'
   | 'fancy_dress_2'
   | 'fancy_dress_3'
@@ -69,9 +69,11 @@ export type AwardKind =
   | 'solo_female_vet40'
   | 'solo_female_vet50'
   | 'solo_female_vet60'
+  | 'solo_female_vet70'
   | 'solo_male_vet40'
   | 'solo_male_vet50'
   | 'solo_male_vet60'
+  | 'solo_male_vet70'
   | 'random_draw_1'
   | 'random_draw_2';
 
@@ -252,17 +254,20 @@ function soloRunner(team: TeamWithRunners): Runner | null {
 }
 
 const PLACE_WORDS = ['1st', '2nd', '3rd'] as const;
-const VET_CODES: readonly AgeCategoryCode[] = ['vet40', 'vet50', 'vet60'];
+const VET_CODES: readonly AgeCategoryCode[] = ['vet40', 'vet50', 'vet60', 'vet70'];
 
 /**
  * **Nightingale Nightmare's prize list**, in the order it is read out — the race's published
- * prizes (`/nn/`, `race.json`), confirmed by the club on 10 October 2026:
+ * prizes (`/nn/`, `race.json`), confirmed by the club on 10 October 2026 and updated on
+ * 24 October 2026:
  *
  * 1. **Fancy dress, three prizes** — judged on the day, so never computed.
  * 2. **1st, 2nd and 3rd female, then male**, by finishing time.
- * 3. **1st Vet 40, Vet 50 and Vet 60, female then male** — ⚠️ **one prize each**: a runner who
- *    has already won 1st to 3rd is passed over for a veteran prize, which goes to the next
- *    fastest in that band. The club's decision, 10 October 2026.
+ * 3. **1st Vet 40, Vet 50, Vet 60 and Vet 70, female then male** — ⚠️ **one prize each**: a
+ *    runner who has already won 1st to 3rd is passed over for a veteran prize, which goes to
+ *    the next fastest in that band. The club's decision, 10 October 2026. **Vet 70 was added
+ *    on 24 October 2026**, which made Vet 60 the 60–69 band rather than 60 and over; the bands
+ *    themselves are `age-category.ts`'s, so this list only names which of them carry a prize.
  *
  * ⚠️ **None of Pass the Buck's prizes**: no mixed overall podium, no Senior band, no "Furthest
  * Apart" or "Closest Together", no fastest leg and no spot draw. Those are a relay's, and stay

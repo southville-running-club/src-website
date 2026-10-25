@@ -37,7 +37,7 @@ excluding anyone who has already won). No dogs on the course. Visually impaired 
 are accepted with a guide, in mixed VI / non-VI teams.
 
 **Nightingale Nightmare** — a solo mass-start 10 km at Halloween. One runner per entry,
-one gun, one finish crossing each. Age-band categories (Vet 40/50/60, male and female).
+one gun, one finish crossing each. Age-band categories (Vet 40/50/60/70, male and female).
 **The 2026 date is confirmed: Sunday 1 November 2026, start 11:00** — settled on 12 August
 2026, a week after the clocks change, so the race runs in GMT. 250 places, off-road along
 the towpath, up Nightingale Valley and through Leigh Woods, from race HQ at Ashton Park
