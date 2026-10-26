@@ -2938,9 +2938,12 @@ away.
 address is read from `entries` when a row is claimed, through `photos.recipient_for()` — the one
 place a bib becomes an address, via `timing.effective_bib()`, so a guide's own number reaches the
 guide's own address. Do not write a second lookup. **First links go out within
-`photos.event.daily_send_limit`** (80 by default, null for none, over a rolling 24 hours) because
-Resend's free tier is 100 a day for the whole account; new links somebody asked for go first and
-are not counted. The race's own outbox is untouched, which is the brief's stop-and-ask.
+`photos.event.daily_send_limit`** (80 by default, null for none, over a rolling 24 hours); new
+links somebody asked for go first and are not counted. ⚠️ **The default of 80 was sized for
+Resend's free tier, and the club has paid since 31 August 2026 (#169)**, so setting it to null
+before Send is safe — runbook step 17 and ADR-069's addendum. Slice 5 was built believing it
+was open, because the repository disagreed with itself. The race's own outbox is untouched,
+which is the brief's stop-and-ask.
 
 ⚠️ **No link email can leave a laptop or a test run**, whatever `.dev.vars` holds: the drain does
 nothing without `PHOTOS_WEBHOOK_KEY` and `PHOTOS_LINK_KEY`, and the preview script binds only

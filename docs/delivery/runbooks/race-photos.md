@@ -298,17 +298,19 @@ Press **Send the links**. It queues one email for every runner who has photos an
 address, and **pressing it again queues nobody twice**. A runner whose only photos are "Could be
 you" is not sent one: they can still use the lost-link form.
 
-**The emails go a few at a time**: at most 80 first links in any 24 hours, so about three days
-for the whole field. That keeps the race's other emails, and every password reset, inside
-Resend's daily allowance. The first batch goes straight away, and the rest follow every five
-minutes until the day's allowance is spent. **To change the limit**, in the SQL editor:
+**By default the emails go a few at a time**: at most 80 first links in any 24 hours, so about
+three days for the whole field. That default was set for Resend's free tier, 100 emails a day for
+the whole account. **The club has paid for Resend since 31 August 2026**
+([#169](https://github.com/southville-running-club/src-website/issues/169)), so that cap no
+longer applies, and **lifting the limit before you press Send is safe**. In the SQL editor:
 
 ```sql
-update photos.event set daily_send_limit = 150 where slug = 'nn-2026';
+update photos.event set daily_send_limit = null where slug = 'nn-2026';
 ```
 
-`null` lifts it altogether. Only do that once the treasurer has confirmed the club pays for
-Resend.
+Leave it at 80, or set another number, only if you want the emails spread out. The first batch
+goes straight away and the rest follow every five minutes. With no limit, how fast they go is set
+by Resend's own rate limit: a refusal pauses that batch, and the next run carries on.
 
 ---
 
