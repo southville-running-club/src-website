@@ -120,3 +120,21 @@
 .theme-nn .nn-photos-notice {
   margin-top: 32px;
 }
+
+/* The lost-link form (slice 5). Inside `.nn-card`, so its field, its error and its button
+   take the colours the theme already computed for the entry form on the same white card. */
+.theme-nn .nn-photos-lost form {
+  display: grid;
+  gap: 1rem;
+  max-width: 28rem;
+}
+
+.theme-nn .nn-photos-lost .button {
+  justify-self: start;
+}
+
+/* The sentence after a request: the card's own text colour, set apart by weight rather than
+   by a colour nobody has paired with the card. */
+.theme-nn .nn-photos-sent {
+  font-weight: 600;
+}

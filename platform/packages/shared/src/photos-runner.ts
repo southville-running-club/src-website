@@ -7,13 +7,15 @@ import type { AnonClient } from './supabase';
  *
  * ## The token, and the one place it becomes a hash
  *
- * A link is `/nn/<year>/photos/p/<token>/`. **The token is 32 random bytes, written in URL-safe
- * base64 without padding** — 43 characters — so it cannot be guessed, and `photos.link` holds
- * only its SHA-256. This module is the one place the two meet: the Worker refuses anything that
- * is not a token's shape before it asks the database anything, and hashes what is.
+ * A link is `/nn/<year>/photos/p/<token>/`. **The token is 32 bytes, written in URL-safe base64
+ * without padding** — 43 characters — so it cannot be guessed, and `photos.link` holds only its
+ * SHA-256. This module is the one place the two meet: the Worker refuses anything that is not a
+ * token's shape before it asks the database anything, and hashes what is.
  *
- * Slice 5 mints the tokens and sends them; this slice only reads them, and `mintLinkToken()` is
- * here so the two can never disagree about the shape.
+ * ⚠️ **The bytes are an HMAC, not random, since slice 5** — ADR-069 supersedes ADR-068 on that
+ * one point. `deriveLinkToken()` makes a token from `PHOTOS_LINK_KEY` and the outbox row that
+ * emails it, so a retried send carries the same link rather than a second one, and the token is
+ * never stored anywhere. Without the key the bytes are as unguessable as random ones.
  *
  * ⚠️ **A token is a key.** It never goes in a log, an error, a database row or a URL other than
  * the runner's own page, which is why the pages that carry one send `Referrer-Policy:
@@ -27,8 +29,28 @@ export function isLinkToken(value: string): boolean {
 }
 
 /** 32 random bytes, URL-safe base64, no padding: the shape `isLinkToken()` accepts. */
-export function mintLinkToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
+/**
+ * The token an outbox row's email carries: `HMAC-SHA256(key, "photos-link:" + row id)`, in
+ * URL-safe base64 — ADR-069.
+ *
+ * **The same row and key always give the same token.** That is the point: a send that went
+ * through and was never recorded is retried with the same link, so Resend's idempotency key
+ * (the row id) stops a second copy instead of a second email going out carrying a different
+ * link and the first one dying. The prefix keeps this HMAC from ever meaning anything else
+ * the key might one day be used for.
+ */
+export async function deriveLinkToken(key: string, outboxId: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const hmacKey = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(key),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const bytes = new Uint8Array(
+    await crypto.subtle.sign('HMAC', hmacKey, encoder.encode(`photos-link:${outboxId}`)),
+  );
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

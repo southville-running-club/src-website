@@ -287,6 +287,24 @@ update membership.api_secrets
  where name = 'webhook';
 
 -- -------------------------------------------------------------------------------------------
+-- photos — the local keys for the race photos' lost-link form and drain (ADR-069)
+-- -------------------------------------------------------------------------------------------
+-- **Local only, and fake**, as the blocks above. `apps/main`'s preview script passes the
+-- **entry** string, so the lost-link form records a request on a laptop. ⚠️ **It passes no
+-- webhook key**, deliberately: with none bound, the photos drain does nothing, so no link email
+-- can leave a laptop or a test run — whatever a `.dev.vars` file holds. The webhook digest is
+-- here for `packages/db/tests`, which call the drain's functions directly.
+update photos.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-photos-entry-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'entry';
+
+update photos.api_secrets
+   set key_sha256 = encode(sha256(convert_to('zz-photos-webhook-key-not-a-real-one', 'UTF8')), 'hex'),
+       updated_at = now()
+ where name = 'webhook';
+
+-- -------------------------------------------------------------------------------------------
 -- A fabricated social, on sale, which `christmas-party-2026` is deliberately not
 -- -------------------------------------------------------------------------------------------
 -- **`zz-social` and never `christmas-party-2026`**, which is the rule the `zz-admin` race

@@ -1,5 +1,6 @@
 import {
   createAnonClient,
+  fetchPhotosReady,
   fetchRunnerPhoto,
   fetchRunnerPhotos,
   fetchServablePhoto,
@@ -10,6 +11,7 @@ import {
   mailtoLink,
   photoDownloadName,
   photoObjectKey,
+  requestPhotoLink,
   type CouldBePhoto,
   type RunnerPhoto,
   type SupabaseConfig,
@@ -70,6 +72,9 @@ export interface NnPhotosEnv {
   PUBLIC_SUPABASE_URL: string;
   PUBLIC_SUPABASE_ANON_KEY: string;
   PHOTOS?: R2Bucket;
+  /** What `photos.request_link()` takes (ADR-069). Absent, the form still answers the same
+   *  sentence and nothing is queued — the safe direction, and logged as a code. */
+  PHOTOS_ENTRY_KEY?: string;
 }
 
 /**
@@ -104,8 +109,20 @@ export const PHOTOS_COPY = {
   notFoundTitle: 'This link is not working',
   notFound:
     'It may have been replaced by a newer link, or the photos may not be up yet. Use the newest email we sent you.',
+  getNewLink: 'Get a new link',
   unavailableTitle: 'Your photos could not be loaded',
   unavailable: 'Something went wrong on our side. Try again in a few minutes.',
+  // The lost-link form (slice 5). The label and the sent sentence are the brief's own draft
+  // copy; the rest is the fewest words the form needs.
+  raceName: (year: string) => `Nightingale Nightmare ${year}`,
+  lostHeading: 'Get a new link to your photos',
+  lostIntro: 'We will email a new link to the address you entered the race with.',
+  lostLabel: 'The email you entered with',
+  lostButton: 'Send me a new link',
+  lostInvalid: 'Enter an email address, like name@example.com.',
+  lostSent: (raceName: string) =>
+    `If that address entered ${raceName}, a new link is on its way. It can take a few minutes, so check your junk folder too.`,
+  notUpYet: "The photos aren't up yet. When they are, we'll email you a link to yours.",
 } as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -124,6 +141,10 @@ export async function handleNnPhotos(
     return image(request, env, route, url);
   }
 
+  if (route.kind === 'lost-link') {
+    return lostLink(request, env, url, route);
+  }
+
   // **One address per page**: the unslashed spelling answers with the slashed one, as
   // `trailingSlash: 'always'` does for every page in `dist/`. The token is in the address
   // already, so redirecting to it discloses nothing the request did not carry.
@@ -140,7 +161,7 @@ export async function handleNnPhotos(
 
   const photosPath = nnPhotosPath(route.eventSlug);
   if (photosPath === null || !isLinkToken(route.token)) {
-    return notWorking();
+    return notWorking(photosPath);
   }
 
   const cfg: SupabaseConfig = {
@@ -154,7 +175,7 @@ export async function handleNnPhotos(
   if (route.kind === 'page') {
     const answer = await fetchRunnerPhotos(client, route.eventSlug, hash);
 
-    if (answer.status === 'none') return notWorking();
+    if (answer.status === 'none') return notWorking(photosPath);
     if (answer.status === 'unavailable') {
       // A code and a function name, never the token or its hash.
       console.error(`photos: runner page unavailable — ${answer.error}`);
@@ -166,12 +187,12 @@ export async function handleNnPhotos(
   }
 
   if (!SHORT_ID.test(route.shortId)) {
-    return notWorking();
+    return notWorking(photosPath);
   }
 
   const one = await fetchRunnerPhoto(client, route.eventSlug, hash, route.shortId);
 
-  if (one.status === 'none') return notWorking();
+  if (one.status === 'none') return notWorking(photosPath);
   if (one.status === 'unavailable') {
     console.error(`photos: one-photo page unavailable — ${one.error}`);
     return unavailable();
@@ -419,10 +440,10 @@ function onePhotoPage(
 
 /**
  * Every refusal: no such link, a replaced one, a mangled one, photos not published, a photo the
- * link does not show. **One page for all of them**, and a 404, never a 500. Slice 5 adds the
- * way to ask for a new link here.
+ * link does not show. **One page for all of them**, and a 404, never a 500. It offers the
+ * lost-link form, which is the way back for every one of them (slice 5).
  */
-function notWorking(): Response {
+function notWorking(photosPath: string | null): Response {
   return document(
     PHOTOS_COPY.notFoundTitle,
     html`<main id="main" class="nn-photos">
@@ -430,10 +451,205 @@ function notWorking(): Response {
         <section class="nn-card nn-photos-notice">
           <h1 class="nn-photos-plain">${PHOTOS_COPY.notFoundTitle}</h1>
           <p>${PHOTOS_COPY.notFound}</p>
+          ${
+            photosPath === null
+              ? null
+              : html`<p><a href="${photosPath}">${PHOTOS_COPY.getNewLink}</a></p>`
+          }
         </section>
       </div>
     </main>`,
     404,
+  );
+}
+
+// =========================================================================================
+// The lost-link form — slice 5, ADR-069
+// =========================================================================================
+
+/** An address's shape, and only its shape. The database decides whether it entered. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * `/nn/<year>/photos/` — "the email you entered with", and a new link to it.
+ *
+ * ## ⚠️ It says the same thing whatever it is given
+ *
+ * A POST with a well-formed address always answers **303 to `?sent=1`**, and that page always
+ * says the brief's sentence: *if* that address entered, a link is on its way. Whether it did,
+ * whether it has a photo, whether it hit the three-a-day limit, and whether the call even
+ * worked are all invisible, so the form cannot be used to learn who ran (brief §10). What
+ * differs is only what any visitor could see anyway: an address that is not an address, and
+ * photos that are not out yet.
+ *
+ * POST, redirect, GET, so a reload never asks twice, and no script: the form is a form. The
+ * address is never in the redirect, and the page's headers are the private pages' three.
+ */
+async function lostLink(
+  request: Request,
+  env: NnPhotosEnv,
+  url: URL,
+  route: { eventSlug: string; slashed: boolean },
+): Promise<Response> {
+  if (!route.slashed) {
+    // 308 for a POST so the method and the body survive the redirect, as `/nn/admin` does.
+    return new Response(null, {
+      status: request.method === 'POST' ? 308 : 301,
+      headers: {
+        location: `${url.pathname}/`,
+        'cache-control': 'private, no-store',
+        'referrer-policy': 'no-referrer',
+      },
+    });
+  }
+
+  const photosPath = nnPhotosPath(route.eventSlug);
+  if (photosPath === null) return notWorking(null);
+
+  const raceName = PHOTOS_COPY.raceName(route.eventSlug.replace(/^nn-/, ''));
+  const client = createAnonClient({
+    url: env.PUBLIC_SUPABASE_URL,
+    anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+  });
+
+  // Out means published **and** the links sent: before the photo-admin sends them, a new link
+  // would be the first link, ahead of everybody else's.
+  const ready = await fetchPhotosReady(client, route.eventSlug);
+
+  if (request.method === 'POST') {
+    if (!ready) return seeOther(photosPath);
+
+    const email = await readEmail(request);
+    if (email === null || email.length > 254 || !EMAIL.test(email)) {
+      return lostLinkPage(
+        raceName,
+        photosPath,
+        { sent: false, invalid: email ?? '' },
+        422,
+      );
+    }
+
+    const key = env.PHOTOS_ENTRY_KEY?.trim();
+    if (key === undefined || key === '') {
+      // A deployment state, not the visitor's problem: the answer is the same either way.
+      console.warn('photos: lost-link form has no PHOTOS_ENTRY_KEY bound');
+    } else {
+      const outcome = await requestPhotoLink(client, key, route.eventSlug, email);
+      // A code, never the address.
+      if (outcome.status === 'unauthorised') {
+        console.warn('photos.request_link refused the entry key');
+      } else if (outcome.status === 'unavailable') {
+        console.error(`photos: lost-link request unavailable — ${outcome.error}`);
+      }
+    }
+
+    return seeOther(`${photosPath}?sent=1`);
+  }
+
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response(null, { status: 405, headers: { allow: 'GET, HEAD, POST' } });
+  }
+
+  if (!ready) return notUpYetPage(raceName);
+
+  return lostLinkPage(
+    raceName,
+    photosPath,
+    { sent: url.searchParams.get('sent') === '1', invalid: null },
+    200,
+  );
+}
+
+async function readEmail(request: Request): Promise<string | null> {
+  try {
+    const form = await request.formData();
+    const value = form.get('email');
+    return typeof value === 'string' ? value.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+function seeOther(location: string): Response {
+  return new Response(null, {
+    status: 303,
+    headers: {
+      location,
+      'cache-control': 'private, no-store',
+      'referrer-policy': 'no-referrer',
+    },
+  });
+}
+
+function lostLinkPage(
+  raceName: string,
+  photosPath: string,
+  state: { sent: boolean; invalid: string | null },
+  status: number,
+): Response {
+  const invalid = state.invalid !== null;
+
+  return document(
+    PHOTOS_COPY.lostHeading,
+    html`<main id="main" class="nn-photos">
+      ${hero(raceName)}
+      <div class="nn-wrap">
+        <section class="nn-card nn-photos-lost" aria-labelledby="photos-lost">
+          <h2 id="photos-lost">${PHOTOS_COPY.lostHeading}</h2>
+          ${
+            state.sent
+              ? html`<p class="nn-photos-sent" role="status">
+                  ${PHOTOS_COPY.lostSent(raceName)}
+                </p>`
+              : null
+          }
+          <p>${PHOTOS_COPY.lostIntro}</p>
+          <form method="post" action="${photosPath}">
+            <div class="field">
+              <label class="field-label" for="photos-email"
+                >${PHOTOS_COPY.lostLabel}</label
+              >
+              ${
+                invalid
+                  ? html`<p class="field-error" id="photos-email-error">
+                      ${PHOTOS_COPY.lostInvalid}
+                    </p>`
+                  : null
+              }
+              <input
+                class="field-input"
+                id="photos-email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                maxlength="254"
+                required
+                value="${state.invalid ?? ''}"
+                ${invalid ? html`aria-invalid="true" aria-describedby="photos-email-error"` : null}
+              />
+            </div>
+            <button class="button" type="submit">${PHOTOS_COPY.lostButton}</button>
+          </form>
+        </section>
+      </div>
+    </main>`,
+    status,
+  );
+}
+
+function notUpYetPage(raceName: string): Response {
+  return document(
+    PHOTOS_COPY.lostHeading,
+    html`<main id="main" class="nn-photos">
+      ${hero(raceName)}
+      <div class="nn-wrap">
+        <section class="nn-card nn-photos-notice" aria-labelledby="photos-lost">
+          <h2 id="photos-lost">${PHOTOS_COPY.lostHeading}</h2>
+          <p>${PHOTOS_COPY.notUpYet}</p>
+        </section>
+      </div>
+    </main>`,
+    200,
   );
 }
 

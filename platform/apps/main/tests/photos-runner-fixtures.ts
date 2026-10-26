@@ -23,6 +23,19 @@ export const UNPUBLISHED_EVENT_ID = '0d0d0d0d-0000-4000-8000-000000000002';
 /** The runner whose link these pages open: bib 125, finishing in 44:10.00. */
 export const RUNNER_BIB = '125';
 export const RUNNER_FINISH_TIME = '44:10.00';
+/** The address bib 125 entered with, for the lost-link form (slice 5). Invented. */
+export const RUNNER_ADDRESS = 'ffion-runner-photos@example.com';
+
+/**
+ * A third running, `nn-2092`, **published with its links not yet sent**, for the photo-admin's
+ * "Send the links" (slice 5). One runner on bib 301, on a paid entry, with one photo.
+ */
+export const SEND_YEAR = '2092';
+export const SEND_EVENT_SLUG = `nn-${SEND_YEAR}`;
+export const SEND_EVENT_NAME = 'Nightingale Nightmare 2092';
+export const SEND_EVENT_ID = '0d0d0d0d-0000-4000-8000-000000000003';
+export const SEND_BIB = '301';
+export const SEND_ADDRESS = 'photos-send-301@example.com';
 
 /** A token is 43 URL-safe characters (`packages/shared/src/photos-runner.ts`). */
 export const RUNNER_TOKEN = 'Fx0photosRunnerFixtureToken_one-AAAAAAAAAAA';
@@ -37,7 +50,13 @@ export const RUNNER_PHOTOS = {
   someoneElse: { id: '0d0d0d0d-0000-4000-8000-000000000103', shortId: 'RP93-0003' },
   hidden: { id: '0d0d0d0d-0000-4000-8000-000000000104', shortId: 'RP93-0004' },
   unpublished: { id: '0d0d0d0d-0000-4000-8000-000000000105', shortId: 'RP94-0001' },
+  toSend: { id: '0d0d0d0d-0000-4000-8000-000000000106', shortId: 'RP92-0001' },
 } as const;
+
+/** The lost-link form for a running: `/nn/2093/photos/`. */
+export function lostLinkPath(year = RUNNER_YEAR): string {
+  return `/nn/${year}/photos/`;
+}
 
 export function runnerPagePath(token: string = RUNNER_TOKEN, year = RUNNER_YEAR): string {
   return `/nn/${year}/photos/p/${token}/`;

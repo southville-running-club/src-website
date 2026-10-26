@@ -4,10 +4,13 @@ import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 import { seedRunnerPhotoFixtures } from '../photos-runner-db';
 import {
+  RUNNER_ADDRESS,
   RUNNER_BIB,
   RUNNER_FINISH_TIME,
   RUNNER_PHOTOS,
   REPLACED_TOKEN,
+  UNPUBLISHED_YEAR,
+  lostLinkPath,
   runnerPagePath,
 } from '../photos-runner-fixtures';
 
@@ -104,5 +107,78 @@ test.describe("a runner's private page", () => {
       await page.goto(path);
       expect(await axeViolations(page), path).toEqual([]);
     }
+  });
+});
+
+test.describe('the lost-link form (slice 5)', () => {
+  test('asks for a new link and says one is on its way, with no script needed', async ({
+    page,
+  }) => {
+    await page.goto(lostLinkPath());
+    await page.getByLabel('The email you entered with').fill(RUNNER_ADDRESS);
+    await page.getByRole('button', { name: 'Send me a new link' }).click();
+
+    await expect(page).toHaveURL(`${lostLinkPath()}?sent=1`);
+    await expect(page.getByRole('status')).toContainText('a new link is on its way');
+    // The address is never put in the address bar.
+    expect(page.url()).not.toContain('@');
+  });
+
+  test('is reached from a link that has stopped working', async ({ page }) => {
+    await page.goto(runnerPagePath(REPLACED_TOKEN));
+    await page.getByRole('link', { name: 'Get a new link' }).click();
+
+    await expect(
+      page.getByRole('heading', { level: 2, name: 'Get a new link to your photos' }),
+    ).toBeVisible();
+  });
+
+  test('says the photos are not up yet before the links have gone, and asks for nothing', async ({
+    page,
+  }) => {
+    await page.goto(lostLinkPath(UNPUBLISHED_YEAR));
+
+    await expect(page.getByText("The photos aren't up yet.")).toBeVisible();
+    await expect(page.getByRole('textbox')).toHaveCount(0);
+  });
+
+  test('does not scroll sideways, from a phone up', async ({ page }) => {
+    for (const width of [320, 390, 768, 1280]) {
+      await page.setViewportSize({ width, height: 800 });
+
+      await page.goto(lostLinkPath());
+      await expectNoSidewaysScroll(page, `the lost-link form at ${width}px`);
+
+      await page.goto(`${lostLinkPath()}?sent=1`);
+      await expectNoSidewaysScroll(page, `the lost-link confirmation at ${width}px`);
+    }
+  });
+
+  test('has no accessibility violations, including when an address is not one @requires-js', async ({
+    page,
+  }) => {
+    for (const path of [
+      lostLinkPath(),
+      `${lostLinkPath()}?sent=1`,
+      lostLinkPath(UNPUBLISHED_YEAR),
+    ]) {
+      await page.goto(path);
+      expect(await axeViolations(page), path).toEqual([]);
+    }
+
+    // The server's own refusal, which the browser's validation would otherwise get to first.
+    await page.goto(lostLinkPath());
+    await page.locator('form').evaluate((form) => form.setAttribute('novalidate', ''));
+    await page.getByLabel('The email you entered with').fill('not an address');
+    await page.getByRole('button', { name: 'Send me a new link' }).click();
+
+    await expect(
+      page.getByText('Enter an email address, like name@example.com.'),
+    ).toBeVisible();
+    await expect(page.getByLabel('The email you entered with')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    expect(await axeViolations(page), 'the refused address').toEqual([]);
   });
 });

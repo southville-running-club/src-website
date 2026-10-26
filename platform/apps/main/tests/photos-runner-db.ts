@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import {
   PHOTO_CREDIT,
   REPLACED_TOKEN,
+  RUNNER_ADDRESS,
   RUNNER_BIB,
   RUNNER_CONTACT,
   RUNNER_EVENT_ID,
@@ -11,6 +12,11 @@ import {
   RUNNER_EVENT_SLUG,
   RUNNER_PHOTOS,
   RUNNER_TOKEN,
+  SEND_ADDRESS,
+  SEND_BIB,
+  SEND_EVENT_ID,
+  SEND_EVENT_NAME,
+  SEND_EVENT_SLUG,
   UNPUBLISHED_EVENT_ID,
   UNPUBLISHED_EVENT_SLUG,
   UNPUBLISHED_TOKEN,
@@ -25,6 +31,11 @@ import {
  * photos are published and its links "sent", so the results page's banner has something to say.
  * A second running, `nn-2094`, has photos that are **not** published, so the refusal before
  * publication has something real behind it.
+ *
+ * **Slice 5 adds an entry behind bib 125**, so the lost-link form has an address to match, and
+ * **a third running, `nn-2092`**, published with its links not yet sent, so the photo-admin's
+ * "Send the links" has somebody to send to. ⚠️ The Worker run presses that button, so it owns
+ * `nn-2092`'s outbox while it runs; Playwright only reads the page.
  *
  * ⚠️ **Read-only, seeded once under an advisory lock, and never cleared by Playwright** — the
  * shape `seedTimingFixtures()` uses and argues for. `admin.spec.ts`'s projects run two at a time
@@ -127,6 +138,9 @@ async function seedInto(db: Client): Promise<void> {
     [RUNNER_EVENT_SLUG, RUNNER_EVENT_NAME, RUNNER_CONTACT],
   );
 
+  // An entry behind bib 125, so the lost-link form has an address to match (slice 5).
+  await paidEntry(db, RUNNER_EVENT_SLUG, RUNNER_ADDRESS, RUNNER_EVENT_ID, RUNNER_BIB);
+
   await db.query(
     `insert into photos.event (slug, published_at, links_sent_at)
      values ($1, '2093-11-03T09:00:00Z', '2093-11-03T09:30:00Z'), ($2, null, null)`,
@@ -211,17 +225,122 @@ async function seedInto(db: Client): Promise<void> {
       UNPUBLISHED_EVENT_SLUG,
     ],
   );
+
+  await seedSendRunning(db);
+}
+
+/**
+ * `nn-2092`: published, its links not sent, one runner with one photo on a paid entry — what
+ * "Send the links" is pressed against.
+ */
+async function seedSendRunning(db: Client): Promise<void> {
+  await db.query(
+    `insert into timing.events (id, slug, name, format, start_at)
+     values ($1, $2, $3, 'solo', '2092-11-01T11:00:00Z')`,
+    [SEND_EVENT_ID, SEND_EVENT_SLUG, SEND_EVENT_NAME],
+  );
+  const { rows } = await db.query<{ id: string }>(
+    `insert into timing.teams (event_id, team_number) values ($1, $2) returning id`,
+    [SEND_EVENT_ID, SEND_BIB],
+  );
+  await db.query(
+    `insert into timing.runners (team_id, leg, firstname, lastname, gender, role)
+     values ($1, 1, 'Seren', 'Fixture', 'female', 'runner')`,
+    [rows[0]!.id],
+  );
+
+  await db.query(
+    `insert into entries.events (
+       slug, display_name, race_slug, event_date, start_time, capacity,
+       entries_open_at, from_address, consent_version, minimum_age
+     ) values ($1, $2, 'zz-runner-photos', '2092-11-01'::date, time '11:00', 10,
+               '2092-01-01T00:00:00Z', $3, 'zz-v1', 18)
+     on conflict (slug) do nothing`,
+    [SEND_EVENT_SLUG, SEND_EVENT_NAME, RUNNER_CONTACT],
+  );
+  await paidEntry(db, SEND_EVENT_SLUG, SEND_ADDRESS, SEND_EVENT_ID, SEND_BIB);
+
+  await db.query(
+    `insert into photos.event (slug, published_at, links_sent_at)
+     values ($1, '2092-11-03T09:00:00Z', null)`,
+    [SEND_EVENT_SLUG],
+  );
+  await db.query(
+    `insert into photos.photo
+       (id, event_slug, short_id, photographer, spot, taken_at, width, height, check_state)
+     values ($1, $2, $3, $4, 'The finish', '2092-11-01T11:50:00Z', 2400, 1600, 'tagged')`,
+    [
+      RUNNER_PHOTOS.toSend.id,
+      SEND_EVENT_SLUG,
+      RUNNER_PHOTOS.toSend.shortId,
+      PHOTO_CREDIT,
+    ],
+  );
+  await db.query(
+    `insert into photos.photo_bib (photo_id, bib_text, confidence, confirmed, source)
+     values ($1, $2, 0.97, true, 'model')`,
+    [RUNNER_PHOTOS.toSend.id, SEND_BIB],
+  );
+}
+
+/**
+ * A paid entry for one address on a running's entries record, tied to the team on that bib —
+ * which is how a bib reaches an address (`photos.recipient_for()`). Inserted directly, as
+ * `seed.sql` inserts its own: there is no payment to simulate here.
+ */
+async function paidEntry(
+  db: Client,
+  eventSlug: string,
+  address: string,
+  timingEventId: string,
+  bib: string,
+): Promise<void> {
+  const { rows: fees } = await db.query<{ id: string; event_id: string }>(
+    `insert into entries.fees (event_id, code, label, price_pence)
+     select e.id, 'unaffiliated', 'Unaffiliated', 2000 from entries.events e where e.slug = $1
+     on conflict (event_id, code) do update set label = excluded.label
+     returning id, event_id`,
+    [eventSlug],
+  );
+  const { rows: purchases } = await db.query<{ id: string }>(
+    `insert into entries.entry_purchases (
+       event_id, status, amount_pence, fee_id, purchaser_email, purchaser_name,
+       consents, consent_version, paid_at
+     ) values ($1, 'paid', 2000, $2, $3, 'Fixture Buyer',
+               '{"entryTerms":true,"medical":false}'::jsonb, 'zz-v1', now())
+     returning id`,
+    [fees[0]!.event_id, fees[0]!.id, address],
+  );
+  await db.query(
+    `update timing.teams set purchase_order_id = $1
+      where event_id = $2 and team_number = $3`,
+    [purchases[0]!.id, timingEventId, bib],
+  );
 }
 
 /** For the Worker run's global setup, which is one thread and owns the rows while it runs. */
 export async function clearRunnerPhotoFixtures(): Promise<void> {
   await withClient(async (db) => {
-    const slugs = [RUNNER_EVENT_SLUG, UNPUBLISHED_EVENT_SLUG];
+    const slugs = [RUNNER_EVENT_SLUG, UNPUBLISHED_EVENT_SLUG, SEND_EVENT_SLUG];
+    await db.query('delete from photos.email_outbox where event_slug = any($1::text[])', [
+      slugs,
+    ]);
     await db.query('delete from photos.link where event_slug = any($1::text[])', [slugs]);
     await db.query('delete from photos.photo where event_slug = any($1::text[])', [
       slugs,
     ]);
     await db.query('delete from photos.event where slug = any($1::text[])', [slugs]);
+    // Purchases and fees first: an entries event is not deleted from under them.
+    await db.query(
+      `delete from entries.entry_purchases
+        where event_id in (select id from entries.events where slug = any($1::text[]))`,
+      [slugs],
+    );
+    await db.query(
+      `delete from entries.fees
+        where event_id in (select id from entries.events where slug = any($1::text[]))`,
+      [slugs],
+    );
     await db.query('delete from entries.events where slug = any($1::text[])', [slugs]);
     await db.query('delete from timing.events where slug = any($1::text[])', [slugs]);
   });

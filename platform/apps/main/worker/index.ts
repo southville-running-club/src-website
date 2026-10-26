@@ -25,6 +25,7 @@ import {
   type MembershipOrderOutcome,
 } from './membership';
 import { drainMembershipOutbox } from './membership-outbox';
+import { drainPhotosOutbox } from './photos-outbox';
 import { drainTicketOutbox } from './store-outbox';
 import { handleStoreWebhook } from './store-webhook';
 import {
@@ -286,6 +287,22 @@ interface Env {
   MEMBERSHIP_ENTRY_KEY?: string;
   MEMBERSHIP_WEBHOOK_KEY?: string;
   /**
+   * The race photos' three (slice 5, ADR-069), none shared with anything else.
+   *
+   * `PHOTOS_ENTRY_KEY` is what `photos.request_link()` takes: the lost-link form is signed out
+   * and makes the club send an email, so without a key a loop with the published anon key
+   * would drain the daily allowance the race shares. `PHOTOS_WEBHOOK_KEY` opens the drain's two
+   * functions, which return addresses. `PHOTOS_LINK_KEY` makes each link and **never leaves
+   * this Worker** — it is not sent to the database, so nothing there can be used to make one.
+   *
+   * All three ship absent and both digests ship null. With any of the drain's missing it does
+   * nothing, which is the safe direction, and is why the preview script binds none of them but
+   * the entry key.
+   */
+  PHOTOS_ENTRY_KEY?: string;
+  PHOTOS_WEBHOOK_KEY?: string;
+  PHOTOS_LINK_KEY?: string;
+  /**
    * Public. The Cloudflare Turnstile widget key `worker/account.ts`'s forms render — a
    * `var`, like the Supabase anon key, never a secret. Its pair, the Turnstile *secret*
    * key, never appears in this repository: GoTrue holds it, via
@@ -431,6 +448,11 @@ export default {
       // thread "did that write a row?" back out through every branch of `handleAdmin`.
       if (request.method === 'POST') {
         nudgeOutbox(ctx, env);
+
+        // Sending the race photos links queues into the photos outbox, not the race's.
+        if (url.pathname.startsWith('/admin/photos/')) {
+          ctx.waitUntil(drainPhotosOutbox(env));
+        }
       }
 
       return response;
@@ -506,8 +528,19 @@ export default {
     // nothing at these addresses is in `dist/`. Anything but GET and HEAD falls through to the
     // binding, which answers it as it answers any other address.
     const photosRoute = nnPhotosRoute(url.pathname);
-    if (photosRoute !== null && (request.method === 'GET' || request.method === 'HEAD')) {
-      return handleNnPhotos(request, env, url, photosRoute);
+    if (photosRoute !== null) {
+      if (request.method === 'GET' || request.method === 'HEAD') {
+        return handleNnPhotos(request, env, url, photosRoute);
+      }
+
+      // **The lost-link form is the one photos address that takes a POST**, and a request it
+      // records is sent now rather than at the next tick of the cron — ADR-032. Nudged on
+      // every POST, because the form deliberately does not say whether it queued anything.
+      if (request.method === 'POST' && photosRoute.kind === 'lost-link') {
+        const response = await handleNnPhotos(request, env, url, photosRoute);
+        ctx.waitUntil(drainPhotosOutbox(env));
+        return response;
+      }
     }
 
     const response = await env.ASSETS.fetch(request);
@@ -843,6 +876,13 @@ export default {
     // minutes. ⚠️ Removing this makes a failed send permanent, which is the one outcome an
     // outbox exists to rule out.
     await drainMembershipOutbox(env);
+
+    // **The fourth, and the one that is mostly the cron's own work.** The photo-admin's send
+    // queues a few hundred first links, and the daily limit lets only so many go in a day, so
+    // the nudge after the press sends the first batch and this sends the rest, a batch every
+    // five minutes until the day's allowance is spent — then the next day. Last, for the
+    // others' reason: it talks to a third party.
+    await drainPhotosOutbox(env);
   },
 } satisfies ExportedHandler<Env>;
 

@@ -4,6 +4,8 @@
 **Date:** 25 October 2026
 **Records:** decisions 7 and 8 of the
 [race photos brief](../../delivery/nn-photos-brief.md#2-decisions-already-made-do-not-re-litigate)
+**Amended by:** [ADR-069](adr-069-runners-are-emailed-their-links-a-few-a-day.md), 25 October
+2026 — the token's 32 bytes are an HMAC of a Worker secret and the outbox row, not random
 
 ## Context
 

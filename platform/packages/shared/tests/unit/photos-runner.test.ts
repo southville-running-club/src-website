@@ -1,21 +1,41 @@
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import {
+  deriveLinkToken,
   isLinkToken,
   linkTokenHash,
   mailtoLink,
-  mintLinkToken,
   photoDownloadName,
 } from '../../src/photos-runner';
 
-describe('a private link token', () => {
-  it('is minted as 43 URL-safe characters, and differently each time', () => {
-    const one = mintLinkToken();
-    const two = mintLinkToken();
+const KEY = 'a-photos-link-key-for-this-test-only';
+const ROW = '7a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b5f01';
 
-    expect(isLinkToken(one)).toBe(true);
-    expect(one).toHaveLength(43);
-    expect(one).not.toBe(two);
+describe('a private link token', () => {
+  it('is derived from the key and the outbox row, as 43 URL-safe characters', async () => {
+    const token = await deriveLinkToken(KEY, ROW);
+
+    expect(isLinkToken(token)).toBe(true);
+    expect(token).toHaveLength(43);
+    // Node's own HMAC, so the Web Crypto call is checked against a second implementation
+    // rather than against itself.
+    expect(token).toBe(
+      createHmac('sha256', KEY).update(`photos-link:${ROW}`).digest('base64url'),
+    );
+  });
+
+  it('is the same for the same row every time, which is what makes a retry safe', async () => {
+    expect(await deriveLinkToken(KEY, ROW)).toBe(await deriveLinkToken(KEY, ROW));
+  });
+
+  it('differs for another row, and for another key', async () => {
+    const token = await deriveLinkToken(KEY, ROW);
+
+    expect(await deriveLinkToken(KEY, '7a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b5f02')).not.toBe(
+      token,
+    );
+    expect(await deriveLinkToken(`${KEY}-rotated`, ROW)).not.toBe(token);
   });
 
   it('refuses anything that is not that shape, before the database is asked', () => {

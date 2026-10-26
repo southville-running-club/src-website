@@ -3294,6 +3294,16 @@ a.admin-runner-email:focus-visible {
   max-width: 26rem;
 }
 
+/* Sending the runners their links (slice 5): a second block under the same running's figures,
+   separated by space rather than a colour, so it needs no contrast pairing of its own. */
+.admin-photos-send {
+  margin-top: 1.5rem;
+}
+
+.admin-photos-send h3 {
+  margin-bottom: 0.75rem;
+}
+
 /* "Still there? Keep me signed in" — apps/main/worker/admin-stay-signed-in.ts.
    ⚠️ **Fixed, and it takes no space**, so appearing moves nothing on the page. The page's text
    as the background and the page's background as the text: the base palette's own pair, so it

@@ -321,8 +321,9 @@ re-run.
   after 3 tries"_. The club's word is **attempt**, which is the one
   [the email runbook](docs/delivery/runbooks/entries-email.md) already used throughout.
 - **A seventh role, or a twelfth permission.** ⚠️ **The counts in this bullet are long stale
-  and the trigger is not**: there are eleven roles and twenty-three permissions since the race
-  photos' two and four arrived on 24 October 2026 (ADR-066). **Trigger: any role or permission
+  and the trigger is not**: there are eleven roles and twenty-four permissions since the race
+  photos' two and four arrived on 24 October 2026 (ADR-066) and `nn.photo.send` on 25 October
+  (ADR-069). **Trigger: any role or permission
   not already named in `packages/db/tests/identity-permissions.test.ts`** — read the test, not
   this prose. The rest of the bullet is the history. **Trigger: exactly what the heading says** —
   the **six** roles and **eleven** permissions are asserted in
@@ -2859,12 +2860,13 @@ Three things about it are load-bearing:
 
 ## How race photos behave
 
-**Slices 1 to 4 of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
+**All five slices of [the race photos brief](docs/delivery/nn-photos-brief.md) are built**: the
 laptop tool (`tools/photos/`, ADR-058 to ADR-060), the `photos` schema with the real upload to
 R2 and the SQL file (ADR-062 to ADR-064), the shared check page at `/admin/photos/` (ADR-065,
-ADR-066), and the runners' private pages and images under `/nn/<year>/photos/` (ADR-068).
-**Slice 5 is not**: nothing mints or sends a link yet and there is no lost-link form, so no
-runner can open a page and publishing shows nothing to anybody.
+ADR-066), the runners' private pages and images under `/nn/<year>/photos/` (ADR-068), and the
+link emails and the lost-link form (ADR-069). ⚠️ **Built is not sent**: pressing "Send the
+links" in production is Mark's decision (brief §15), and it does nothing until the account holder
+has installed three Worker secrets (runbook steps 14 to 16).
 [The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
 
 ⚠️ **The laptop's SQL file and the website share the same rows, and one bargain keeps them from
@@ -2896,25 +2898,55 @@ them (ADR-066): the volunteers checking photos see photos, bibs and photographer
 the `photos` schema holds no runner's name or address (brief §3). `admin.ts` opens the section on
 `nn.photo.read`; every door inside asks its own permission and answers the same 404 without it.
 
-**A runner's private link is a key, and four `photos` functions are `anon`'s because a runner is
-signed out** (ADR-068): `runner_photos`, `runner_photo`, `servable_photo` and `photos_ready`,
-each answering one `null` to every refusal. `photos.test.ts` names every function and who may
-call it, so a fifth `anon` grant is a decision taken in a diff. The token is 43 URL-safe
-characters and `packages/shared/src/photos-runner.ts` is the one place it becomes the SHA-256
-`photos.link` holds.
+**A runner's private link is a key, and seven `photos` functions are `anon`'s because a runner
+is signed out**: slice 4's four, each answering one `null` to every refusal (ADR-068), and slice
+5's three, each behind a key of its own — `request_link` behind `PHOTOS_ENTRY_KEY`,
+`claim_outbox_batch` and `record_send_result` behind `PHOTOS_WEBHOOK_KEY` (ADR-069).
+`photos.test.ts` names every function and who may call it, so an eighth `anon` grant is a
+decision taken in a diff. The token is 43 URL-safe characters and
+`packages/shared/src/photos-runner.ts` is the one place it becomes the SHA-256 `photos.link`
+holds.
 
-⚠️ **Every private page sends `private, no-store`, `no-referrer` and `noindex`, and has no
-form.** `no-referrer` is what makes a browser send `Origin: null` with a form post (the trap
-above), so the first form added to `worker/nn-photos.ts` meets it. "That's me" and a takedown
-request are `mailto:` links, which is also what keeps them from changing any data.
+⚠️ **A token is derived, never drawn and never stored**: `HMAC-SHA256(PHOTOS_LINK_KEY,
+"photos-link:" + outbox row id)`. That is what lets a retried send carry the same link, so
+Resend's idempotency key (the row id) stops a second copy instead of a second email arriving with
+a different link and the first one dead. **`PHOTOS_LINK_KEY` never leaves the Worker and has no
+digest anywhere.** A link becomes active in `record_send_result()`, once its email has gone, and
+replaces the bib's previous one in the same step, so a failed send never takes a working link
+away.
+
+⚠️ **`photos.email_outbox` is the fourth outbox and it holds a bib, never an address.** The
+address is read from `entries` when a row is claimed, through `photos.recipient_for()` — the one
+place a bib becomes an address, via `timing.effective_bib()`, so a guide's own number reaches the
+guide's own address. Do not write a second lookup. **First links go out within
+`photos.event.daily_send_limit`** (80 by default, null for none, over a rolling 24 hours) because
+Resend's free tier is 100 a day for the whole account; new links somebody asked for go first and
+are not counted. The race's own outbox is untouched, which is the brief's stop-and-ask.
+
+⚠️ **No link email can leave a laptop or a test run**, whatever `.dev.vars` holds: the drain does
+nothing without `PHOTOS_WEBHOOK_KEY` and `PHOTOS_LINK_KEY`, and the preview script binds only
+`PHOTOS_ENTRY_KEY`. The admin Workers config also pins `RESEND_API_KEY` to empty, because the
+pool loads `.dev.vars` silently. Keep it that way: a test that needs a send stubs `fetch`, as
+`tests/unit/photos-outbox.test.ts` does.
+
+⚠️ **Every private page sends `private, no-store`, `no-referrer` and `noindex`.** "That's me" and
+a takedown request are `mailto:` links, which is also what keeps them from changing any data.
+**The lost-link form at `/nn/<year>/photos/` is the one form**, and it meets the trap above:
+under `no-referrer` its POST carries `Origin: null`, so it must never gain an origin check. It
+carries no CSRF token either, because it acts for nobody signed in. ⚠️ **It answers the same
+whatever it is given** — a well-formed address always gets 303 to `?sent=1` and the brief's
+"if that address entered" sentence — so it cannot be used to learn who ran. Do not add a message
+that differs for an address that did not enter.
 
 ⚠️ **The photo pages wear the race theme and so draw no club navigation bar**, as `Base.astro`
 draws none for `theme: 'nn'`: the bar's links are coloured for a white page and came out bone
 on white, 1.06:1, the first time axe looked. Every word a runner reads is in `PHOTOS_COPY`, for
 Kayleigh's sign-off.
 
-**Their test fixtures are two years that will not happen, `nn-2093` and `nn-2094`**, seeded once
-under an advisory lock and never written by a test (`tests/photos-runner-db.ts`), so
-`nn-photos.spec.ts`'s projects can share them — and so `/admin/photos/` shows those two runnings
+**Their test fixtures are three years that will not happen, `nn-2092` to `nn-2094`**, seeded once
+under an advisory lock and never cleared by Playwright (`tests/photos-runner-db.ts`), so
+`nn-photos.spec.ts`'s projects can share them — and so `/admin/photos/` shows those runnings
 beside the check page's own `zz-admin-photos`. A check-page assertion about "the" running has to
-look inside that running's own section.
+look inside that running's own section. ⚠️ **`nn-2092` is published with its links unsent, and the
+Worker run presses "Send the links" on it**, which its global setup's clear-and-seed makes safe;
+Playwright only reads that page, because its three projects would race the press.

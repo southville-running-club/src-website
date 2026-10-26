@@ -30,6 +30,22 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
+      // ⚠️ **Two bindings since race photos slice 5, and both are about what this run must
+      // not do.** The note above is right that a binding present on a laptop and absent in CI
+      // proves different things in two places — and that is exactly why these are pinned:
+      //
+      //   * `RESEND_API_KEY` is **empty**, so no email can leave this run whatever a laptop's
+      //     `.dev.vars` holds, which the pool loads silently. Every drain treats an empty key
+      //     as absent and does nothing. CI has no `.dev.vars`, so this changes nothing there.
+      //   * `PHOTOS_ENTRY_KEY` is `seed.sql`'s local string, so the lost-link form really
+      //     records a request — the preview script binds the same one. No photos webhook or
+      //     link key is bound, so nothing recorded is ever sent.
+      miniflare: {
+        bindings: {
+          RESEND_API_KEY: '',
+          PHOTOS_ENTRY_KEY: 'zz-photos-entry-key-not-a-real-one',
+        },
+      },
     }),
   ],
   test: {

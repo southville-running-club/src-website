@@ -229,13 +229,16 @@ describe('the shape of the model', () => {
       // **The twentieth to twenty-third, for the race photos' check page** — brief slice 3,
       // ADR-066. Four because the page has four doors: the progress figures (`read`, both
       // photo roles), the check queue and unpublished images (`check`, the checker), a
-      // takedown (`hide`, both) and publishing (`publish`, the photo-admin). **No
-      // `nn.photo.send` yet**: sending links is slice 5, and a permission guarding a door that
-      // has not been built is one nobody can reason about.
+      // takedown (`hide`, both) and publishing (`publish`, the photo-admin).
+      //
+      // **The twenty-fourth is `nn.photo.send`**, slice 5 and ADR-069: emailing every runner
+      // their link. The photo-admin's, not the checker's — ADR-066 named it for this slice and
+      // held it back until the door existed.
       'nn.photo.check',
       'nn.photo.hide',
       'nn.photo.publish',
       'nn.photo.read',
+      'nn.photo.send',
       // **The eighteenth**, carried by `nn-results` and `src-admin`. Deliberately not by
       // `timing-admin`: running a race and seeing its results before they are public are
       // different powers, and the club asked for the second to sit behind its own role.
@@ -313,6 +316,7 @@ describe('the shape of the model', () => {
       'nn-photo-admin → nn.photo.hide',
       'nn-photo-admin → nn.photo.publish',
       'nn-photo-admin → nn.photo.read',
+      'nn-photo-admin → nn.photo.send',
       'nn-photo-checker → nn.photo.check',
       'nn-photo-checker → nn.photo.hide',
       'nn-photo-checker → nn.photo.read',
@@ -349,6 +353,7 @@ describe('the shape of the model', () => {
       'src-admin → nn.photo.hide',
       'src-admin → nn.photo.publish',
       'src-admin → nn.photo.read',
+      'src-admin → nn.photo.send',
       // The explicit-rows design forcing the decision again: directors see results early.
       'src-admin → nn.results.read',
       'src-admin → store.ticket.read',
@@ -638,8 +643,9 @@ describe('grantable_roles', () => {
     // hand — and it is the assertion that caught the two lists above being incomplete.
     const masterRole = answer.roles.find((role) => role.slug === 'src-admin');
     // ⚠️ **Eighteen until 9 October 2026**, when ADR-056 added `timing.roster.read`, and
-    // **nineteen until 24 October 2026**, when the race photos' four arrived (ADR-066).
-    expect(masterRole?.permissions).toHaveLength(23);
+    // **nineteen until 24 October 2026**, when the race photos' four arrived (ADR-066), and
+    // **twenty-three until 25 October 2026**, when `nn.photo.send` did (ADR-069).
+    expect(masterRole?.permissions).toHaveLength(24);
     expect(masterRole?.permissions).toContain('store.ticket.read');
     expect(masterRole?.permissions).toContain('nn.entry.read_medical');
   });

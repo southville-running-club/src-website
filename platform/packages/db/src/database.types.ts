@@ -1268,6 +1268,24 @@ export type Database = {
   }
   photos: {
     Tables: {
+      api_secrets: {
+        Row: {
+          key_sha256: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          key_sha256?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          key_sha256?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       decision: {
         Row: {
           action: string
@@ -1312,24 +1330,83 @@ export type Database = {
           },
         ]
       }
+      email_outbox: {
+        Row: {
+          attempts: number
+          bib: string
+          created_at: string
+          dedupe_key: string
+          event_slug: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          provider_message_id: string | null
+          reason: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          bib: string
+          created_at?: string
+          dedupe_key: string
+          event_slug: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          reason: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          bib?: string
+          created_at?: string
+          dedupe_key?: string
+          event_slug?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          provider_message_id?: string | null
+          reason?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_event_slug_fkey"
+            columns: ["event_slug"]
+            isOneToOne: false
+            referencedRelation: "event"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       event: {
         Row: {
           created_at: string
+          daily_send_limit: number | null
           links_sent_at: string | null
+          links_sent_by: string | null
           published_at: string | null
           published_by: string | null
           slug: string
         }
         Insert: {
           created_at?: string
+          daily_send_limit?: number | null
           links_sent_at?: string | null
+          links_sent_by?: string | null
           published_at?: string | null
           published_by?: string | null
           slug: string
         }
         Update: {
           created_at?: string
+          daily_send_limit?: number | null
           links_sent_at?: string | null
+          links_sent_by?: string | null
           published_at?: string | null
           published_by?: string | null
           slug?: string
@@ -1482,7 +1559,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bibs_with_photos: { Args: { p_event_slug: string }; Returns: string[] }
       candidate_bibs: { Args: { p_photo_id: string }; Returns: string[] }
+      claim_outbox_batch: {
+        Args: { p_key: string; p_limit?: number }
+        Returns: Json
+      }
       decide: {
         Args: { p_action: string; p_bibs?: string[]; p_photo_id: string }
         Returns: Json
@@ -1496,14 +1578,39 @@ export type Database = {
         }
         Returns: boolean
       }
+      key_ok: { Args: { p_key: string; p_name: string }; Returns: boolean }
       left_to_check: { Args: { p_event_slug: string }; Returns: number }
       next_photo: { Args: never; Returns: Json }
+      own_photo_count: {
+        Args: { p_bib: string; p_event_slug: string }
+        Returns: number
+      }
       photo_for_admin_image: { Args: { p_photo_id: string }; Returns: Json }
       photo_for_checking: { Args: { p_photo_id: string }; Returns: Json }
       photo_state: { Args: { p_photo_id: string }; Returns: Json }
       photos_ready: { Args: { p_event_slug: string }; Returns: boolean }
       progress: { Args: never; Returns: Json }
       publish: { Args: { p_event_slug: string }; Returns: Json }
+      recipient_for: {
+        Args: { p_bib: string; p_event_slug: string }
+        Returns: string
+      }
+      record_send_result: {
+        Args: {
+          p_error?: string
+          p_id: string
+          p_key: string
+          p_provider_message_id?: string
+          p_rate_limited?: boolean
+          p_sent: boolean
+          p_token_hash?: string
+        }
+        Returns: Json
+      }
+      request_link: {
+        Args: { p_email: string; p_event_slug: string; p_key: string }
+        Returns: Json
+      }
       runner_card: { Args: { p_photo_id: string }; Returns: Json }
       runner_photo: {
         Args: { p_event_slug: string; p_short_id: string; p_token_hash: string }
@@ -1513,6 +1620,8 @@ export type Database = {
         Args: { p_event_slug: string; p_token_hash: string }
         Returns: Json
       }
+      send_figures: { Args: never; Returns: Json }
+      send_links: { Args: { p_event_slug: string }; Returns: Json }
       servable_photo: {
         Args: { p_event_slug: string; p_photo_id: string }
         Returns: Json
