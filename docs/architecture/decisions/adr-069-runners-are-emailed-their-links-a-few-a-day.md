@@ -6,6 +6,8 @@
 [race photos brief](../../delivery/nn-photos-brief.md#2-decisions-already-made-do-not-re-litigate)
 **Amends:** [ADR-068](adr-068-runners-reach-their-photos-through-a-private-link.md), on one
 point: how a link's token is made
+**Addendum:** 26 October 2026, at the foot: the club pays for Resend, so the daily limit can be
+lifted. The decision is unchanged
 
 ## Context
 
@@ -94,6 +96,21 @@ derived from a Worker secret and the outbox row rather than drawn at random.**
   says it never appears in a database row.
 - **Send to everybody at once and let Resend refuse the rest.** Rejected: on the free tier it
   would also refuse every password reset and race email for the rest of that day.
+
+## Addendum, 26 October 2026: the club pays for Resend
+
+**The question this ADR left to the treasurer was already answered when it was written.** The
+club has paid for Resend since 31 August 2026, the day before entries opened
+([#169](https://github.com/southville-running-club/src-website/issues/169)), so the 100-a-day
+account-wide cap that the context above and the last rejected alternative argue from no longer
+applies. The repository said so in one place and the opposite in several, which is why this ADR
+recorded it as open.
+
+**The decision stands as written**: the limit is a column, 80 by default, and null lifts it with
+an update and no deploy. What changes is only who may lift it and when. It no longer waits on the
+treasurer, so a photo-admin can set it to null before pressing Send, and runbook step 17 says so.
+How fast the emails then go is set by Resend's own API rate limit (ADR-032): a refusal stops that
+batch, and the next drain, at most five minutes later, carries on.
 
 ## References
 
