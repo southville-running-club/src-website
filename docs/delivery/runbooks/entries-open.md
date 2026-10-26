@@ -45,7 +45,7 @@ that cannot be undone by closing entries again afterwards.
 | --- | --- |
 | ~~**The entry open and close times have not been supplied by the committee**~~ | **Met.** Agreed by the committee over WhatsApp on **Monday 24 August 2026**: **open Tuesday 1 September 2026 07:00 BST, close Friday 30 October 2026 17:00 GMT**. `entries_close_at` is already applied; this runbook sets the opening half only |
 | ~~**The rate-limiting rule is not live**~~ | **Met, and not by the rule this page used to name.** **C1** has been live since 25 August 2026 and covers `POST /nn/`, which is the prefix that matters. **E1 was never created and never will be** — see [step 0.1](#01--the-rate-limiting-rule-must-be-live). What is *not* met is that nobody has watched it fire, and that is a checkbox rather than a stop condition |
-| **No payment has ever completed end to end** | [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window). The first real payment must not be a stranger's |
+| ~~**No payment has ever completed end to end**~~ | **Met, 31 August 2026.** [Step 2](#step-2--rehearse-a-real-payment-without-opening-the-window) was walked in test mode, and then, with the live pair bound, a £1 Tester entry was paid on a real card and refunded — #112 step 10. The first real payment was not a stranger's. This row was unstruck until 26 October 2026 |
 | ~~**The entry terms have not been written**~~ | **Met.** Published 28 August 2026 at [`/nn/2026/terms/`](https://new.southvillerunningclub.co.uk/nn/2026/terms/) and linked from the acceptance checkbox — #142. The race director's copy, verbatim. **The committee has not ratified it**, which is why the page says "Supplied by the race director" rather than claiming otherwise; that is a known state, not a blocker |
 | **Nobody has restored a backup** | [#23 item 2](https://github.com/southville-running-club/src-website/issues/23). The rows about to arrive include dates of birth, emergency contacts and — under separate consent — medical notes |
 | **`ENTRIES_ENTRY_KEY` is not installed and verified** | [Step 0.8](#08--the-entry-key-must-be-installed-and-verified). Without it every entry is refused; **with the window open and the key absent from the database, anybody can take all 250 places for nothing in half a second.** This is [#178](https://github.com/southville-running-club/src-website/issues/178) and it is the one stop condition on this page that is a live vulnerability rather than a missing preparation |
@@ -355,14 +355,19 @@ for.
       $20, priced in USD, not sterling. Nothing in the repository knows or cares which plan is
       live, so this checkbox is the only place it is recorded:
 
-      Plan on 1 September 2026: ______________  Checked by: ______________
+      Plan on 1 September 2026: **Paid** (#169, decided and done 31 August 2026)  Checked by:
+      the issue — this line was blank until 26 October 2026
 
 - [ ] ⚠️ **If the plan is paid, somebody owns the question of when it stops.** **There are two
       rushes and one month covers one of them**: entries close **17:00, Friday 30 October**,
       and a deadline is its own spike — as is a cluster of transfers in the fortnight before
       the race. Reverting to free in early October puts both back under 100/day. Either put a
       reminder in the calendar for the week of 26 October, or decide now to keep it paid
-      through race day
+      through race day. **As of 26 October 2026**: #169 paid for the plan on 31 August, and
+      nothing in this repository records whether it is still paid — Resend's billing page is
+      the only place that can say, and it is worth one look this week. The close-day spike is
+      bounded anyway: 242 of 250 places were sold by 26 October, so at most eight confirmations
+      are left to send
 
 ### 0.8 — the entry key must be installed and verified
 
@@ -449,8 +454,8 @@ until it has, this page's [stop conditions](#stop-conditions) still forbid step 
 
 | | Local (`Europe/London`) | UTC to enter | Status |
 | --- | --- | --- | --- |
-| `entries_open_at` | Tue 1 Sep 2026, 07:00 BST | `2026-09-01T06:00:00Z` | **Proposed, not ratified** |
-| `entries_close_at` | Fri 30 Oct 2026, 17:00 GMT | `2026-10-30T17:00:00Z` | **Proposed, not ratified** |
+| `entries_open_at` | Tue 1 Sep 2026, 07:00 BST | `2026-09-01T06:00:00Z` | **Ratified 24 August 2026; set 31 August (#158)** |
+| `entries_close_at` | Fri 30 Oct 2026, 17:00 GMT | `2026-10-30T17:00:00Z` | **Ratified 24 August 2026; applied 27 August (`20260827180000`)** |
 
 **The clocks go back on Sunday 25 October 2026** and the race is the weekend after, in GMT. If
 the window spans that date, one of these two conversions differs from the other by an hour. It

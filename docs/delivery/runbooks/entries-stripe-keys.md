@@ -138,8 +138,16 @@ a payment that is visible in live and absent in test settles it in seconds and c
 ## Recovering a payment that is already stranded
 
 **This is [#118](https://github.com/southville-running-club/src-website/issues/118) item 7**: a
-live-mode payment taken around 11:19 on 27 August 2026, still `paid`, still consuming one of the
-250, and refused by the Cancel button ever since the keys were swapped to test.
+live-mode payment taken around 11:19 on 27 August 2026, which sat `paid`, consuming one of the
+250 and refused by the Cancel button, for as long as the keys were swapped to test.
+
+✅ **Done, Monday 31 August 2026** — step 9 of
+[#112](https://github.com/southville-running-club/src-website/issues/112)'s key swap, exactly as
+the box below says: cancelled through the platform with the live pair bound, the refund confirmed
+in live mode, and the place back in the count. **This section said "still `paid`" until
+26 October 2026**, and a readiness audit that day read it as a phantom entrant about to be
+imported onto the start list. What follows is kept as the procedure for the next payment that is
+stranded across the mode boundary.
 
 **Do it through the platform, with the live pair bound.** Not by hand.
 
