@@ -80,7 +80,7 @@ same button.
 Every grant is written to `identity.audit` in the same transaction as the change, so one
 cannot happen without the other.
 
-### The two roles, and which of the six permissions each carries
+### The two roles, and which of the seven permissions each carries
 
 Quoted from
 [`identity-permissions.test.ts`](../../../platform/packages/db/tests/identity-permissions.test.ts),

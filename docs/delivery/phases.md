@@ -107,9 +107,11 @@ adapter, Cron Triggers, and a Phase 7 apex cutover that is now a record edit.
 
 ## Phase 3 — Nightingale Nightmare live
 
-**Deadline: ~22 August 2026 — passed. What is outstanding as of 31 August 2026 (the day
-before entries open) is registering the Stripe endpoint and swapping to live keys, both
-rows below; everything else in this phase's table is built.**
+**Deadline: ~22 August 2026 — passed. Nothing in this phase is outstanding: the Stripe
+endpoint was registered and the live keys swapped in on 31 August 2026 (#112), both confirmed
+against production on 7 September 2026 (`apps/main/README.md`, steps 5, 15 and 16), and
+entries have been selling since 07:00 on 1 September — 242 of 250 by 26 October. This sentence
+said both were "outstanding" until 26 October 2026.**
 
 A public page, a sign-up link, and **payment through Stripe**. This is the club's first
 transaction on its own infrastructure.
@@ -131,7 +133,7 @@ transaction on its own infrastructure.
 | **Registering the Stripe endpoint** | **A human's job, and the last of `apps/main/README.md`'s manual steps.** It needs the production URL — created any earlier and Stripe posts into a 404. The three Worker secrets go on at the same time |
 | **Switching the admin surface on** | **Superseded by Phase 3b.** It was a fourth Worker secret plus a key per volunteer; #58 retired both. What switches the back office on now is registering the club's admin address and granting a role — [the admin runbook](runbooks/entries-admin.md). No secret, no SQL and no deploy |
 | **The runner's own entry record, and asking to cancel or transfer** ✅ | **Built.** `/account/entries/` shows a runner their confirmed places, a Cancelled view (`?show=cancelled`) for lapsed holds and refunds, and a request-an-action path — `request_entry_action()` records that somebody has asked to cancel or transfer, and performs neither; a volunteer acts on it from `/admin/nn/`. Nothing in the schema acts on a request automatically, and there is deliberately no transfer button on the admin surface yet |
-| **A real payment end to end** | **Done, and complicated.** A live payment was taken 27 August 2026 while proving the Stripe key swap, and it is still stranded across the test/live mode boundary — a key of one mode cannot refund a payment intent of the other, so it can only be cancelled while the live pair is bound. [The key-swap runbook](runbooks/entries-stripe-keys.md) has the recovery and the mode-mismatch symptom to recognise |
+| **A real payment end to end** ✅ | **Done.** A live payment was taken 27 August 2026 while proving the Stripe key swap and was stranded across the test/live mode boundary for four days — a key of one mode cannot refund a payment intent of the other — until #112's key swap on 31 August 2026 cancelled it with the live pair bound and confirmed the refund. A real £20 entry taken the same evening is kept as a genuine place. This row said "still stranded" until 26 October 2026. [The key-swap runbook](runbooks/entries-stripe-keys.md) keeps the recovery and the mode-mismatch symptom for next time |
 | **The England Athletics number came off the form** ✅ | **Done, 29 August 2026.** The club asks for no number and holds none — a runner states their affiliation and the club takes their word for it, reserving the right to ask for evidence — [decision 007](../decisions/decision-log.md#007--stop-asking-for-and-holding-england-athletics-numbers), [ADR-023](../architecture/decisions/adr-023-no-england-athletics-numbers.md). This closed [#72](https://github.com/southville-running-club/src-website/issues/72), which had been open against the possibility of Southville itself being ARC-affiliated. The £18/£20 split and the £2 levy are untouched; only the number stopped being asked for. **The contract step — dropping the two now-unused columns — is still owed**, [runbook](runbooks/entries-ea-number-contract.md) |
 | **The runner's own phone number was added** ✅ | **Done, 30 August 2026.** The eighteenth entry field, required of a runner and asked of no guide — [decision 008](../decisions/decision-log.md#008--ask-a-runner-for-a-phone-number-and-make-the-race-notice-say-what-is-actually-held), [ADR-025](../architecture/decisions/adr-025-the-club-asks-a-runner-for-a-phone-number.md). It exists because `/nn/privacy/` claimed a phone number the club did not hold; the stated purpose is telling a runner about a change to the race, not the emergency contact's number, which is somebody else's |
 
@@ -302,12 +304,14 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
       **`entries_close_at` is applied** — `20260827180000_nn_2026_entries_close_at.sql` — and is
       inert on its own, because `entry_state()` tests `entries_open_at is null` as an explicit
       branch before it compares anything.
-      **`entries_open_at` is still null, and that is what is left of this item.** Ratifying the
+      **`entries_open_at` was set on 31 August 2026 (#158) and the window opened at 07:00 on
+      1 September; nothing is left of this item, which said "still null" until 26 October
+      2026.** Ratifying the
       window settles the times; it does not perform the opening, because that column is not
       configuration waiting to be switched on, it is the switch — a date in it starts selling
       250 places unattended, with no deploy and nobody present. It is gated on the live Stripe
-      keys being in and the webhook digest having been verified by a real signed event; neither
-      has happened. [The entries-open runbook](runbooks/entries-open.md) carries the
+      keys being in and the webhook digest having been verified by a real signed event; both
+      had been, by 31 August. [The entries-open runbook](runbooks/entries-open.md) carries the
       single-column `update` and its Europe/London read-back, and names the 07:00 deadline it
       has to be run by
 - [ ] **The 2026 race-day text exists as an email, not as page copy, and that was a decision.**
@@ -334,12 +338,15 @@ decision, and everything undecided renders as "to be confirmed" rather than as a
 
 ### Done when
 
-- [ ] `new.<apex>/nn` serves over HTTPS with a valid certificate
+- [x] `new.<apex>/nn` serves over HTTPS with a valid certificate — the smoke test asserts it
+      after every push to `main`, and did on 26 October 2026
 - [x] A sign-up writes exactly one row, and the form works **with JavaScript disabled**
-- [ ] **A real payment completes end to end**, and the treasurer can see it
+- [x] **A real payment completes end to end**, and the treasurer can see it — 31 August 2026,
+      #112 steps 9 and 10, and 242 paid places by 26 October
 - [x] An anonymous client **cannot** read member data — nor read, change or delete the
       interest list, asserted by error code
-- [ ] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero
+- [x] CI green: lint, types, migrations from zero, unit, Worker, Playwright + axe at zero —
+      every workflow on `main` green on 26 October 2026
 - [ ] **Club email still works**
 - [ ] **Both volunteers** can reach the repository, the Worker, Supabase and Stripe
 

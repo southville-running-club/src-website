@@ -137,9 +137,12 @@ race.**
 - [ ] **Distance** reads **10000 m** — the advertised 10 km, and the only place the timing app
       says a distance at all
 
-**Anything on that list reading wrongly is fixable here and needs no deploy**: somebody holding
-`timing.event.manage` corrects the name, the start time, the distance and the course notes from
-the race's own page, and the migration deliberately never overwrites a correction.
+⚠️ **Anything on that list reading wrongly is a pull request, and therefore a deploy.** This
+step said "fixable here and needs no deploy" until 26 October 2026, and it was not: the race's
+own page is a read-only list, and `timing.update_event()` is called by nothing in `apps/timing`
+— a form that writes it is owed to Pass the Buck with the create-race form above. Inside the
+freeze that makes a wrong start time a maintainer's call, so check this list in the week before
+rather than on the morning.
 
 ⚠️ **If the row is missing altogether, stop — that is a pull request and therefore a deploy**,
 which is the reason this used to be the first stop condition. `import_from_entries()` answers
@@ -205,6 +208,12 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
 - [ ] Press **Import from entries**. For a race entered through the club's own form there is
       no file and no date of birth ever leaves the entry system
 - [ ] Check **Entries** and **Runners** against what `/admin/nn/` says is sold
+- [ ] ⚠️ **Cancel any tester entry first, and count them if you cannot.** The import takes
+      every paid purchase and knows nothing about fees, so a £1 Tester entry is imported, given
+      a bib, printed on the start list and the medical sheet, and published as "On course" like
+      anybody else — while `/admin/nn/` hides tester entries unless its Tester pill is chosen,
+      so the two counts disagree by exactly that number. [#112](https://github.com/southville-running-club/src-website/issues/112)
+      cancelled the ones made on 31 August; the pill is how to be sure none has been made since
 - [ ] Press **Assign bibs**. *"Numbering carries on from the highest number already given out,
       skips anybody who has one, and never renumbers a field"*. **Leave First number blank** for
       Nightingale Nightmare, so the field starts at 001. Fill it in only to start somewhere else
@@ -282,6 +291,12 @@ wrong phrase instead.
       practice in step 1.4 signed out long ago (a session lasts twelve hours at most), so
       opening the screen without signing in gives **Not found** — which is the sign-in, not
       the roster
+- [ ] ⚠️ **Sign in on mobile data, or one at a time — not all together on the venue's Wi-Fi.**
+      Cloudflare's one rate-limiting rule, [C1](../../reference/cloudflare-waf-rules.md), blocks
+      the fourth `POST` under `/account/` from one address within ten seconds, for ten seconds —
+      and a room of marshals on one Wi-Fi is one address. A blocked sign-in reads as the site
+      refusing them. Capturing is unaffected: the keep-alive is a `GET` and the sync route is
+      under `/timing/`, which the rule does not cover
 - [ ] Each marshal opens **`/timing/marshal/nn-2026/`** while there is still signal
 - [ ] Each one confirms the **"Saved for use without signal"** line, again — a phone that was
       cleared since the week before has lost the cache
@@ -303,6 +318,11 @@ see it once or twice. Any tap on the screen — Crossed now, a keypad key — an
 session still ends, and the recovery is to sign in again at `/account/sign-in/` in the same
 browser or home-screen icon. **Nothing captured is lost**: the queue is on the phone, keyed to
 the origin rather than to the session, and it drains once they are let back in.
+
+**The twelve hours cannot be extended by anything, the keep-alive included** — the keep-alive
+route's own header in `worker/account.ts` says so in as many words. A laptop or a phone signed
+in at 07:00 is signed out at 19:00 whatever it is doing, so race control signs in again before
+a late prize-giving rather than finding out at the lectern.
 
 - [ ] ⚠️ **On an iPhone, check in the rehearsal that a marshal using the home-screen icon can
       sign in from inside it.** A home-screen web app keeps its own sign-in, separate from
@@ -410,7 +430,9 @@ something the application can notice.
 
 - [ ] **Anomalies** — `/timing/events/nn-2026/anomalies` — the triage list. It is a **union of two
       populations**: a capture a marshal's screen flagged, and an **orphan** whose bib matched
-      no team. *"Nothing here is wrong by itself — an anomaly is a question."*
+      no team. Nothing on it is wrong by itself — an anomaly is a question for a human, not a
+      verdict. *(Until 26 October 2026 this step quoted that as the page's own words; no page
+      says it.)*
 - [ ] **Timing log** — `/timing/events/nn-2026/crossings` — every capture, searchable by bib or team number
 - [ ] The **Anomalies** tab's status row counts what is open; the race's Home lists both counts
       under **Race details**
@@ -461,7 +483,15 @@ status changes what the table says and the table is about to be read.
 ### 4.3 — DNS, DNF and DQ 🏛️
 
 - [ ] **Roster** — `/timing/events/nn-2026/roster` — searching by bib, team number or name
-- [ ] **Did not start**, **Did not finish**, **Disqualify** — and **Lift** for any of them
+- [ ] **Edit** on the runner's row opens the **Edit runner** panel. The status is one of four
+      radios — **Normal**, **DNS**, **DNF**, **DQ** — and choosing **Normal** is how any of
+      the three is lifted. *(This step named four buttons until 26 October 2026; the panel is
+      what is there — `apps/timing/app/events/[slug]/roster/panels.tsx`.)*
+- [ ] ⚠️ **Every runner who never started is marked DNS before the preview is read.** A runner
+      with no crossing at all is not a DNS to the application — they are **"On course"**, with
+      no position, and publication does not refuse them, so an unmarked no-show is published as
+      still running, for ever. The preview's "On course" rows after the last finisher are the
+      list to work through, against the paper at registration
 - [ ] ⚠️ **A status is a label on top of the crossings and never a change to one.** A runner
       who did not finish **keeps** the handover time a marshal recorded; they simply have no
       finishing time. Both the setting *and* the lifting are recorded
@@ -470,6 +500,12 @@ status changes what the table says and the table is about to be read.
 
 - [ ] **`/timing/events/nn-2026/results/`**. **State** reads *Finished, not published*, and
       **Open captures** reads 0
+- [ ] The race's Home, under **Race details**: **Actually started** shows the moment Start was
+      pressed. ⚠️ **Publication does not check it.** Every time in the race is measured from
+      the actual start if there is one and from the *scheduled* 11:00:00 if there is not, and
+      `publish_results()` refuses only an unfinished race and an open triage list — so a race
+      nobody pressed Start on publishes a table measured from the gun that was planned rather
+      than the one that went, and nothing on the results page says so
 - [ ] **Prizes** — `/timing/events/nn-2026/prizes` — is the same results read a second way, in the order
       they are read out. **They are the race's own prizes and nothing else**: three fancy dress
       (judged on the day, so the screen has no winner for them), 1st to 3rd female and male,

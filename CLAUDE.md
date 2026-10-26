@@ -1447,10 +1447,15 @@ blocks, which is the class of change that failed `supabase config push` on every
 25 August 2026 — so it waits for the Send Email Hook, **after 1 November**. #99, and the sharpest
 case (_"I didn't change my password"_) is on the far side of that line.
 
-⚠️ **Resend's free tier is 100 emails a day, account-wide, against 250 places** — shared with
-every account email the site sends. On a busy entry day the queue will exceed it and the
-remainder arrives the next day. That is a **decision the club took deliberately** over roughly
-$20/month, not an oversight, and it is why the outbox exists at all.
+⚠️ **Resend was the free tier — 100 emails a day, account-wide, against 250 places — until
+31 August 2026, when the club paid for it (#169), the day before entries opened.** The cap is
+shared with every account email the site sends, and while it stood a busy entry day would have
+pushed the remainder to the next day. The free tier was a **decision the club took
+deliberately** over roughly $20/month, and it is why the outbox exists at all; paying reversed
+it, deliberately too, and nothing in the repository knows which plan is live. **This paragraph
+said "is 100 a day" until 26 October 2026**, and so still do the 429 log line in
+`worker/email-outbox.ts` and the comment in `worker/admin-emails.ts` — code, left for after
+the race.
 [The runbook](docs/delivery/runbooks/entries-email.md) is what a volunteer reads when somebody
 says they never heard anything, and **`/admin/emails/` is where they look** — the queue, the
 figures, and a re-send button on a failed message. **It is in the navigation bar and has its own
