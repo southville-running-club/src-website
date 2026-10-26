@@ -138,6 +138,25 @@ describe('buildExportRows', () => {
     expect(rows[1]?.category).toBe('');
   });
 
+  it('names and places the runner alone when their guide shares the team', () => {
+    // **The shape the import actually produces**: runner on leg 1, guide on leg 2, one team,
+    // one time — ADR-022, ADR-061. The guide is in no band and is not named on the row, which
+    // is also what keeps "ran with a guide" out of a file that leaves the building.
+    const guided = soloTeam('11', 'Ada', {
+      runners: [
+        runner('r-11', 1, 'Ada', 'male', 52),
+        runner('r-11g', 2, 'Iris', 'female', 41, 'guide'),
+      ],
+    });
+
+    const rows = buildExportRows(SOLO, [guided], [crossing('11', 45)]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.runners).toBe('Ada Test');
+    expect(rows[0]?.category).toBe("Men's Vet 50");
+    expect(rows[0]?.bibs).toBe('11');
+  });
+
   it('leaves the leg columns empty on a solo race and fills them on a relay', () => {
     const solo = buildExportRows(SOLO, [soloTeam('11', 'Ada')], [crossing('11', 45)]);
     expect([solo[0]?.legA, solo[0]?.legB]).toEqual(['', '']);
