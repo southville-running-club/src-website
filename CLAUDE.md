@@ -1234,6 +1234,20 @@ stop everything else and run it again. Sequence the work rather than overlapping
 the reason a test run and a subagent fan-out must not be dispatched in the same breath, and
 `./dev check` is not exempt — it rebuilds the database under whatever else is reading it.
 
+⚠️ **The browser layer of `./dev test` has a time cap, and hitting it looks like a hang.** The
+signature is **`Timed out waiting 600s for the test suite to run`**, then the same for the
+teardown, then a large **`did not run`** count — 465 and 256 on 25 and 26 October 2026 — with
+nothing failing except, sometimes, one test marked `✘` with no error text. That one is
+whichever test was running when the clock stopped, and it passes when it is run again.
+**Nothing was hung**: `playwright.config.ts`'s `globalTimeout` was ten minutes everywhere, and
+`./dev test` runs the whole config, all three projects, in one process, which by then sat
+right at ten minutes on a laptop — 9.9 on a quiet one, over ten on a busier one. CI never saw
+it, because it shards the config three ways.
+**The cap is twenty-five minutes locally and ten in CI now**, keyed on `CI`. If it is hit
+again, the tell is a run that stops at exactly the cap's length, and the answer is to raise
+the local figure rather than to go looking for a deadlock. Running one project at a time
+(`./dev e2e --project=chromium`, and so on) covers the same tests in the meantime.
+
 **`./dev test` fails one Worker test on any machine that has a Stripe key, and it is the
 machine rather than the branch.** `tests/worker/admin/tester.test.ts`'s "gets the tester entry
 type back still chosen" asserts **503** — the branch the Worker takes when no

@@ -133,7 +133,17 @@ export default defineConfig({
 
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.
-  globalTimeout: 10 * 60_000,
+  //
+  // ⚠️ **Ten minutes in CI, twenty-five on a laptop, because they are not the same run.** CI
+  // shards this config three ways (`ci.yml`), so each shard is a few minutes of work. `./dev
+  // test` runs the whole config in one process, all three projects, and by October 2026 that
+  // sat right at ten minutes on a laptop — 9.9 on a quiet one, over ten on a busy one. So a
+  // single ten-minute cap stopped two local runs at exactly 10.0 minutes with hundreds of
+  // tests unrun and nothing failing. **That reads as a hang and is not one**: it is the cap.
+  // Twenty-five leaves room for the suite to grow and for a busy machine to be slow, and a
+  // run that is genuinely hung still stops within half an hour. GitHub Actions sets `CI`, as
+  // `maxFailures` and `reporter` above both rely on.
+  globalTimeout: (process.env.CI ? 10 : 25) * 60_000,
 
   use: {
     // One origin for the whole site, exactly as in production. `/timing` is a different
