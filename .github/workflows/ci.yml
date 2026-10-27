@@ -222,6 +222,16 @@ jobs:
       # unproven, and the `dev` script carries the full note and the experiment that settles
       # it. **If this job goes red on those three files, that is the answer, not a flake.**
       SUPABASE_AUTH_SMTP_PASSWORD: 'local-development-only-not-a-real-key'
+      # **Job-level, for the captcha secret's reason: every Supabase CLI call needs it, not
+      # only the start.** `supabase gen types --local` starts its own postgres-meta container,
+      # and without this it asked `public.ecr.aws` for `postgres-meta:v0.96.8`, an image the
+      # job had already loaded from the Actions cache under its ghcr.io name. On #376's run
+      # 40589845226 that pull was refused (`toomanyrequests: Data limit exceeded`) and failed
+      # "Generated types are current", while all four Acceptance jobs passed on the cache.
+      # Set here, every call names images the way `.github/actions/supabase-images` caches
+      # them, so it finds them already loaded. The bootstrap's start step sets it too, so the
+      # action still works for a caller that does not.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
 
     steps:
       - uses: actions/checkout@v5
@@ -397,6 +407,16 @@ jobs:
       # unproven, and the `dev` script carries the full note and the experiment that settles
       # it. **If this job goes red on those three files, that is the answer, not a flake.**
       SUPABASE_AUTH_SMTP_PASSWORD: 'local-development-only-not-a-real-key'
+      # **Job-level, for the captcha secret's reason: every Supabase CLI call needs it, not
+      # only the start.** `supabase gen types --local` starts its own postgres-meta container,
+      # and without this it asked `public.ecr.aws` for `postgres-meta:v0.96.8`, an image the
+      # job had already loaded from the Actions cache under its ghcr.io name. On #376's run
+      # 40589845226 that pull was refused (`toomanyrequests: Data limit exceeded`) and failed
+      # "Generated types are current", while all four Acceptance jobs passed on the cache.
+      # Set here, every call names images the way `.github/actions/supabase-images` caches
+      # them, so it finds them already loaded. The bootstrap's start step sets it too, so the
+      # action still works for a caller that does not.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
 
     steps:
       - uses: actions/checkout@v5
