@@ -1651,7 +1651,8 @@ _proposed_, 27 October 2026. 2026 sold its 250th place three days before the clo
 page went on serving the form, three "Enter the race" buttons and "0 places left", then told
 whoever filled it in that the place went _while_ they typed. `checkNnEntryCapacity()` asks
 `entries.places_remaining()` on the **GET only** and answers `window: 'full'` on a clean zero:
-"The race is full" in place of both forms, no fee line on `/nn/`, "Race details" in the bar.
+"The race is full" in place of both forms and of the sticky entry card's button, no fee line on
+`/nn/`, "Race details" in the bar.
 **The POST re-render deliberately does not ask**, so a submission that loses the last place
 still keeps its form under the sold-out notice. **A count it cannot read leaves the form up**,
 because the database refuses the 251st entry whatever the page says, and a place that comes

@@ -49,6 +49,11 @@ per-event lock whatever the page shows. The cost was people's time, and a false 
 5. **What a full race renders:**
    - **The year page**: a "The race is full" notice in place of both forms. Every `[data-nn-cta]`
      is hidden, and so is the "Entries open" date. The facts list still states the price.
+   - **The sticky entry card on the year page**: where its button was, _"The race is full.
+     Every place has been taken."_ and a link, "How to hear if one comes back", to the notice.
+     The card follows the reader down the page, so without this it held a price and nothing
+     else beside every paragraph, which reads as an offer. It still states the price, as the
+     facts list does.
    - **`/nn/`**: the panel swaps its fee line for "Every place has been taken — the race is
      full", and uses the outlined "The 2026 race" action that every non-open state uses.
    - **The bar on every campaign page**: the closed state's **Race details / Details** label,

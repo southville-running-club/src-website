@@ -1645,7 +1645,11 @@ export function renderNnEntryView(
         .on('[data-nn-interest]', new HideHandler())
         .on('[data-nn-full]', new RevealHandler())
         .on('[data-nn-cta]', new HideHandler())
-        .on('[data-nn-entries-open]', new HideHandler());
+        .on('[data-nn-entries-open]', new HideHandler())
+        // **The sticky entry card says so too**, in the button's place. Without it the card
+        // follows the reader down the page holding a price and nothing else, which reads as
+        // an offer on a race nobody can enter.
+        .on('[data-nn-card-full]', new RevealHandler());
     }
 
     return rewriter;

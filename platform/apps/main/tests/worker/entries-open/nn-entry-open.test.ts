@@ -221,6 +221,7 @@ describe('the year page, once the event row says entries are open', () => {
     // page must be exactly the open page it was before that state existed — on the race page
     // as well as here. `tests/worker/sold-out/nn-race-full.test.ts` is the other half.
     expect(await page()).toMatch(/data-nn-full hidden/);
+    expect(await page()).toMatch(/data-nn-card-full hidden/);
     expect(await racePage()).toMatch(/data-nn-panel-full hidden/);
   });
 

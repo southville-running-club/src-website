@@ -86,6 +86,22 @@ describe('the year page, when every place has gone before it loads', () => {
     expect(isHidden(html, 'data-nn-entries-open')).toBe(true);
   });
 
+  it('says so on the sticky entry card, in the button’s place', async () => {
+    // The card follows the reader down the page. With its button hidden and nothing in its
+    // place it was a price beside every paragraph of a race nobody could enter.
+    const html = await get('/nn/2026/');
+    const start = html.indexOf(' data-nn-card-full');
+    const card = html.slice(start, html.indexOf('</div>', start));
+
+    expect(isHidden(html, 'data-nn-card-full')).toBe(false);
+    expect(card).toContain(
+      '<strong>The race is full.</strong> Every place has been taken.',
+    );
+    // To the notice, which is where the email sentence is — and the notice has to carry the id.
+    expect(card).toContain('href="#race-full"');
+    expect(tagsWith(html, 'data-nn-full')[0]).toContain('id="race-full"');
+  });
+
   it('gives the address the sold-out notice already offers, word for word', async () => {
     // Two wordings of one offer would be two offers. The notice somebody meets when the last
     // place goes under them is where this sentence was first published.
@@ -276,6 +292,7 @@ describe('what the full state paints', () => {
       '<div data-nn-interest><h2 id="register">Register your interest</h2></div>',
       '<div data-nn-closed hidden><h2>Entries have closed</h2></div>',
       '<div data-nn-full hidden><h2>The race is full</h2></div>',
+      '<div data-nn-card-full hidden><p>The race is full.</p></div>',
       '<div data-nn-entry hidden><form></form></div>',
     ].join('');
 
@@ -294,12 +311,15 @@ describe('what the full state paints', () => {
     expect(isHidden(html, 'data-nn-interest')).toBe(true);
     expect(isHidden(html, 'data-nn-cta')).toBe(true);
     expect(isHidden(html, 'data-nn-entries-open')).toBe(true);
+    expect(isHidden(html, 'data-nn-card-full')).toBe(false);
   });
 
   it('on the year page, never once the window has simply ended', async () => {
     // The two shut states share a shape and must not share a sentence: "full" says places can
     // come back, which is false once entries have closed.
-    const PAGE = '<div data-nn-closed hidden></div><div data-nn-full hidden></div>';
+    const PAGE =
+      '<div data-nn-closed hidden></div><div data-nn-full hidden></div>' +
+      '<div data-nn-card-full hidden></div>';
 
     const html = await transform(
       renderNnEntryView(new HTMLRewriter(), {
@@ -311,6 +331,7 @@ describe('what the full state paints', () => {
     );
 
     expect(isHidden(html, 'data-nn-full')).toBe(true);
+    expect(isHidden(html, 'data-nn-card-full')).toBe(true);
     expect(isHidden(html, 'data-nn-closed')).toBe(false);
   });
 

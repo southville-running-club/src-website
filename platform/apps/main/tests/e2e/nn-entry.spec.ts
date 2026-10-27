@@ -1925,6 +1925,24 @@ test.describe('when the race is already full', () => {
     await expect(page.locator('[data-nn-interest]')).toBeHidden();
   });
 
+  test('says so on the entry card, which leads to the notice', async ({ page }) => {
+    // **The card is sticky**, so without this it rode beside every paragraph of the page
+    // holding a price and nothing else. It says the race is full where the button was, and
+    // its one link goes to the notice rather than repeating the email sentence in the rail.
+    await page.goto(YEAR);
+
+    const card = page.locator('[data-nn-card-full]');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('The race is full. Every place has been taken.');
+
+    await card.getByRole('link', { name: 'How to hear if one comes back' }).click();
+
+    await expect(page).toHaveURL(/#race-full$/);
+    await expect(
+      page.locator('[data-nn-full]').getByRole('heading', { name: 'The race is full' }),
+    ).toBeInViewport();
+  });
+
   test('has no control left saying "Enter"', async ({ page }) => {
     // **Matched against the accessibility tree**, so a hidden button is absent rather than
     // merely invisible — which is the claim: nothing a person can reach says "Enter".

@@ -262,6 +262,19 @@ const dateLine = race.date
         <a class="nn-cta nn-entry-card-cta" href="#register" data-nn-cta
           >Register interest</a
         >
+
+        {
+          /* **Where the button was, once the race is full** — ADR-070. This card is sticky, so
+          it follows the reader down the whole page; with its button hidden and nothing in its
+          place it was a price riding beside every paragraph of a race nobody could enter, which
+          reads as an offer. The Worker reveals this only in the full state, and the link goes
+          to the notice that says how to ask about a place that comes back, rather than
+          repeating the email sentence in a 296px rail. */
+        }
+        <div class="nn-entry-card-full" data-nn-card-full hidden>
+          <p><strong>The race is full.</strong> Every place has been taken.</p>
+          <p><a href="#race-full">How to hear if one comes back</a></p>
+        </div>
       </div>
     </aside>
 
@@ -679,7 +692,7 @@ const dateLine = race.date
       No call to action, for the closed state's reason: every `[data-nn-cta]` is hidden in this
       state too. */
     }
-    <div class="notice nn-card" data-nn-full hidden>
+    <div class="notice nn-card" id="race-full" data-nn-full hidden>
       <h2>The race is full</h2>
 
       <p>Every place in the {race.name} 2026 has been taken.</p>
