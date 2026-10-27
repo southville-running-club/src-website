@@ -7,6 +7,7 @@ import {
   fetchCurrentEntryState,
   fetchEntryState,
   fetchMyEntries,
+  fetchPlacesRemaining,
   formatEventDate,
   formatEventStartTime,
   formatPence,
@@ -163,8 +164,17 @@ export type NnEntryView =
        * Folding it into `ended` would make an outage indistinguishable from a decision, on the
        * page where that distinction is the difference between "come back on Tuesday" and "you
        * have missed it".
+       *
+       * `full`     — the window is open and **every place is taken**. Neither form; the page
+       *              says the race is full and how to ask about a place that comes back.
+       *              ADR-070. **Only `checkNnEntryCapacity()` produces it**, and only the GET
+       *              page calls that — `resolveNnEntryView()` never answers `full`, so a POST
+       *              that loses the last place still re-renders the form with everything the
+       *              person typed, under the sold-out notice. A failure to read the count is
+       *              never `full`: it leaves the form up, and the database refuses the 251st
+       *              entry whatever this page shows.
        */
-      window: 'pre_open' | 'ended' | 'unknown';
+      window: 'pre_open' | 'ended' | 'unknown' | 'full';
       /**
        * **The fees, even though the form is not on offer.** The price is a fact about the race
        * rather than a property of the form: `/nn/2026/` states it in its facts list months
@@ -448,6 +458,89 @@ export async function resolveNnEntryView(
 }
 
 /**
+ * Whether a running has no place left to sell — **`true` only on a clean answer of zero**.
+ *
+ * Read through `entries.places_remaining()`, the same count `create_pending_purchase()` takes
+ * a place against: paid, plus a pending hold that has not lapsed. Never a second count kept
+ * here — `fetchPlacesRemaining`'s own header says why.
+ *
+ * **Always `anon`**, like the endpoint the enhancement script calls: the count is the same for
+ * every viewer, so there is nothing to gain from a session.
+ *
+ * **Every failure answers `false`, and that is the failure direction rather than a shrug.**
+ * Wrongly saying "full" turns a real runner away from a race they could have entered. Wrongly
+ * saying "not full" leaves a form up that the database will refuse with `sold_out`, which
+ * costs somebody their typing and costs nobody a place or a penny.
+ */
+async function isFull(env: NnEntryEnv, slug: string): Promise<boolean> {
+  try {
+    const result = await fetchPlacesRemaining(
+      createAnonClient({
+        url: env.PUBLIC_SUPABASE_URL,
+        anonKey: env.PUBLIC_SUPABASE_ANON_KEY,
+      }),
+      slug,
+    );
+
+    if (!result.ok) {
+      console.error(`entries.places_remaining unavailable — ${result.error}`);
+      return false;
+    }
+
+    return result.value.remaining === 0;
+  } catch (cause) {
+    console.error(
+      `entries.places_remaining threw — ${cause instanceof Error ? cause.name : 'unknown'}`,
+    );
+    return false;
+  }
+}
+
+/**
+ * The year page's view once it has asked whether the field is full — **the GET page only**.
+ *
+ * `resolveNnEntryView()` answers "is the window open", which is what the entry POST needs and
+ * all it needs. The page somebody is about to fill in needs a second question answered first:
+ * **is there anything left to enter for?** Until 27 October 2026 nothing asked it, so a race
+ * with no places left kept serving a twenty-field form, a filled "Enter the race" button and a
+ * counter reading "0 places left" — and told whoever filled it in that _"the last place went
+ * while this form was open"_, which was false for everybody who arrived after it had gone.
+ * ADR-070.
+ *
+ * **Not part of `resolveNnEntryView()`, deliberately.** That function also re-paints the form
+ * under the POST's sold-out notice, and asking about capacity there would hide the form — and
+ * every value somebody typed — on exactly the submission the notice promises to keep them for.
+ *
+ * **Decided per request, so a place that comes back reappears by itself.** A hold that lapses
+ * after thirty-one minutes, or an entry a volunteer cancels, makes the count one again, and the
+ * next person to load the page gets the form. Nothing here is a switch somebody has to flip.
+ *
+ * `race` is the masthead's view of the current running, already resolved for the navigation
+ * on this same request. When it is the same running, its answer is reused rather than read a
+ * second time, so the button and the page cannot disagree. Any other running — a tester on a
+ * `pre_open` window, a past year — is asked directly.
+ */
+export async function checkNnEntryCapacity(
+  env: NnEntryEnv,
+  view: NnEntryView,
+  race: NnRaceView | null = null,
+): Promise<NnEntryView> {
+  if (view.show !== 'entry') {
+    return view;
+  }
+
+  const running = race?.running ?? null;
+  const sameRunning =
+    running !== null &&
+    running.state === 'open' &&
+    running.yearPath === nnYearPathForEventSlug(view.state.slug);
+
+  const full = sameRunning ? running.full === true : await isFull(env, view.state.slug);
+
+  return full ? { show: 'closed', window: 'full', fees: view.state.fees } : view;
+}
+
+/**
  * What `/nn/` shows, which is a different question with a different failure.
  *
  * The race page has no form to reveal when entries are open — the form is on the year page —
@@ -473,6 +566,18 @@ export interface NnRunning {
   startTime: string;
   /** Dearest first, as `entry_state()` orders them. The panel's fee line, once open. */
   fees: EntryFee[];
+  /**
+   * True when `state` is `open` and every place is taken — ADR-070.
+   *
+   * **Asked only while the window is open**, so the extra read costs nothing for the eleven
+   * months a year it could not change the answer. Any failure to read the count leaves it
+   * false, for `isFull()`'s reason.
+   *
+   * **Optional, and absent means the same as `false`**: a view built without asking — a
+   * fabricated one in a test, or one from a branch written before this existed — renders as
+   * the open race it was before, which is the direction a failure takes anyway.
+   */
+  full?: boolean;
   /**
    * Runnings of this race that have already happened.
    *
@@ -522,6 +627,11 @@ export async function resolveNnRaceView(env: NnEntryEnv): Promise<NnRaceView> {
       date: formatEventDate(view.state.eventDate),
       startTime: formatEventStartTime(view.state.startTime),
       fees: view.state.fees,
+      // **Every campaign page pays for this read while entries are open**, because the bar's
+      // button is on every one of them and "Enter the race" over a full field is the control
+      // this change exists to retire. Resolved once per request and reused by the year page's
+      // own form — see `checkNnEntryCapacity()`.
+      full: view.state.state === 'open' ? await isFull(env, view.state.slug) : false,
       previous: [],
     },
   };
@@ -1266,7 +1376,7 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
     return rewriter;
   }
 
-  const { year, yearPath, state, date, startTime, fees, previous } = view.running;
+  const { year, yearPath, state, date, startTime, fees, full, previous } = view.running;
 
   // **The panel is revealed in every window state, and its shape does not change between
   // them.** Somebody wants the date whether or not they can enter today, and a layout that
@@ -1285,6 +1395,22 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
       '[data-nn-panel-link="spectators"]',
       new AttributeHandler('href', `${yearPath}spectators/`),
     );
+
+  // **A full race is an open window with nothing in it to sell**, so it gets neither of the
+  // open state's two signals: no fee line for a place nobody can buy, and no filled "Enter the
+  // race" button pointing at a form the year page will not show. The outlined action every
+  // other state uses, and one sentence saying why — ADR-070.
+  //
+  // An early return rather than a third arm of the branch below, so the `open` and shut arms
+  // read exactly as they did and a change to either does not have to reason about this one.
+  if (full === true) {
+    rewriter
+      .on('[data-nn-panel-shut]', new HideHandler())
+      .on('[data-nn-panel-full]', new RevealHandler())
+      .on('[data-nn-panel-action]', new PanelActionHandler(yearPath, year, false));
+
+    return renderNnPreviousYears(rewriter, previous);
+  }
 
   if (state === 'open') {
     // **The difference in prominence is the message**: the action goes from an outline to the
@@ -1413,8 +1539,10 @@ export function renderNnNav(rewriter: HTMLRewriter, view: NnRaceView): HTMLRewri
     return rewriter;
   }
 
-  const { yearPath, state } = view.running;
-  const { long, short } = NAV_LABELS[state];
+  const { yearPath, state, full } = view.running;
+  // **A full race borrows the closed pair**, because the destination offers what a closed one
+  // does: no form, and a page that says why. ADR-070.
+  const { long, short } = NAV_LABELS[full === true ? 'closed' : state];
 
   return rewriter
     .on('[data-nn-nav-item="race-day"]', new RevealHandler())
@@ -1443,7 +1571,9 @@ export function renderNnNav(rewriter: HTMLRewriter, view: NnRaceView): HTMLRewri
  *
  * `pre_open` says "Register interest" because that is exactly what the destination offers —
  * the interest form is on the year page. `closed` promises neither, because neither is on
- * offer, and the page it goes to says entries have closed.
+ * offer, and the page it goes to says entries have closed. **A full race gets the `closed`
+ * pair too** (ADR-070): its window is open and its page offers no form either, and says the
+ * race is full instead.
  */
 const NAV_LABELS: Record<EntryWindowState, { long: string; short: string }> = {
   open: { long: 'Enter the race', short: 'Enter' },
@@ -1502,6 +1632,18 @@ export function renderNnEntryView(
       rewriter
         .on('[data-nn-interest]', new HideHandler())
         .on('[data-nn-closed]', new RevealHandler())
+        .on('[data-nn-cta]', new HideHandler())
+        .on('[data-nn-entries-open]', new HideHandler());
+    }
+
+    // **Full is the ended state's shape with a different sentence**, and it is the same page
+    // for the same reason: nothing on it can be entered, so nothing on it may look as though
+    // it could. The interest form goes too — it asks to be told when entries *open*, and they
+    // are open. ADR-070.
+    if (view.window === 'full') {
+      rewriter
+        .on('[data-nn-interest]', new HideHandler())
+        .on('[data-nn-full]', new RevealHandler())
         .on('[data-nn-cta]', new HideHandler())
         .on('[data-nn-entries-open]', new HideHandler());
     }

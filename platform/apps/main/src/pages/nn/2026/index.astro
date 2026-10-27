@@ -660,6 +660,42 @@ const dateLine = race.date
       </p>
     </div>
 
+    {
+      /* **The fourth state: the window is open and every place has gone.** ADR-070. Ships
+      hidden and is revealed only when `entries.places_remaining()` answers a clean zero, so a
+      count the Worker could not read leaves the form up rather than turning somebody away —
+      the database refuses the 251st entry whatever this page shows.
+
+      **Decided per request, so it undoes itself.** A hold that lapses or an entry a volunteer
+      cancels makes a place again, and the next person to load this page gets the form back.
+      The second paragraph says so because it is true, and because it is the honest answer to
+      "is it worth checking again" without promising anybody anything.
+
+      **The email sentence is the sold-out notice's own**, word for word — the club already
+      offers that address for exactly this, on the form somebody meets when the last place goes
+      under them, and two wordings of one offer would be two offers. Functional wording, like
+      the notice above it; if the race director wants her own words it is a one-line edit here.
+
+      No call to action, for the closed state's reason: every `[data-nn-cta]` is hidden in this
+      state too. */
+    }
+    <div class="notice nn-card" data-nn-full hidden>
+      <h2>The race is full</h2>
+
+      <p>Every place in the {race.name} 2026 has been taken.</p>
+
+      <p>
+        If a place comes back before entries close, the entry form will be back on this
+        page. If you would like to be told about a place if one comes back, email{' '}
+        <a href={`mailto:${race.contact}`}>{race.contact}</a>.
+      </p>
+
+      <p>
+        If you already have a place,{' '}
+        <a href="/nn/2026/race-day/">the race instructions</a> have everything for the day.
+      </p>
+    </div>
+
     <div data-nn-interest>
       <h2 id="register">Register your interest</h2>
 
@@ -1028,9 +1064,15 @@ const dateLine = race.date
   // The body class is gated on the width the bar is actually shown at. Above it the bar is
   // `display: none`, so an element that never intersects would otherwise leave the page
   // reserving space at the bottom for a control nobody can see.
-  const inlineCtas = Array.from(document.querySelectorAll('[data-nn-cta]')).filter(
-    (el) => !bar?.contains(el),
-  );
+  //
+  // ⚠️ **A call to action the Worker hid is not one that is "not on screen".** In the ended and
+  // full states every `[data-nn-cta]` is `hidden`, the bar's own included — and a hidden element
+  // never intersects, so counting them left `onScreen` empty for ever and raised the bar on a
+  // phone holding a price and no button: an offer on a page that has nothing to sell. With them
+  // left out there is no inline CTA to stand in for, and the bar stays down. ADR-070.
+  const inlineCtas = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-nn-cta]'),
+  ).filter((el) => !bar?.contains(el) && !el.hidden);
 
   if (bar && barLink && inlineCtas.length > 0) {
     const narrow = window.matchMedia('(max-width: 860px)');

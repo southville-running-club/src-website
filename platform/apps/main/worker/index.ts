@@ -78,6 +78,7 @@ import {
   type NnSignupOutcome,
 } from './nn-signup';
 import {
+  checkNnEntryCapacity,
   nnFormKind,
   processNnEntry,
   renderNnEntryClosed,
@@ -600,7 +601,18 @@ export default {
       const { viewer, setCookies } = await nnViewerFor(request, env, url);
       refreshedCookies = setCookies;
 
-      renderNnEntryView(rewriter, await resolveNnEntryView(env, yearSlug, viewer));
+      // **And whether there is anything left to enter for**, which only this GET asks — the
+      // POST's re-render deliberately does not, so a submission that loses the last place
+      // keeps its form and its typing under the sold-out notice. `race` is passed so the bar's
+      // button and this page read one count rather than two. ADR-070.
+      renderNnEntryView(
+        rewriter,
+        await checkNnEntryCapacity(
+          env,
+          await resolveNnEntryView(env, yearSlug, viewer),
+          race,
+        ),
+      );
 
       // The other half of POST/Redirect/GET: the 303 lands back here as an ordinary GET, and
       // `?signup=ok` is what tells this pass to reveal the acknowledgement.
