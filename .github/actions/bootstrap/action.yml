@@ -33,6 +33,14 @@ runs:
       working-directory: platform
       run: npm ci
 
+    # **The images, from the cache `ci-cache.yml` fills on `main`**, so a run need not pull
+    # them from ghcr.io at all. Only restored here; `start-supabase.sh` loads them. On a miss
+    # nothing changes and the start pulls them as before. See `.github/actions/supabase-images`.
+    - name: Supabase images
+      uses: ./.github/actions/supabase-images
+      with:
+        mode: restore
+
     - name: Start the local Supabase stack
       shell: bash
       working-directory: platform/packages/db
@@ -50,11 +58,20 @@ runs:
         # under test is involved, and the Acceptance step's retry cannot help — this fails
         # before a single test runs.
         #
-        # **GitHub's own registry publishes the same images at the same tags and does not
-        # rate limit public pulls.** All twelve were checked by manifest before this was
-        # relied on. It needs no credential, which is the property worth having: a fix that
-        # depends on a secret is one that silently stops working the day the secret is
-        # rotated, and there is no secret here to rotate.
+        # **GitHub's own registry publishes the same images at the same tags.** All twelve
+        # were checked by manifest before this was relied on. It needs no credential, which is
+        # the property worth having: a fix that depends on a secret is one that silently stops
+        # working the day the secret is rotated, and there is no secret here to rotate.
+        #
+        # ⚠️ **"And it does not rate limit public pulls" is what this said, and it is not
+        # true.** On 27 October 2026 three runs in a row on #376 (40562229441, 40564016729,
+        # 40580160551) failed every database job here with `toomanyrequests: … allowed:
+        # 44000/minute` from ghcr.io. So `start-supabase.sh` now pulls only the services the
+        # suites use, and tries again after a wait when the registry says no. The list and the
+        # evidence for each exclusion are in that file. **Neither was enough on its own**: the
+        # first run of that change was refused on all three attempts in all five jobs. So the
+        # images now come from the Actions cache, which `ci-cache.yml` fills on `main`, and
+        # the registry is only the fallback.
         #
         # Being an env var rather than a flag is the CLI's own interface for this, and it
         # travels to every `supabase` invocation in this step without changing the command.
@@ -69,9 +86,11 @@ runs:
       # still holding the step's stdout makes the runner hang at the end of the job. The
       # exit status is written to a file because each `run:` is its own shell, so the
       # waiting step cannot `wait` on a process it did not start.
+      #
+      # The start itself, with its exclusions and its retry, is `start-supabase.sh` beside
+      # this file. It writes the same two files this step always did.
       run: |
-        nohup bash -c 'npx supabase start > /tmp/supabase-start.log 2>&1; echo $? > /tmp/supabase-start.rc' \
-          > /dev/null 2>&1 < /dev/null &
+        nohup bash "$GITHUB_ACTION_PATH/start-supabase.sh" > /dev/null 2>&1 < /dev/null &
         echo "supabase start launched in the background"
 
     - name: Build
@@ -96,14 +115,18 @@ runs:
       # The other half of the launch above. Polls for the status file rather than for a
       # port, so a stack that fails to come up is reported as a failure here with its own
       # log rather than as a confusing timeout in whatever runs next.
+      #
+      # **Eight minutes rather than five**, because `start-supabase.sh` may wait 30s and then
+      # 60s between attempts on a rate limit, on top of three starts. It still fits inside
+      # the shortest job that uses this action, `verify` at twenty minutes.
       run: |
-        for _ in $(seq 1 300); do
+        for _ in $(seq 1 480); do
           [ -f /tmp/supabase-start.rc ] && break
           sleep 1
         done
 
         if [ ! -f /tmp/supabase-start.rc ]; then
-          echo "::error::supabase start did not finish within five minutes" >&2
+          echo "::error::supabase start did not finish within eight minutes" >&2
           cat /tmp/supabase-start.log || true
           exit 1
         fi
