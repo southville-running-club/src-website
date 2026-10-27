@@ -20,6 +20,12 @@ name: CI caches
 #   the image version, so this keeps an entry for the current image. A cache nobody reads for
 #   seven days is evicted, and this is also what reads it.
 # - **On demand** (`workflow_dispatch`), to warm the caches by hand.
+#
+# **It fills the Supabase image cache too, since 27 October 2026**, as a second job, through
+# `.github/actions/supabase-images`. ghcr.io refused every database job's image pulls on four
+# CI runs that day, and a cache hit pulls nothing. On a push to `main` that changes none of
+# the key's parts, its restore hits exactly and the job does nothing else. It is the only
+# writer of that cache, for the reason the action gives.
 
 on:
   push:
@@ -63,3 +69,62 @@ jobs:
 
       - name: Browsers
         uses: ./.github/actions/browsers
+
+  supabase-images:
+    name: Fill the Supabase image cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The same three values `ci.yml` gives every job that starts Supabase, for the same reason:
+    # the CLI validates the two `env()` substitutions in `config.toml` at `supabase start`, and
+    # the registry decides the images' names, which have to match the ones CI asks for. Public
+    # test values, not secrets. See `ci.yml`'s `verify` job for each one's history.
+    env:
+      SUPABASE_AUTH_CAPTCHA_SECRET: '1x0000000000000000000000000000000AA'
+      SUPABASE_AUTH_SMTP_PASSWORD: 'local-development-only-not-a-real-key'
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Supabase images
+        id: images
+        uses: ./.github/actions/supabase-images
+        with:
+          mode: restore
+
+      # Everything below runs only when there is no entry for this exact key: a new CLI
+      # version, a new Postgres major version, or a change to the exclusions.
+      - uses: actions/setup-node@v5
+        if: steps.images.outputs.cache-hit != 'true'
+        with:
+          node-version-file: platform/.nvmrc
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+
+      - name: Install dependencies
+        if: steps.images.outputs.cache-hit != 'true'
+        working-directory: platform
+        run: npm ci
+
+      # **The same script CI uses**, so the stack whose images are saved is the stack CI
+      # starts. It loads whatever the partial restore above found and pulls the rest, with its
+      # own retry on a rate limit.
+      - name: Start the Supabase stack
+        if: steps.images.outputs.cache-hit != 'true'
+        working-directory: platform/packages/db
+        run: |
+          bash "$GITHUB_WORKSPACE/.github/actions/bootstrap/start-supabase.sh"
+          cat /tmp/supabase-start.log
+          exit "$(cat /tmp/supabase-start.rc)"
+
+      - name: Save the Supabase images
+        if: steps.images.outputs.cache-hit != 'true'
+        uses: ./.github/actions/supabase-images
+        with:
+          mode: save
+
+      - name: Stop the Supabase stack
+        if: always() && steps.images.outputs.cache-hit != 'true'
+        working-directory: platform/packages/db
+        run: npx supabase stop --no-backup || true
