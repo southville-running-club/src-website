@@ -48,6 +48,20 @@ ATTEMPT_LOG=/tmp/supabase-start.attempt.log
 : > "$LOG"
 rc=1
 
+# **The images, from the Actions cache, when `.github/actions/supabase-images` restored them.**
+# Loaded here rather than in a step of its own, so the minute it takes runs in the background
+# with the build, as the start always has. `supabase start` pulls only an image Docker does
+# not already have, so a full cache means no pulls at all and a partial one means fewer. A
+# failed load is not fatal: the start below pulls whatever is missing, which is exactly what
+# it did before the cache existed.
+IMAGES=/tmp/supabase-images/images.tar
+if [ -f "$IMAGES" ]; then
+  echo "=== loading the cached Supabase images" >> "$LOG"
+  docker load -i "$IMAGES" >> "$LOG" 2>&1 || echo "=== the cached images did not load; pulling instead" >> "$LOG"
+  # Three gigabytes the runner's disk needs back before the build and the browsers.
+  rm -f "$IMAGES"
+fi
+
 for attempt in 1 2 3; do
   echo "=== supabase start, attempt $attempt (excluding $EXCLUDE)" >> "$LOG"
 

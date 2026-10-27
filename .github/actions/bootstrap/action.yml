@@ -33,6 +33,14 @@ runs:
       working-directory: platform
       run: npm ci
 
+    # **The images, from the cache `ci-cache.yml` fills on `main`**, so a run need not pull
+    # them from ghcr.io at all. Only restored here; `start-supabase.sh` loads them. On a miss
+    # nothing changes and the start pulls them as before. See `.github/actions/supabase-images`.
+    - name: Supabase images
+      uses: ./.github/actions/supabase-images
+      with:
+        mode: restore
+
     - name: Start the local Supabase stack
       shell: bash
       working-directory: platform/packages/db
@@ -60,7 +68,10 @@ runs:
         # 40580160551) failed every database job here with `toomanyrequests: … allowed:
         # 44000/minute` from ghcr.io. So `start-supabase.sh` now pulls only the services the
         # suites use, and tries again after a wait when the registry says no. The list and the
-        # evidence for each exclusion are in that file.
+        # evidence for each exclusion are in that file. **Neither was enough on its own**: the
+        # first run of that change was refused on all three attempts in all five jobs. So the
+        # images now come from the Actions cache, which `ci-cache.yml` fills on `main`, and
+        # the registry is only the fallback.
         #
         # Being an env var rather than a flag is the CLI's own interface for this, and it
         # travels to every `supabase` invocation in this step without changing the command.

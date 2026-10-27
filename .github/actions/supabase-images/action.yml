@@ -1,0 +1,109 @@
+name: Supabase images
+description: >-
+  The Docker images the local Supabase stack runs on: restored from the Actions cache before
+  `supabase start`, or saved to it from a running stack. `bootstrap` restores; `ci-cache.yml`
+  fills the cache from `main` so that every pull request can restore it.
+
+# **Why the images are cached at all.** On 27 October 2026 ghcr.io refused the image pulls of
+# every database job on four runs in a row (`toomanyrequests … allowed: 44000/minute`). That
+# included #377's own run, which already pulled only six images and retried three times over
+# ninety seconds. The limit belongs to the runners' shared address, not to this repository, so
+# no amount of pulling less or waiting longer inside a job makes it ours to control. A cache
+# hit pulls nothing.
+#
+# ⚠️ **One definition, because the key has to match exactly**, for the reason
+# `.github/actions/browsers` gives: `ci-cache.yml` saves under `main` and a pull request
+# restores what it saved. A key that differed by a character would mean every pull request
+# misses, silently, and goes back to the registry.
+#
+# **What the key is made of, and why each part**:
+#   - the Supabase CLI version from the lockfile, because each CLI release pins its own image
+#     tags;
+#   - `[db] major_version` from `config.toml`, because it chooses the Postgres image;
+#   - a hash of `EXCLUDE=` in `bootstrap/start-supabase.sh`, because it decides which images
+#     the stack needs at all.
+# A change to any of these makes a new entry. `restore-keys` falls back to the newest entry for
+# the same CLI version, so most images still come from the cache and `supabase start` pulls
+# only the rest.
+#
+# ⚠️ **The images are named for ghcr.io**, because both callers set
+# `SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io`. If that ever changes, the cached images load
+# under names the CLI no longer asks for, and it pulls everything, so change the `v1` below
+# with it.
+#
+# **CI only restores, never saves.** A pull request's cache belongs to that pull request
+# alone, and this is about a gigabyte compressed, so a copy per pull request would spend the
+# repository's 10 GB allowance on duplicates. `ci-cache.yml` is the only writer.
+
+inputs:
+  mode:
+    description: '`restore` before `supabase start`, or `save` while the stack is running.'
+    required: true
+
+outputs:
+  cache-hit:
+    description: '`true` when `restore` found an entry for exactly this key.'
+    value: ${{ steps.restore.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Work out the image cache key
+      id: key
+      shell: bash
+      run: |
+        cli=$(jq -r '.packages["node_modules/supabase"].version' platform/package-lock.json)
+        pg=$(sed -n 's/^major_version *= *//p' platform/packages/db/supabase/config.toml)
+        excluded=$(sed -n 's/^EXCLUDE=//p' .github/actions/bootstrap/start-supabase.sh | sha256sum | cut -c1-12)
+        prefix="supabase-images-v1-${RUNNER_OS}-${RUNNER_ARCH}-cli${cli}-"
+        echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
+        echo "key=${prefix}pg${pg}-x${excluded}" >> "$GITHUB_OUTPUT"
+        echo "Supabase image cache key: ${prefix}pg${pg}-x${excluded}"
+
+    # Restored to `/tmp/supabase-images/images.tar`, which `start-supabase.sh` loads into
+    # Docker and then deletes, in the background, so the load overlaps the build.
+    - name: Restore the Supabase images
+      id: restore
+      if: inputs.mode == 'restore'
+      uses: actions/cache/restore@v4
+      with:
+        path: /tmp/supabase-images
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: |
+          ${{ steps.key.outputs.prefix }}
+
+    # **Saved only when this exact key has no entry**, so a push to `main` that changes none
+    # of the key's parts writes nothing.
+    - name: Check whether this key is already cached
+      id: exists
+      if: inputs.mode == 'save'
+      uses: actions/cache/restore@v4
+      with:
+        path: /tmp/supabase-images
+        key: ${{ steps.key.outputs.key }}
+        lookup-only: true
+
+    # **The images of the containers that are running**, not a list written here, so the
+    # cache holds exactly what `start-supabase.sh` started and cannot drift from its
+    # exclusions.
+    - name: Export the running stack's images
+      if: inputs.mode == 'save' && steps.exists.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p /tmp/supabase-images
+        images=$(docker ps --filter 'name=^supabase_' --format '{{.Image}}' | sort -u)
+        if [ -z "$images" ]; then
+          echo "::error::No Supabase containers are running, so there is nothing to cache" >&2
+          exit 1
+        fi
+        echo "$images"
+        # shellcheck disable=SC2086 # one argument per image, on purpose
+        docker save $images -o /tmp/supabase-images/images.tar
+        ls -lh /tmp/supabase-images/images.tar
+
+    - name: Save the Supabase images
+      if: inputs.mode == 'save' && steps.exists.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: /tmp/supabase-images
+        key: ${{ steps.key.outputs.key }}
