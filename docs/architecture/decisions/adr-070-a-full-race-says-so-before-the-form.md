@@ -1,8 +1,8 @@
 # ADR-070: A full race says so in place of the entry form
 
-**Status:** Proposed — built on a branch on 27 October 2026, inside the race-week change
-freeze, and held there until a maintainer decides whether it merges as a freeze exception or
-after the race
+**Status:** Accepted on 27 October 2026, as a **race-week change freeze exception** taken by a
+maintainer (Bindal), three days before entries close. Built on a branch inside the freeze and
+held there for that decision. The exception covers this change alone.
 **Date:** 27 October 2026
 
 ## Context

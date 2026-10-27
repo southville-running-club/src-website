@@ -1647,7 +1647,7 @@ offer to take money, so every failure lands on the state that asks for an email 
 
 ⚠️ **A full race is a fourth state, and the window being open no longer means the form is
 shown** — [ADR-070](docs/architecture/decisions/adr-070-a-full-race-says-so-before-the-form.md),
-_proposed_, 27 October 2026. 2026 sold its 250th place three days before the close, and the
+accepted on 27 October 2026 as a freeze exception. 2026 sold its 250th place three days before the close, and the
 page went on serving the form, three "Enter the race" buttons and "0 places left", then told
 whoever filled it in that the place went _while_ they typed. `checkNnEntryCapacity()` asks
 `entries.places_remaining()` on the **GET only** and answers `window: 'full'` on a clean zero:
