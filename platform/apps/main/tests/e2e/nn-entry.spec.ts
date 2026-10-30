@@ -1743,16 +1743,26 @@ test.describe('what JavaScript adds @requires-js', () => {
 // Sold out
 // -----------------------------------------------------------------------------------------
 
-test.describe('when the race is full', () => {
+test.describe('when the race fills while the form is open', () => {
   // **The case where losing somebody's typing hurts most.** They have filled in fourteen
   // fields and are being told the race went while they were doing it; handing them an empty
   // form afterwards is what turns a disappointment into a grievance, and it is the one moment
   // somebody might want to write and ask about a waiting list.
+  //
+  // ⚠️ **Each test sells the race out *after* loading the page**, and that order is the
+  // subject rather than set-up. Since ADR-070 a race that is already full serves "The race is
+  // full" in place of the form, so a page loaded after `sellOut()` has nothing to fill in —
+  // that state is the describe below this one. These tests are the other moment: the last
+  // place going between the page loading and the button being pressed.
 
   test.beforeAll(async () => {
     await restoreCapacity();
     await openEntries();
-    await sellOut();
+  });
+
+  test.afterEach(async () => {
+    // Every test sells out on its own, so every test is put back: 250 places, no purchases.
+    await restoreCapacity();
   });
 
   test.afterAll(async () => {
@@ -1764,6 +1774,7 @@ test.describe('when the race is full', () => {
 
   test('says so plainly, and keeps every value that was typed', async ({ page }) => {
     await page.goto(YEAR);
+    await sellOut();
 
     await fillEntry(page, { email: 'e2e-soldout@example.com' });
     await entry(page)
@@ -1817,6 +1828,8 @@ test.describe('when the race is full', () => {
     // rather than one that is later regretted. Asserted on the response itself rather than by
     // watching for a navigation that does not happen, which is the difference between proving
     // something and waiting for it.
+    await sellOut();
+
     const response = await postEntry(page, {
       firstName: 'Grace',
       lastName: 'Hopper',
@@ -1841,6 +1854,7 @@ test.describe('when the race is full', () => {
   test('is operable at 320px', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
     await page.goto(YEAR);
+    await sellOut();
 
     await fillEntry(page, { email: 'e2e-soldout-320@example.com' });
     await entry(page)
@@ -1859,6 +1873,7 @@ test.describe('when the race is full', () => {
     // The state a page is in when something has gone wrong is the state least likely to have
     // been checked, and the one somebody is most likely to be struggling with.
     await page.goto(YEAR);
+    await sellOut();
 
     await fillEntry(page, { email: 'e2e-soldout-axe@example.com' });
     await entry(page)
@@ -1870,6 +1885,146 @@ test.describe('when the race is full', () => {
     const violations = await axeViolations(page);
 
     expect(violations).toEqual([]);
+  });
+});
+
+test.describe('when the race is already full', () => {
+  // **Everybody who arrives after the last place has gone** — ADR-070. Until 27 October 2026
+  // they were served the whole form, a filled "Enter the race" button and "0 places left", and
+  // found out only after filling in twenty fields, from a notice saying the place had gone
+  // _while_ they typed. The page says the race is full in place of the form now, decided per
+  // request, so a place that comes back brings the form back by itself.
+
+  test.beforeAll(async () => {
+    await restoreCapacity();
+    await openEntries();
+    await sellOut();
+  });
+
+  test.afterAll(async () => {
+    await restoreCapacity();
+    await closeEntries();
+  });
+
+  test('says the race is full, and offers no form', async ({ page }) => {
+    await page.goto(YEAR);
+
+    const notice = page.locator('[data-nn-full]');
+    await expect(notice).toBeVisible();
+    await expect(
+      notice.getByRole('heading', { name: 'The race is full', level: 2 }),
+    ).toBeVisible();
+    await expect(notice.getByRole('link', { name: /@/ })).toHaveAttribute(
+      'href',
+      /^mailto:/,
+    );
+
+    // Neither form: the entry form has nothing to sell and the interest form asks to be told
+    // when entries open, which they are.
+    await expect(page.locator('[data-entry-form]')).toBeHidden();
+    await expect(page.locator('[data-nn-interest]')).toBeHidden();
+  });
+
+  test('says so on the entry card, which leads to the notice', async ({ page }) => {
+    // **The card is sticky**, so without this it rode beside every paragraph of the page
+    // holding a price and nothing else. It says the race is full where the button was, and
+    // its one link goes to the notice rather than repeating the email sentence in the rail.
+    await page.goto(YEAR);
+
+    const card = page.locator('[data-nn-card-full]');
+    await expect(card).toBeVisible();
+    await expect(card).toContainText('The race is full. Every place has been taken.');
+
+    await card.getByRole('link', { name: 'How to hear if one comes back' }).click();
+
+    await expect(page).toHaveURL(/#race-full$/);
+    await expect(
+      page.locator('[data-nn-full]').getByRole('heading', { name: 'The race is full' }),
+    ).toBeInViewport();
+  });
+
+  test('has no control left saying "Enter"', async ({ page }) => {
+    // **Matched against the accessibility tree**, so a hidden button is absent rather than
+    // merely invisible — which is the claim: nothing a person can reach says "Enter".
+    await page.goto(YEAR);
+
+    await expect(page.getByRole('link', { name: /Enter the race/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Continue to payment/ })).toHaveCount(
+      0,
+    );
+    // The bar's button borrows the closed state's label, because the page offers what a
+    // closed one does.
+    await expect(page.locator('[data-nn-nav-cta]')).toHaveAttribute(
+      'aria-label',
+      'Race details',
+    );
+  });
+
+  test('says so on the race page too, without the fee line', async ({ page }) => {
+    await page.goto('/nn/');
+
+    const panel = page.locator('[data-nn-panel]');
+    await expect(panel).toContainText('the race is full');
+    await expect(panel.getByRole('link', { name: 'The 2026 race' })).toBeVisible();
+    await expect(page.locator('[data-nn-panel-open]')).toBeHidden();
+    await expect(page.getByRole('link', { name: /Enter the race/ })).toHaveCount(0);
+  });
+
+  test('is operable at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(YEAR);
+
+    await expect(page.locator('[data-nn-full]')).toBeVisible();
+    // The notice puts the club's 47-character address on the page, which is the thing that
+    // overflowed at this width once before.
+    await expectNoSidewaysScroll(page, 'the race-is-full notice at 320px');
+  });
+
+  test('brings the form back when a place comes back', async ({ page }) => {
+    // **Decided per request, so nothing has to be switched back.** A lapsed hold or a
+    // cancelled entry makes a place again; the next load is the open page. Put back to full
+    // afterwards so the tests around this one keep their state whatever the order.
+    try {
+      await restoreCapacity();
+      await page.goto(YEAR);
+
+      await expect(page.locator('[data-entry-form]')).toBeVisible();
+      await expect(page.locator('[data-nn-full]')).toBeHidden();
+    } finally {
+      await sellOut();
+    }
+  });
+
+  test('does not raise the phone’s sticky bar with a price and no button @requires-js', async ({
+    page,
+  }) => {
+    // The bar stands in for an inline call to action that has scrolled away. Every one is
+    // hidden in this state, and a hidden element never intersects — so before ADR-070 the
+    // script read "none on screen" for ever and raised a bar quoting £18 and £20 on a page
+    // with nothing to sell. Scrolled to the foot, where it would show if it were going to.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto(YEAR);
+    await expect(page.locator('[data-nn-full]')).toBeVisible();
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    // Two frames: an IntersectionObserver reports after the next rendering, not at once.
+    await page.evaluate(
+      () =>
+        new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+    );
+
+    await expect(page.locator('[data-nn-entry-bar]')).not.toHaveAttribute(
+      'data-nn-bar-shown',
+      /.*/,
+    );
+    await expect(page.locator('body')).not.toHaveClass(/\bnn-has-bar\b/);
+  });
+
+  test('has zero axe violations @requires-js', async ({ page }) => {
+    await page.goto(YEAR);
+    await expect(page.locator('[data-nn-full]')).toBeVisible();
+
+    expect(await axeViolations(page)).toEqual([]);
   });
 });
 
