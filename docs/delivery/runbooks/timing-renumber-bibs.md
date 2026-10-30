@@ -424,7 +424,16 @@ $$;
 
 | Date | By | What the "Done." line said |
 | --- | --- | --- |
-| | | |
+| 30 October 2026, about 19:00 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, rather than pasted into the editor | 246 runners numbered 001 to 248, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 0 guide number(s) replaced. |
+
+**30 October 2026, what led up to it.** Assign bibs had numbered the field at 18:23 in its own
+order. At 18:50 the race was **Reset** from the Danger zone with nothing captured, which deleted
+all 246 entries and their numbers; that is what the Step 0 warning above is for. The field was
+imported again, and the script ran on an unnumbered field. **A Roster name correction made at
+18:24 was lost with the reset and had not been re-done**, so one runner held with a one-letter
+surname was numbered under that letter, as held. A read-only check afterwards found 248
+different three-digit numbers with no gaps, every guide one above their runner, the number
+order matching the surname order for all 246 runners, and nothing captured.
 
 ---
 
