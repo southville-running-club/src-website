@@ -341,7 +341,8 @@ swaps two neighbours.
 - **Before any number has gone anywhere, running it again is allowed**, and it puts a late
   entry into their alphabetical place: everybody after them moves up one. Step 0 still applies
   in full, and anything printed from the Roster since the previous run is reprinted. It was run
-  a second time on 30 October 2026 for one late entry — see the record below.
+  a second time on 30 October 2026 for one late entry, and a third to number the two guides
+  under their own surnames — see the record below.
 
 ---
 
@@ -430,6 +431,7 @@ $$;
 | --- | --- | --- |
 | 30 October 2026, about 19:00 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, rather than pasted into the editor | 246 runners numbered 001 to 248, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 0 guide number(s) replaced. |
 | 30 October 2026, 21:25 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, after a clean dry run | 247 runners numbered 001 to 249, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 2 guide number(s) replaced. |
+| 30 October 2026, 21:57 GMT | bindalshah, maintainer. The variant below, run through the Supabase connector by Claude Code on that go-ahead, after a clean dry run | 247 runners and 2 guides numbered 001 to 249, each under their own surname. 0 hand-typed runner number(s) cleared; 2 guide number(s) replaced. Guides now wear 084, 224. |
 
 **30 October 2026, what led up to it.** Assign bibs had numbered the field at 18:23 in its own
 order. At 18:50 the race was **Reset** from the Danger zone with nothing captured, which deleted
@@ -448,8 +450,48 @@ runners after them and one guide each moved up one. The connector does not show 
 dry run's, which the real run repeats after "Done."; the audit row agrees, `bibs_renumbered`
 at 21:25:22 with 247 numbered from 001 to 249. A read-only check afterwards found 249
 different numbers from 001 to 249 with no gaps, every guide one above their runner, the number
-order matching the surname order for all 247 runners, and nothing captured. **The undo now
-restores the 20:57 numbers**, not the first run's, because it reads the most recent audit row.
+order matching the surname order for all 247 runners, and nothing captured.
+
+**30 October 2026, the third run — a guide under their own surname.** Numbered straight after
+their runner, as this script and ADR-067 do, each of the two guides sat on the Roster under
+their own surname with a number from the runner's place: 041 under F and 061 under V. The
+maintainer chose exact name order over consecutive vests for each pair, **for 2026 only**:
+ADR-067 still decides what Assign bibs does, and the script above is unchanged. Nothing had
+been printed or sent since the second run. 184 of the 249 numbers moved, from 041 to 224; the
+guides took 084 and 224, and their runners 040 and 059. The variant is the script above with
+its numbering loop replaced by this one, which puts runners and guides into one list:
+
+```sql
+  for v_person in
+    select r.team_id, r.leg
+      from timing.runners r
+      join timing.teams t on t.id = r.team_id
+     where t.event_id = v_event.id
+       and ((r.leg = 1 and r.role = 'runner') or (r.leg = 2 and r.role = 'guide'))
+     order by lower(r.lastname) collate "en-GB-x-icu",
+              lower(r.firstname) collate "en-GB-x-icu",
+              r.id
+  loop
+    v_bib := timing.padded_bib(v_next, v_event.bib_pad_width);
+    if v_person.leg = 1 then
+      update timing.teams set team_number = v_bib where id = v_person.team_id;
+    else
+      update timing.teams set bib_leg2 = v_bib where id = v_person.team_id;
+    end if;
+    v_first := coalesce(v_first, v_bib);
+    v_last := v_bib;
+    v_next := v_next + 1;
+  end loop;
+```
+
+It also refused, before writing the audit row, if any entry was left without a team number or
+if any person's place in name order differed from their place in number order, and its audit
+row's `order` reads _"surname, then first name; a guide under their own surname"_. A read-only
+check afterwards found 249 different numbers from 001 to 249 with no gaps, name order and number
+order identical for all 249 people, `timing.effective_bib()` agreeing with every one, and
+nothing captured. **The undo now restores the 21:25 numbers**, because it reads the most recent
+audit row; running it twice does not reach further back, since the undo writes no
+`bibs_renumbered` row of its own.
 
 ---
 
