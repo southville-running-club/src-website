@@ -35,12 +35,20 @@ Whether Assign bibs should number by surname from 2027 is a decision for after t
 - [ ] **No race number has gone anywhere** — not printed beside a name, not packed into an
       envelope, not told to a runner. **If one has, stop**: renumbering then puts two runners
       on one vest.
+- [ ] **Nothing has been captured on the race — and this check comes before the import.** The
+      script refuses if anything has, because a capture keeps the runner it matched when their
+      number changes. ⚠️ **Do not press Reset unless something has been captured.** Reset in the
+      race's **Danger zone** deletes the captures **and the whole entry list with every number
+      on it**, not only a rehearsal's captures. It cost the 2026 field on 30 October 2026, when
+      nothing had been captured and the reset was not needed. The step 1 preview shows nobody
+      at all if the entry list is empty, which is the tell. If you do reset, import again
+      before going on.
 - [ ] **The field is final.** Cancel any tester entry, then press **Import from entries** on
       `/timing/events/nn-2026/registration/` (`timing-race-night.md` step 1.5). You do not need
       to press **Assign bibs** first: this numbers everybody, with a number or without one.
-- [ ] **Nothing has been captured on the race.** The script refuses if anything has, because a
-      capture keeps the runner it matched when their number changes. A rehearsal is cleared
-      from the **Danger zone** first.
+- [ ] **Any name corrected on the Roster since the last import is still corrected.** A Roster
+      **Edit** changes the timing app's copy only, so a reset and re-import brings back the name
+      as it was entered. Re-do the correction before numbering: the order is by name.
 - [ ] **Nobody else is on the Registration or Roster page.** The script locks the tables while
       it runs, which takes well under a second, but a number typed in a moment before it starts
       is replaced.
