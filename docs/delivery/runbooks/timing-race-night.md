@@ -235,6 +235,11 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
       is wearing is refused, and so is the runner's own
 - [ ] Re-run the import after any late transfer, cancellation or given place. It never touches
       a number somebody is already wearing
+- [ ] ⚠️ **Assign bibs does not number in surname order, or in entry order.** Within one
+      import its order is effectively random. To give the field its numbers in surname order,
+      so the vests at the desk are in the collection sheet's order, follow
+      [numbering the field in surname order](timing-renumber-bibs.md) — a one-off in the SQL
+      editor, and **only before any number has gone anywhere**
 
 ⚠️ **A visually impaired runner and their guide are one entry, and the guide is leg 2.** The
 guide is on the start line, wears **a race number of their own**
