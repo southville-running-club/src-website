@@ -338,6 +338,10 @@ swaps two neighbours.
 - **A transfer keeps the number and changes the name**, so that runner is out of place too.
 - **Neither needs anything doing.** The collection sheet sorted by name still finds them.
   Running this script again after numbers have been handed out is exactly what Step 0 forbids.
+- **Before any number has gone anywhere, running it again is allowed**, and it puts a late
+  entry into their alphabetical place: everybody after them moves up one. Step 0 still applies
+  in full, and anything printed from the Roster since the previous run is reprinted. It was run
+  a second time on 30 October 2026 for one late entry — see the record below.
 
 ---
 
@@ -425,6 +429,7 @@ $$;
 | Date | By | What the "Done." line said |
 | --- | --- | --- |
 | 30 October 2026, about 19:00 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, rather than pasted into the editor | 246 runners numbered 001 to 248, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 0 guide number(s) replaced. |
+| 30 October 2026, 21:25 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, after a clean dry run | 247 runners numbered 001 to 249, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 2 guide number(s) replaced. |
 
 **30 October 2026, what led up to it.** Assign bibs had numbered the field at 18:23 in its own
 order. At 18:50 the race was **Reset** from the Danger zone with nothing captured, which deleted
@@ -434,6 +439,17 @@ imported again, and the script ran on an unnumbered field. **A Roster name corre
 surname was numbered under that letter, as held. A read-only check afterwards found 248
 different three-digit numbers with no gaps, every guide one above their runner, the number
 order matching the surname order for all 246 runners, and nothing captured.
+
+**30 October 2026, the second run.** One runner entered after the close, in a window reopened
+for that alone. **Import from entries** and **Assign bibs** at 20:57 gave that runner 249, the
+only number left, so 249 sat in the Roster between 040 and 042. Nothing had been printed or
+sent since the first run, so the script ran again: the late runner took 042, and the 206
+runners after them and one guide each moved up one. The connector does not show a `notice`, so the line above is the
+dry run's, which the real run repeats after "Done."; the audit row agrees, `bibs_renumbered`
+at 21:25:22 with 247 numbered from 001 to 249. A read-only check afterwards found 249
+different numbers from 001 to 249 with no gaps, every guide one above their runner, the number
+order matching the surname order for all 247 runners, and nothing captured. **The undo now
+restores the 20:57 numbers**, not the first run's, because it reads the most recent audit row.
 
 ---
 
