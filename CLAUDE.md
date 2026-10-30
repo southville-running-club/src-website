@@ -2487,6 +2487,18 @@ now is whether it holds up on a field of real phones, not whether it can be buil
 
 ### Sharp things already paid for here
 
+⚠️ **A guide shares a solo team with the runner they guide, and until 26 October 2026 that
+left the runner with no category on the preview, the live board and both exports.**
+`resultCategoryLabel()` required exactly one runner on a solo team and its comment said two
+"is not a shape the import can produce" — ADR-022 and ADR-061 made it the ordinary shape of a
+visually impaired entry, and nothing noticed because every test modelled the guide as a team of
+their own. The public page and the prizes were right throughout, one by reading the leg-1
+runner and the other by filtering guides in `soloRunner()`. The resolver sets guides aside the
+way `soloRunner()` does now, and `runnerNames()` in `result-export.ts` leaves a guide off the
+row for the same reason the published page withholds `role`: two names on one line say "ran
+with a guide" about a named person. `timing-result-category.test.ts` and
+`timing-result-export.test.ts` carry the real shape.
+
 ⚠️ **A `.screens.ts` file runs in no gate, so a page change can break one and nobody hears.**
 `playwright.config.screenshots.ts` is deliberately outside `./dev test` and CI, so a screenshot
 run can never fail a pull request — which also means nothing runs it. `timing-race-night.screens.ts`
