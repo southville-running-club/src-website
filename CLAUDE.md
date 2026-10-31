@@ -2888,6 +2888,17 @@ links" in production is Mark's decision (brief §15), and it does nothing until 
 has installed three Worker secrets (runbook steps 14 to 16).
 [The race photos runbook](docs/delivery/runbooks/race-photos.md) is the procedure.
 
+⚠️ **The laptop tool reads the bibs with Claude Haiku 5.5 since 31 October 2026** —
+[ADR-071](docs/architecture/decisions/adr-071-claude-haiku-reads-the-bib-numbers.md); until
+then it had only a fake reader, and every photo came out "No bib seen". `[reader] model` in
+the work folder's `config.toml` names another model. Only the medium copy is sent, and the
+key is `ANTHROPIC_API_KEY` in the terminal and nowhere on disk. **A photo the model cannot
+read goes to a person, but anything the API refuses stops the run** with that photo unread,
+which reverses `tag.py`'s old never-stop rule: a photo already in the manifest is never read
+again, so a spent balance at photo 12 would otherwise have filed every later photo as "To
+check" for good. **Whose account pays is still open**: 2026 runs on Bindal's own credit, and
+the treasurer has not been asked.
+
 ⚠️ **The laptop's SQL file and the website share the same rows, and one bargain keeps them from
 fighting**: the file never touches a photo once `photo.checked_by` is set, nor a bib row once
 `photo_bib.decided_by` is set. **So the website marks rows and never deletes them.** A read a

@@ -1,4 +1,4 @@
-"""What the vision model may answer, and the fake reader that stands in for it.
+"""What the vision model may answer, the fake reader for rehearsing, and how a reader stops.
 
 The model is sent **the medium copy only**, with no metadata (ADR-059), and asked for the
 digits on any race bibs, with ``?`` for a digit it cannot read and a confidence for each.
@@ -13,10 +13,18 @@ comes back as a *problem* with no reads, and the photo goes to a person. It neve
 never crashes a run, and never guesses a bib out of a malformed answer. An empty list is a
 valid answer: the model saw no bib.
 
-Which provider reads for real is not chosen yet (brief §15), so the only reader is
-``FakeReader``. A real one will implement ``BibReader.read()`` and must send the provider
-``medium_jpeg`` and nothing else; ``fingerprint`` exists so the fake can answer per photo,
-and is an opaque hash in any case.
+Two readers implement ``BibReader.read()``: ``FakeReader`` below, which answers from a file
+so everything else can be rehearsed, and ``ClaudeReader`` in ``claude_reader.py``, which
+asks Claude (ADR-071). A real reader sends the provider ``medium_jpeg`` and nothing else;
+``fingerprint`` exists so the fake can answer per photo, and is an opaque hash in any case.
+
+A reader has two ways to fail, and they mean different things. Something about *this
+photo* — an answer that is not the shape above, a model that declined to read it — is a
+problem with the photo, and it goes to a person. Something about *the reader* — no key, no
+network, no credit, a model that does not exist — is not, and filing it against the photo
+would send every photo of the run to a person with no way back, because a photo already in
+the manifest is never read again. That is ``ReaderStopped``: the run stops, the photo it
+was reading is not recorded, and running ``tag`` again carries on from there.
 """
 
 from __future__ import annotations
@@ -35,9 +43,16 @@ BIB_TEXT = re.compile(r"[0-9?]{1,8}")
 NO_BIBS = '{"bibs": []}'
 
 
+class ReaderStopped(Exception):
+    """The reader cannot go on, for a reason that is not about the photo. The message is
+    worded for the person running the tool and never carries a key or a provider's own
+    error text, which can quote the request."""
+
+
 class BibReader(Protocol):
     def read(self, medium_jpeg: bytes, fingerprint: str) -> str:
-        """The model's raw answer for one photo."""
+        """The model's raw answer for one photo. Raises ``ReaderStopped`` when the reader
+        itself cannot go on; any other exception is a problem with this photo."""
 
 
 @dataclass(frozen=True)

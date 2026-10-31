@@ -12,3 +12,8 @@ Pillow==12.3.0
 # whatever came out this morning. Pinned 23 October 2026.
 boto3==1.43.110
 botocore==1.43.110
+
+# anthropic is the official SDK the Claude reader calls (ADR-071). Pinned 31 October 2026 at
+# 1.15.0, of 15 October: the newest release at least two weeks old. 2.0.0 was a new major
+# version ten days old, so it waits.
+anthropic==1.15.0
