@@ -368,9 +368,27 @@ screen is for working offline.</p>"""
     return layout("Check tags", body, event_slug=event_slug, current="/check/")
 
 
-def read_line(read) -> str:
+def gives_bib(read) -> bool:
+    """Whether this read puts a bib on the photo, and so whether "take it off" applies: a
+    confident read nobody has decided yet, or one a person or a burst settled.
+
+    A confident read is the one that matters. Claude's are tagged with no person seeing them
+    (ADR-071), and typing the right number beside a wrong one adds a bib rather than replacing
+    it, so the photo would go to both runners. Taking a read off rejects that read alone,
+    which also leaves the other runner in a photo with two of them where they are."""
+    if read["decision"] is None:
+        return read["outcome"] == Outcome.TAGGED
+    return read["decision"] in ("confirmed", "corrected", "burst")
+
+
+def read_bib(read) -> str:
+    return read["bib"] or read["text"]
+
+
+def read_line(read, action: str = "", no_bib: bool = False) -> str:
     if read["source"] == "person":
-        what = f"Bib {e(read['bib'])}, added by a person"
+        # The text, not the bib: taking a person's read off clears its bib.
+        what = f"Bib {e(read['text'])}, added by a person"
     else:
         confidence = f"{round(read['confidence'] * 100)}%" if read["confidence"] is not None else ""
         outcome = {
@@ -383,10 +401,10 @@ def read_line(read) -> str:
         "confirmed": f"confirmed as {read['bib']}",
         "corrected": f"corrected to {read['bib']}",
         "kept_part_read": "kept part read",
-        "rejected": "no bib visible",
+        "rejected": "no bib visible" if no_bib else "taken off",
         "burst": f"set to {read['bib']} from its burst",
     }.get(read["decision"])
-    return f"<li>{what}{f'. Decided: {e(decided)}' if decided else ''}</li>"
+    return f"<li>{what}{f'. Decided: {e(decided)}' if decided else ''}{action}</li>"
 
 
 def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] | None = None) -> str:
@@ -406,10 +424,26 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
         )
         problem = f'<p class="problem-inline">The reader\'s answer could not be used: {e(photo["reader_problem"])}.</p>{raw}'
 
-    reads = "".join(read_line(read) for read in view.reads) or "<li>No bibs read.</li>"
-
     if view.state == State.HIDDEN:
         return hidden_page(view, hidden_fields, taken, event_slug)
+
+    removable = [read for read in view.reads if gives_bib(read)]
+    only_one = len(removable) == 1
+
+    def take_off(read) -> str:
+        if not gives_bib(read):
+            return ""
+        key = ' data-key="X"' if only_one else ""
+        hint = " <kbd>X</kbd>" if only_one else ""
+        return (
+            f'<form method="post" class="take-off">{hidden_fields}'
+            f'<input type="hidden" name="read" value="{e(read["id"])}">'
+            f'<button type="submit" name="action" value="take_off" class="secondary"{key}>'
+            f"Not {e(read_bib(read))}: take it off{hint}</button></form>"
+        )
+
+    no_bib = bool(photo["no_bib_decided_at"])
+    reads = "".join(read_line(read, take_off(read), no_bib) for read in view.reads) or "<li>No bibs read.</li>"
 
     buttons = []
     if view.guess:
@@ -445,7 +479,8 @@ def check_page(view: CheckView, token: str, event_slug: str, errors: list[str] |
     keys = (
         "Keys: Enter confirms the guess. 1 to 9 pick a bib that fits. Typing digits goes "
         "into the box below. U keeps it part read, N says no bib is visible, S skips, H hides "
-        "the photo, or shows a hidden one again."
+        "the photo, or shows a hidden one again. X takes a wrong number off; then type the "
+        "right one, because typing it alone would keep the wrong one too."
     )
     body = f"""<h1>Check tags</h1>
 {filter_nav(view.counts, view.filter, view.folder)}

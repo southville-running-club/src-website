@@ -70,6 +70,13 @@ the screen to say why.
   The first real run is spot-checked on the review page before the rest, and if Haiku
   misreads too often, `model = "claude-sonnet-5-5"` is a one-line change. Photos already
   read stay read, so the check is done on a first folder rather than on the whole race.
+- **A wrong confident read is taken off, not typed over.** On the laptop's review page,
+  typing a number adds a bib beside whatever is there, which was harmless while nothing was
+  ever tagged without a person and is not now: typed over a wrong read, the photo goes to
+  both runners. So every number on a photo has a **Not 130: take it off** button (**X** when
+  there is only one), which rejects that read alone and leaves any other runner in the
+  photo alone. The next SQL file then deletes the bib row from the website, unless a checker
+  decided it there.
 - **The medium copies go to Anthropic**, which handles them under its commercial terms.
   This change does not review those terms.
 - **Still open: whose account.** For 2026 the key is on Bindal's own Anthropic account, paid

@@ -143,6 +143,11 @@ with no person seeing it, so a confident wrong one puts a photo on the wrong run
 Tag one photographer's folder, then look through the **All** filter on the review page at
 what it tagged. If it misreads too often, change `model` before tagging the others.
 
+**To fix a wrong number, take it off first.** Each number on a photo has a **Not 130: take
+it off** button beside it (**X** when there is only one). Press it, then type the right
+number. Typing the right number on its own adds it *beside* the wrong one, and the photo
+goes to both runners. Taking one off leaves any other runner in the photo where they are.
+
 If Anthropic refuses the key, the account has run out of credit, the model name is wrong
 or the laptop goes offline, `tag` **stops** and says which, with the photo it was on left
 unread. Fix it and run `tag` again: it carries on from that photo. A photo the model will
@@ -259,6 +264,7 @@ hour the clocks repeat or skip flags the camera; those photos go without a time.
 | N       | No bib visible                                          |
 | S       | Skips, deciding nothing                                 |
 | H       | Hides the photo, so it is never uploaded; on a hidden photo, shows it again |
+| X       | Takes a wrong number off, when the photo has one; then type the right one. With two or more, each has its own button |
 
 After a bib is confirmed, the page offers it to the rest of that photo's burst: photos the
 same camera took within two seconds of each other. The filters along the top narrow the

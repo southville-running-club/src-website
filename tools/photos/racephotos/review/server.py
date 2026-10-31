@@ -441,6 +441,14 @@ class Handler(BaseHTTPRequestHandler):
                     manifest.hide(photo["fingerprint"], when)
             elif action == "show":
                 manifest.show(photo["fingerprint"])
+            elif action == "take_off":
+                chosen = next(
+                    (read for read in reads if str(read["id"]) == form.get("read", "") and pages.gives_bib(read)),
+                    None,
+                )
+                if chosen is None:
+                    return self.error(short_id, filter_key, folder, "That number is no longer on this photo.")
+                manifest.decide_read(chosen["id"], "rejected", None, when)
             elif action == "apply_burst":
                 bib = form.get("bib", "")
                 if not BIB.fullmatch(bib) or bib not in bibs:
@@ -455,6 +463,9 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             manifest.close()
 
+        if action == "take_off":
+            # Stay on the photo: the next thing to do is type the number it really is.
+            return self.redirect(check_url(short_id, filter_key, folder))
         if action in ("confirm", "pick", "correct", "keep_part") and (still_open or offer):
             return self.redirect(check_url(short_id, filter_key, folder, offer=offer))
         self.redirect(f"/check/?{urlencode({'filter': filter_key, **({'folder': folder} if folder else {}), 'after': short_id})}")

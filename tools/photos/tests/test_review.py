@@ -12,6 +12,7 @@ from racephotos.cli import build_parser
 from racephotos.files import fingerprint
 from racephotos.manifest import Manifest, State
 from racephotos.review.server import HOST, make_server
+from racephotos.sqlfile import bib_rows
 from racephotos.tag import run_tag
 
 from . import fixtures
@@ -304,6 +305,79 @@ class CheckTest(ReviewCase):
         self.post(f"/check/{photo['short_id']}/", {"action": "correct", "bib": "130", "filter": "all"})
         (read,) = self.manifest().reads(photo["fingerprint"])
         self.assertEqual((read["decision"], read["bib"]), ("corrected", "130"))
+
+    def tagged(self, name, *bibs):
+        """A new photo the reader tagged with confidence, the way Claude does with no person
+        seeing it (ADR-071)."""
+        path = make_jpeg(self.config.originals / f"Ross/{name}", recorded="2026:11:01 11:40:00", serial="B")
+        run_tag(self.config, SpyReader({fingerprint(path): answer(*((bib, 0.97) for bib in bibs))}), 0.9,
+                say=lambda line: None)
+        photo = self.row(f"Ross/{name}")
+        self.assertEqual(self.manifest().state(photo["fingerprint"]), State.TAGGED)
+        return photo
+
+    def bibs_sent(self, photo):
+        return [(row.bib_text, row.confirmed, row.source) for row in bib_rows(self.manifest().reads(photo["fingerprint"]))]
+
+    def test_typing_beside_a_wrong_confident_read_keeps_both(self):
+        # Why "take it off" exists: typing adds a bib, it never replaces Claude's.
+        photo = self.tagged("g.jpg", "130")
+        self.post(f"/check/{photo['short_id']}/", {"action": "correct", "bib": "129", "filter": "all"})
+        self.assertEqual(self.bibs_sent(photo), [("129", True, "person"), ("130", True, "model")])
+
+    def test_a_wrong_confident_read_is_taken_off_then_the_right_bib_typed(self):
+        photo = self.tagged("g.jpg", "130")
+        _, page, _ = self.page("Ross/g.jpg")
+        (button,) = [b for b in page.buttons if b.get("value") == "take_off"]
+        self.assertEqual((button.get("data-key"), button["text"]), ("X", "Not 130: take it off X"))
+        (read,) = self.manifest().reads(photo["fingerprint"])
+
+        status, headers, _ = self.post(
+            f"/check/{photo['short_id']}/", {"action": "take_off", "read": str(read["id"]), "filter": "all"}
+        )
+        self.assertEqual(status, 303)
+        self.assertIn(f"/check/{photo['short_id']}/", headers["Location"], "it stays on the photo")
+        self.assertEqual(self.bibs_sent(photo), [])
+        _, page, html = self.page("Ross/g.jpg")
+        self.assertIn("Decided: taken off", html)
+        self.assertNotIn("take_off", [b.get("value") for b in page.buttons])
+
+        self.post(f"/check/{photo['short_id']}/", {"action": "correct", "bib": "129", "filter": "all"})
+        self.assertEqual(self.bibs_sent(photo), [("129", True, "person")])
+
+    def test_taking_one_runner_off_leaves_the_other(self):
+        photo = self.tagged("g.jpg", "120", "130")
+        _, page, _ = self.page("Ross/g.jpg")
+        buttons = [b for b in page.buttons if b.get("value") == "take_off"]
+        self.assertEqual(len(buttons), 2)
+        self.assertTrue(all(b.get("data-key") is None for b in buttons), "no single key when there are two")
+        wrong = next(r for r in self.manifest().reads(photo["fingerprint"]) if r["text"] == "130")
+
+        self.post(f"/check/{photo['short_id']}/", {"action": "take_off", "read": str(wrong["id"]), "filter": "all"})
+        self.assertEqual(self.bibs_sent(photo), [("120", True, "model")])
+
+    def test_a_typed_bib_can_be_taken_off_too(self):
+        photo = self.row("Ross/c.jpg")
+        self.post(f"/check/{photo['short_id']}/", {"action": "correct", "bib": "129", "filter": "nobib"})
+        (read,) = self.manifest().reads(photo["fingerprint"])
+        self.post(f"/check/{photo['short_id']}/", {"action": "take_off", "read": str(read["id"]), "filter": "all"})
+        self.assertEqual(self.bibs_sent(photo), [])
+        _, _, html = self.page("Ross/c.jpg")
+        self.assertIn("Bib 129, added by a person. Decided: taken off", html)
+
+    def test_take_off_refuses_a_read_that_gives_no_bib_or_is_another_photo_s(self):
+        part = self.row("Adrian/Finish/b.jpg")
+        (part_read,) = self.manifest().reads(part["fingerprint"])
+        other = self.tagged("g.jpg", "130")
+        for photo, read in ((part, part_read), (part, self.manifest().reads(other["fingerprint"])[0])):
+            with self.subTest(photo=photo["source"], read=read["text"]):
+                status, _, html = self.post(
+                    f"/check/{photo['short_id']}/", {"action": "take_off", "read": str(read["id"]), "filter": "all"}
+                )
+                self.assertEqual(status, 400)
+                self.assertIn(b"no longer on this photo", html)
+        self.assertEqual(self.bibs_sent(other), [("130", True, "model")])
+        self.assertIsNone(self.manifest().reads(part["fingerprint"])[0]["decision"])
 
     def test_n_says_no_bib_and_h_hides(self):
         nobib = self.row("Ross/c.jpg")
