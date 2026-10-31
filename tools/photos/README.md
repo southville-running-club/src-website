@@ -4,7 +4,7 @@
 clock, and makes the three stripped copies that are the only thing ever uploaded. It runs
 on one laptop, before anything leaves it.
 
-Why it works this way is in three decisions:
+Why it works this way is in four decisions:
 
 - [ADR-058](../../docs/architecture/decisions/adr-058-a-bib-number-is-the-only-link-to-a-runner.md):
   a bib number is the only link between a photo and a runner. No faces, ever.
@@ -12,19 +12,12 @@ Why it works this way is in three decisions:
   tagging happens on one laptop, and the work folder lives outside any repository.
 - [ADR-060](../../docs/architecture/decisions/adr-060-only-stripped-copies-leave-the-laptop.md):
   only stripped copies leave the laptop.
+- [ADR-071](../../docs/architecture/decisions/adr-071-claude-haiku-reads-the-bib-numbers.md):
+  Claude Haiku 5.5 reads the bib numbers, from the medium copy alone.
 
 The whole feature is planned in [the race photos brief](../../docs/delivery/nn-photos-brief.md).
-This is slices 1 and 2 of it.
-
-## What is not built yet
-
-- **The real vision reader.** It waits on the choice of provider. Until then the tool
-  reads bibs with a **fake reader** that answers from a file you write, so everything else
-  can be rehearsed.
-
-The real upload to R2 and the SQL file of every read are built (slice 2). The website's
-half, where the team checks unsure reads and runners see their photos, comes in slices 3 to
-5.
+This tool is slices 1 and 2 of it; the website's half, where the team checks the unsure
+reads and runners see their photos, is slices 3 to 5.
 
 ## Set it up once
 
@@ -45,9 +38,11 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-That installs Pillow and boto3, pinned in [requirements.txt](requirements.txt), into
-`tools/photos/.venv/`, which git ignores. Then, in every new terminal before using the
-tool:
+That installs Pillow, boto3 and the Anthropic SDK, pinned in
+[requirements.txt](requirements.txt), into `tools/photos/.venv/`, which git ignores. **Run
+that line again whenever `requirements.txt` changes**: a `.venv` made before the Claude
+reader arrived has no Anthropic SDK, and `photos tag` stops on its first import. Then, in
+every new terminal before using the tool:
 
 ```bash
 source .venv/bin/activate
@@ -116,10 +111,47 @@ A file with any other column is refused, not trimmed: names and email addresses 
 reach this tool. Export the bib column on its own. Bibs are kept as text, so `0311` and
 `311` stay different bibs.
 
+### The Claude reader
+
+`config.toml`'s `[reader]` section says who reads the bibs. `kind = "claude"`, which the
+example has, sends each photo's **medium copy and nothing else** to Claude through
+Anthropic's API, and asks for the race numbers and nothing about the people
+([ADR-071](../../docs/architecture/decisions/adr-071-claude-haiku-reads-the-bib-numbers.md)).
+The model is `claude-haiku-5-5`. To use another, add a line under `[reader]`:
+
+```toml
+model = "claude-sonnet-5-5"
+```
+
+A photo already read is never read again, so a change of model only applies to photos
+tagged after it.
+
+**It needs an Anthropic API key in `ANTHROPIC_API_KEY`, for the terminal that runs `tag`
+only**: never in `config.toml`, never in any file, and never in this repository. This reads
+it without showing it on screen or keeping it in your shell's history. Paste the key, then
+press Enter; nothing shows, and it lasts until the terminal is closed:
+
+```bash
+read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY
+```
+
+At Haiku 5.5's published prices it is roughly $0.30 per 1,000 photos, one photo at a time.
+The Claude Console's usage page shows what was actually spent.
+
+**Try it on one folder before the rest.** A confident read of a bib on the list is tagged
+with no person seeing it, so a confident wrong one puts a photo on the wrong runner's page.
+Tag one photographer's folder, then look through the **All** filter on the review page at
+what it tagged. If it misreads too often, change `model` before tagging the others.
+
+If Anthropic refuses the key, the account has run out of credit, the model name is wrong
+or the laptop goes offline, `tag` **stops** and says which, with the photo it was on left
+unread. Fix it and run `tag` again: it carries on from that photo. A photo the model will
+not read, or answers badly, goes to a person instead, and the run goes on.
+
 ### The fake reader
 
-Until the real reader exists, `config.toml`'s `[reader]` section can name a JSON file of
-answers: uncomment its `fake_reads` line. The file is keyed by each photo's path under
+To rehearse without sending anything or spending anything, set `kind = "fake"`. Its
+`fake_reads` line can name a JSON file of answers, keyed by each photo's path under
 `originals/`:
 
 ```json
@@ -132,19 +164,21 @@ answers: uncomment its `fake_reads` line. The file is keyed by each photo's path
 
 A photo with no entry reads as no bib seen. A string is passed on exactly as written, so a
 malformed answer can be rehearsed. The shape above, `{"bibs": [{"text", "confidence"}]}`,
-is the only answer the real model will be allowed to give; anything else sends the photo
-to a person.
+is the only answer Claude is allowed to give; anything else sends the photo to a person.
 
 ## On the night
 
 1. Copy each photographer's folder from Drive into `originals/`, and add a row to
    `photographers.csv` for it.
-2. `./photos tag`. Run it again whenever another folder arrives; it only reads what is new.
-3. `./photos review`, and fix every camera's clock.
-4. Optionally, check the unsure reads on the same page. The team's main checking happens on
+2. Set `ANTHROPIC_API_KEY` for this terminal, as "The Claude reader" above says.
+3. `./photos tag`, on one photographer's folder first, and look at what it tagged on the
+   review page before the rest. Run it again whenever another folder arrives; it only reads
+   what is new.
+4. `./photos review`, and fix every camera's clock.
+5. Optionally, check the unsure reads on the same page. The team's main checking happens on
    the website, together.
-5. `./photos upload --dry-run`, to see what will be sent.
-6. `./photos upload`, with a token the account holder made for it, then run the SQL parts
+6. `./photos upload --dry-run`, to see what will be sent.
+7. `./photos upload`, with a token the account holder made for it, then run the SQL parts
    in the Supabase SQL editor and revoke the token. [The race photos
    runbook](../../docs/delivery/runbooks/race-photos.md) has every step.
 
@@ -268,6 +302,11 @@ Every refusal says why, and none prints a value from `bibs.csv`. The usual ones:
   folder. Wait for the other to finish, then run it again; it carries on from there.
 - **"could not be used"**, about a port: another program has it. Use
   `./photos review --port 8766`.
+- **"ANTHROPIC_API_KEY is not set"**: Claude reads the bibs and needs a key in this
+  terminal. "The Claude reader" above says how; nothing was read.
+- **"Anthropic refused …"** or **"Anthropic could not be reached"**: the message says
+  which, and what to do. Every photo read before it is saved; run `tag` again and it
+  carries on. The key and the provider's own error text are never printed.
 
 ## The tests
 
@@ -284,7 +323,9 @@ cd tools/photos
 ```
 
 Standard library `unittest`. [requirements-dev.txt](requirements-dev.txt) adds moto, which
-stands in for R2 so that **no test ever touches the real bucket**. Every test photo is
+stands in for R2 so that **no test ever touches the real bucket**, and every Claude reader
+test hands the reader a stand-in client, so **no test ever calls Anthropic's API**, needs
+a key, or spends anything. Every test photo is
 synthetic, made by the test that uses it; **no real race photo is ever added to this
 repository**, and `.gitignore` refuses JPEGs, HEIC files, CSVs, manifests and configs
 anywhere under `tools/photos/`. CI runs these on every pull request, as **Race photos

@@ -26,7 +26,12 @@ EVENT_SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 SHORT_ID_PREFIX = re.compile(r"[A-Z0-9]{2,8}")
 
 TOP_LEVEL_KEYS = {"event_slug", "short_id_prefix", "originals", "photographers", "bibs", "reader", "r2"}
-READER_KEYS = {"kind", "fake_reads"}
+READER_KEYS = {"kind", "fake_reads", "model"}
+READER_KINDS = ("fake", "claude")
+# Claude Haiku 5.5 reads the bibs unless config.toml names another model (ADR-071). It lives
+# here rather than in claude_reader.py so that loading a config never imports the SDK.
+DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5"
+CLAUDE_MODEL = re.compile(r"claude-[a-z0-9]+(?:-[a-z0-9]+)*")
 R2_KEYS = {"account_id", "bucket", "access_key_id", "secret_access_key"}
 
 ACCOUNT_ID = re.compile(r"[0-9a-f]{32}")
@@ -63,6 +68,8 @@ class Config:
     reader_kind: str
     fake_reads: Path | None
     r2: R2Settings | None = None
+    reader_model: str | None = None
+    """The Claude model that reads the bibs, when ``reader_kind`` is ``claude``."""
 
     @property
     def manifest_path(self) -> Path:
@@ -137,12 +144,27 @@ def load_config(work: Path = DEFAULT_WORK) -> Config:
     unknown = set(reader) - READER_KEYS
     if unknown:
         raise ConfigError(f"{CONFIG_NAME} [reader] has settings this tool does not know: {', '.join(sorted(unknown))}.")
-    if reader.get("kind") != "fake":
+    kind = reader.get("kind")
+    if kind not in READER_KINDS:
         raise ConfigError(
-            f"{CONFIG_NAME}: [reader] kind must be \"fake\". The real vision reader is not "
-            "built yet; it waits on the choice of provider."
+            f"{CONFIG_NAME}: [reader] kind must be \"claude\", for Claude to read the bibs, or "
+            "\"fake\", to rehearse with answers from a file."
         )
-    fake_reads = _path(work, reader["fake_reads"], "fake_reads") if "fake_reads" in reader else None
+    if kind == "claude":
+        if "fake_reads" in reader:
+            raise ConfigError(f"{CONFIG_NAME}: [reader] fake_reads is for kind = \"fake\" only.")
+        model = reader.get("model", DEFAULT_CLAUDE_MODEL)
+        if not isinstance(model, str) or not CLAUDE_MODEL.fullmatch(model):
+            raise ConfigError(
+                f"{CONFIG_NAME}: [reader] model must be a Claude model name, such as "
+                f"{DEFAULT_CLAUDE_MODEL}, in quotes."
+            )
+        fake_reads = None
+    else:
+        if "model" in reader:
+            raise ConfigError(f"{CONFIG_NAME}: [reader] model is for kind = \"claude\" only.")
+        model = None
+        fake_reads = _path(work, reader["fake_reads"], "fake_reads") if "fake_reads" in reader else None
 
     originals = _path(work, raw.get("originals", "originals"), "originals")
     refuse_inside_repository(originals, "originals folder")
@@ -155,9 +177,10 @@ def load_config(work: Path = DEFAULT_WORK) -> Config:
         originals=originals,
         photographers_csv=_path(work, raw.get("photographers", "photographers.csv"), "photographers"),
         bibs_csv=_path(work, raw.get("bibs", "bibs.csv"), "bibs"),
-        reader_kind="fake",
+        reader_kind=kind,
         fake_reads=fake_reads,
         r2=r2,
+        reader_model=model,
     )
 
 
