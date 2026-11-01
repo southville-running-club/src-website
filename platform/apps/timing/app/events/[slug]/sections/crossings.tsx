@@ -35,16 +35,24 @@ import { anomalyOutcomeFor } from '../../../../lib/anomaly-outcomes';
  * argument in full; it is the reason this is a second function rather than an argument to the
  * first.
  *
- * ## ⚠️ The bib is editable here and the time is not, which is a scope boundary
+ * ## ⚠️ The time is editable since race day, and a crossing can be added
  *
- * `edit_crossing()` takes a `captured_at` and swaps on it, so the contract is complete — this
- * page simply carries the value through unchanged. **Editing a time from a form means a
- * `datetime-local` input, which is a wall clock with no zone**, and this race is run the
- * weekend the clocks go back: an hour of drift on the one value every result is derived from
- * is exactly the foot-gun `packages/shared/src/london-time.ts` exists to prevent and that
- * ESLint bans a bare `toLocale*String` over. Correcting a time is a real need — the
- * before-the-gun marker below is what surfaces it — and it wants a control designed for it
- * rather than one added in passing.
+ * [ADR-071](../../../../../../../docs/architecture/decisions/adr-071-a-crossing-can-be-added-and-retimed-from-the-log.md),
+ * 1 November 2026. **This section said the time was not editable, and why**: a `datetime-local`
+ * is a wall clock with no zone, on a race run the weekend the clocks go back. That reasoning
+ * stands and is what the control below is built around rather than against. The box takes a
+ * **time and nothing else**; the date is the race's, drawn into `race_date` from the London day
+ * its gun went; and `londonWallClockInstant()` in `london-time.ts` is the one conversion, which
+ * refuses the repeated and the skipped hour rather than guessing. `lib/typed-time.ts` carries
+ * the rest, including why a time nobody touched is posted back as the instant it already was.
+ *
+ * **A text box, not `type="time"`**, because the iPhone's time picker has no seconds and the
+ * marshals' paper does.
+ *
+ * The add form at the top is for a finish nobody captured — the marshals' paper, copied in
+ * afterwards. It posts a uuid drawn fresh into the page, so a double press adds once, and
+ * `timing.add_crossing()` refuses a bib nobody wears, a bib that already has a crossing, and a
+ * time before the gun or after now.
  *
  * ## Cards rather than a table
  *
@@ -86,17 +94,27 @@ function stateOf(crossing: LoggedCrossing): string {
   return 'Recorded';
 }
 
+/** The hint under every time box — the three ways a phone's keyboard can type one. */
+const TIME_HINT =
+  'London time, to the second — 11:47:32, or 114732 on a number pad. The date is the race’s.';
+
 export function CrossingsSection({
   slug,
   crossings,
   search,
   outcomeCode,
+  raceDate,
+  newCrossingId,
 }: {
   slug: string;
   crossings: LoggedCrossing[];
   search: string;
   /** `?outcome=`, from `crossings/update`'s redirect back to the log. */
   outcomeCode: string | undefined;
+  /** `YYYY-MM-DD`, the London day the race's gun went — what a typed time is a time *on*. */
+  raceDate: string;
+  /** Drawn fresh on every render, so a double press of **Add** adds once. */
+  newCrossingId: string;
 }) {
   const outcome = anomalyOutcomeFor(outcomeCode);
   // ⚠️ **The search rides on the action, and it did not before — this was a real bug.**
@@ -114,6 +132,59 @@ export function CrossingsSection({
       {outcome === null ? null : (
         <p className={`notice notice-${outcome.tone}`}>{outcome.message}</p>
       )}
+
+      {/* ADR-071. Always open rather than behind a link, because it is used in a run — one
+          finish after another, copied off the marshals' paper. ⚠️ **`log-add`, never
+          `triage-card`**: the log's tests count `.triage-card` to say how many captures a
+          search found, and this is not one. */}
+      <section className="log-add" aria-labelledby="log-add-title">
+        <h2 id="log-add-title">Add a crossing nobody captured</h2>
+        <p className="field-hint">
+          For a finish that is on the marshals&rsquo; paper and not below. If the bib is
+          already here, correct its time instead.
+        </p>
+        <form method="post" action={action} className="triage-form">
+          <input type="hidden" name="crossing_id" value={newCrossingId} />
+          <input type="hidden" name="race_date" value={raceDate} />
+          <div className="field">
+            <label className="field-label" htmlFor="log-add-bib">
+              Bib
+            </label>
+            <input
+              className="field-input"
+              id="log-add-bib"
+              name="bib"
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="field-label" htmlFor="log-add-time">
+              Time crossed
+            </label>
+            <p className="field-hint" id="log-add-time-hint">
+              {TIME_HINT}
+            </p>
+            <input
+              className="field-input"
+              id="log-add-time"
+              name="time"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              aria-describedby="log-add-time-hint"
+              required
+            />
+          </div>
+          <div className="triage-actions">
+            <button type="submit" name="intent" value="add" className="button">
+              Add this crossing
+            </button>
+          </div>
+        </form>
+      </section>
 
       {/* A GET form, so a searched view is a URL somebody can send to the other volunteer —
           the same property `/admin/nn/`'s filters have, and for the same reason. */}
@@ -163,6 +234,9 @@ export function CrossingsSection({
 
               <p className="triage-reason">
                 {stateOf(crossing)}
+                {/* `record_crossing()` has always allowed `manual` and nothing wrote it until
+                    `add_crossing()`, so on this race it means exactly "added from this page". */}
+                {crossing.source === 'manual' ? ' · added by hand' : ''}
                 {crossing.team_number === null
                   ? ' · matches no team'
                   : ` · team ${crossing.team_number}`}
@@ -193,6 +267,7 @@ export function CrossingsSection({
                   name="expected_captured_at"
                   value={crossing.captured_at}
                 />
+                <input type="hidden" name="race_date" value={raceDate} />
 
                 {crossing.resolved_action === 'discarded' ? (
                   <div className="triage-actions">
@@ -220,9 +295,27 @@ export function CrossingsSection({
                         defaultValue={crossing.bib ?? ''}
                       />
                     </div>
+                    <div className="field">
+                      <label className="field-label" htmlFor={`log-time-${crossing.id}`}>
+                        Time crossed
+                      </label>
+                      <p className="field-hint" id={`log-time-hint-${crossing.id}`}>
+                        {TIME_HINT}
+                      </p>
+                      <input
+                        className="field-input"
+                        id={`log-time-${crossing.id}`}
+                        name="time"
+                        type="text"
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-describedby={`log-time-hint-${crossing.id}`}
+                        defaultValue={formatLondonClock(crossing.captured_at)}
+                      />
+                    </div>
                     <div className="triage-actions">
                       <button type="submit" name="intent" value="edit" className="button">
-                        Save this bib
+                        Save changes
                       </button>
                     </div>
                   </>

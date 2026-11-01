@@ -1,4 +1,6 @@
+import { londonCivilDate } from '@src/shared';
 import { readTiming } from '../../../../lib/reads';
+import { raceDateValue } from '../../../../lib/typed-time';
 import { readEventDetail, raceMetadata } from '../../../../lib/titles';
 import { NotFoundBody } from '../../../not-found-body';
 import { PlainFrame, RaceFrame } from '../../../chrome/frames';
@@ -55,6 +57,11 @@ export default async function TimingLogPage({
   }
 
   const event = detail.data;
+  // ADR-071: the London day the gun went, which is what a typed time is a time *on*. The
+  // scheduled start stands in until the race has started, and the two are the same day.
+  const raceDate = raceDateValue(
+    londonCivilDate(event.actually_started_at ?? event.start_at),
+  );
   // ⚠️ A list whose own read failed is drawn empty rather than not drawn — and says so, because
   // an empty list on its own reads as "nothing here", which is a claim about the race.
   const rows = list.state === 'ok' ? list.data : [];
@@ -68,8 +75,8 @@ export default async function TimingLogPage({
           title="Timing log."
           intro={
             <p>
-              Every capture recorded on this race. Search for one, then correct its bib.
-              Times are Europe/London.
+              Every capture recorded on this race. Search for one, then correct its bib or
+              its time, or add a finish nobody captured. Times are Europe/London.
             </p>
           }
           status={{
@@ -91,6 +98,9 @@ export default async function TimingLogPage({
             crossings={rows}
             search={search}
             outcomeCode={outcomeCode}
+            raceDate={raceDate}
+            // A new id on every render — `force-dynamic` above — so each add form posts its own.
+            newCrossingId={crypto.randomUUID()}
           />
         </div>
       </div>

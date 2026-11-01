@@ -2341,7 +2341,17 @@ page: a searched view is a URL somebody may have sent.
   rather than one. An edit sets the bib and lets the trigger re-derive the team, and **an edited
   bib that still matches nothing legitimately stays an orphan**, which the page says out loud.
   A discard is reversible and `buildResults()` already excludes one, falling through to the next
-  undiscarded capture for that bib;
+  undiscarded capture for that bib. ⚠️ **Since race day, 1 November 2026, the log edits a time
+  and adds a crossing too** —
+  [ADR-071](docs/architecture/decisions/adr-071-a-crossing-can-be-added-and-retimed-from-the-log.md).
+  The box takes a **London clock time only**, on the race's own date, through
+  `londonWallClockInstant()`, which refuses the repeated and the skipped hour. A time nobody
+  touched is posted back as the instant it already was. `timing.add_crossing()` is behind
+  `timing.crossing.resolve` with **no roster check**, audited, idempotent on an id the page
+  draws, and it refuses whatever `record_crossing()` deliberately lets through: no bib, a
+  published race, a time before the gun or after now, a bib that already has a crossing, and a
+  bib the **trigger itself** matches to no team. **`edit_crossing()` was left alone**, so it
+  still does not refuse a published race;
 - **`/timing/events/<slug>/roster` and `/start#finish`** — DNS, DNF and DQ, and calling a race
   finished (#253), both behind `timing.event.manage`. ⚠️ **A status is a label on top of
   crossings and never a change to one**: DNS suppresses every derived time, and **DNF and DQ keep
