@@ -1121,11 +1121,18 @@ footer {
   list-style: none;
 }
 
-.triage-card {
+/* `.log-add` is the timing log's add form (ADR-071): a card to look at and not a capture, so it
+   carries a class of its own and the log's tests can go on counting `.triage-card`. */
+.triage-card,
+.log-add {
   margin-bottom: var(--space);
   padding: var(--space);
   border: 1px solid var(--colour-rule);
   border-radius: 6px;
+}
+
+.log-add h2 {
+  margin-top: 0;
 }
 
 .triage-time {

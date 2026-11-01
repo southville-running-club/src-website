@@ -6,7 +6,9 @@ import {
   formatLondonTime,
   isBritishSummerTime,
   londonCivilDate,
+  londonClock,
   londonOffsetMinutes,
+  londonWallClockInstant,
   toUtcIso,
 } from '../../src/london-time';
 
@@ -225,5 +227,118 @@ describe('londonCivilDate — what day it is, which is not what instant it is', 
 
   it('refuses an instant that is not one, rather than answering NaN', () => {
     expect(() => londonCivilDate('not a date')).toThrow(RangeError);
+  });
+});
+
+/**
+ * A London wall clock on a London date, back to an instant — ADR-071, the timing log's typed
+ * time. ⚠️ **The two clocks changes are the cases that matter**, because they are the only
+ * moments a wall clock and an instant are not one-to-one, and this race is run the weekend
+ * after one of them.
+ */
+describe('londonWallClockInstant', () => {
+  const RACE_DAY = { year: 2026, month: 11, day: 1 };
+
+  it('reads race day as GMT, because the clocks went back the Sunday before', () => {
+    const answer = londonWallClockInstant(RACE_DAY, { hour: 11, minute: 47, second: 32 });
+
+    expect(answer).toEqual({ state: 'ok', instant: new Date('2026-11-01T11:47:32Z') });
+  });
+
+  it('reads a summer date as BST — an hour ahead of UTC', () => {
+    const answer = londonWallClockInstant(
+      { year: 2026, month: 10, day: 18 },
+      { hour: 11, minute: 47, second: 32 },
+    );
+
+    expect(answer).toEqual({ state: 'ok', instant: new Date('2026-10-18T10:47:32Z') });
+  });
+
+  it('refuses the hour the clocks went back, which happened twice', () => {
+    // 01:30 on 25 October 2026 was 00:30Z in BST and then 01:30Z again in GMT.
+    expect(
+      londonWallClockInstant(
+        { year: 2026, month: 10, day: 25 },
+        { hour: 1, minute: 30, second: 0 },
+      ),
+    ).toEqual({ state: 'ambiguous' });
+  });
+
+  it('answers both sides of that hour, which happened once each', () => {
+    const day = { year: 2026, month: 10, day: 25 };
+
+    expect(londonWallClockInstant(day, { hour: 0, minute: 59, second: 59 })).toEqual({
+      state: 'ok',
+      instant: new Date('2026-10-24T23:59:59Z'),
+    });
+    expect(londonWallClockInstant(day, { hour: 2, minute: 0, second: 0 })).toEqual({
+      state: 'ok',
+      instant: new Date('2026-10-25T02:00:00Z'),
+    });
+  });
+
+  it('refuses the hour the clocks went forward, which never happened', () => {
+    // 29 March 2026: 01:00 GMT became 02:00 BST, so 01:30 was skipped.
+    expect(
+      londonWallClockInstant(
+        { year: 2026, month: 3, day: 29 },
+        { hour: 1, minute: 30, second: 0 },
+      ),
+    ).toEqual({ state: 'nonexistent' });
+  });
+
+  it('refuses a date or a time that is not one, rather than rolling it over', () => {
+    const noon = { hour: 12, minute: 0, second: 0 };
+
+    // `Date.UTC` would quietly make this 1 October.
+    expect(londonWallClockInstant({ year: 2026, month: 9, day: 31 }, noon)).toEqual({
+      state: 'invalid',
+    });
+    expect(londonWallClockInstant({ year: 2026, month: 13, day: 1 }, noon)).toEqual({
+      state: 'invalid',
+    });
+    expect(londonWallClockInstant(RACE_DAY, { hour: 24, minute: 0, second: 0 })).toEqual({
+      state: 'invalid',
+    });
+    expect(londonWallClockInstant(RACE_DAY, { hour: 11, minute: 60, second: 0 })).toEqual(
+      { state: 'invalid' },
+    );
+  });
+
+  it('is the inverse of londonCivilDate and londonClock across the change', () => {
+    for (const instant of [
+      '2026-10-24T23:59:59Z',
+      '2026-10-25T02:00:00Z',
+      '2026-11-01T11:00:00Z',
+      '2026-06-15T23:30:00Z',
+    ]) {
+      expect(
+        londonWallClockInstant(londonCivilDate(instant), londonClock(instant)),
+        instant,
+      ).toEqual({ state: 'ok', instant: new Date(instant) });
+    }
+  });
+});
+
+describe('londonClock', () => {
+  it('is the London wall clock by parts, on the 24-hour clock', () => {
+    expect(londonClock('2026-11-01T11:47:32Z')).toEqual({
+      hour: 11,
+      minute: 47,
+      second: 32,
+    });
+    expect(londonClock('2026-10-18T10:47:32Z')).toEqual({
+      hour: 11,
+      minute: 47,
+      second: 32,
+    });
+  });
+
+  it('calls the midnight hour 0 rather than 24', () => {
+    expect(londonClock('2026-11-01T00:05:00Z')).toEqual({
+      hour: 0,
+      minute: 5,
+      second: 0,
+    });
   });
 });
