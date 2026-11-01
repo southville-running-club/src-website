@@ -7,9 +7,13 @@ export {
   formatLondonTime,
   isBritishSummerTime,
   londonCivilDate,
+  londonClock,
   londonOffsetMinutes,
+  londonWallClockInstant,
   toUtcIso,
   type Instant,
+  type LondonClock,
+  type LondonInstantAnswer,
 } from './london-time';
 
 export {

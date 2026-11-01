@@ -790,6 +790,12 @@ export async function seedAnomalyCrossings(project: string): Promise<void> {
         where detail ->> 'crossing_id' = any($1::text[])`,
       [[flagged, orphan, clean]],
     );
+    // ADR-071: a crossing a test added from the log carries a uuid the page drew, so its audit
+    // row is found by the race and the action rather than by an id this file knows.
+    await db.query(
+      `delete from timing.admin_actions where event_id = $1 and action = 'crossing_added'`,
+      [eventId],
+    );
 
     await db.query(
       `insert into timing.crossings
@@ -840,15 +846,40 @@ export async function anomalyCrossing(id: string): Promise<{
   bib: string | null;
   resolved_action: string | null;
   team_id: string | null;
+  captured_at: Date;
 } | null> {
   return withClient(async (db) => {
     const { rows } = await db.query<{
       bib: string | null;
       resolved_action: string | null;
       team_id: string | null;
-    }>('select bib, resolved_action, team_id from timing.crossings where id = $1', [id]);
+      captured_at: Date;
+    }>(
+      'select bib, resolved_action, team_id, captured_at from timing.crossings where id = $1',
+      [id],
+    );
 
     return rows[0] ?? null;
+  });
+}
+
+/**
+ * The crossings on this project's anomaly race carrying one bib — ADR-071's add, whose id the
+ * page draws rather than this file, so it is found by the bib instead.
+ */
+export async function anomalyCrossingsForBib(
+  project: string,
+  bib: string,
+): Promise<{ captured_at: Date; source: string }[]> {
+  return withClient(async (db) => {
+    const { rows } = await db.query<{ captured_at: Date; source: string }>(
+      `select c.captured_at, c.source from timing.crossings c
+         join timing.events e on e.id = c.event_id
+        where e.slug = $1 and c.bib = $2`,
+      [anomalyEventSlug(project), bib],
+    );
+
+    return rows;
   });
 }
 

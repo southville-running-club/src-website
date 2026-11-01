@@ -3,6 +3,7 @@ import { axeViolations } from '../axe';
 import {
   anomalyCrossing,
   anomalyCrossingId,
+  anomalyCrossingsForBib,
   anomalyEventSlug,
   ANOMALY_ORPHAN_BIB,
   ANOMALY_REASON,
@@ -2506,12 +2507,89 @@ test.describe('the timing log', () => {
       .locator('#crossings .triage-card', { hasText: 'Recorded' })
       .first();
     await clean.getByLabel('Bib').fill(ANOMALY_SECOND_TEAM_NUMBER);
-    await clean.getByRole('button', { name: 'Save this bib' }).click();
+    await clean.getByRole('button', { name: 'Save changes' }).click();
 
     // ⚠️ **Corrected onto the race's *other* team on purpose.** The first version typed a bib
     // no team carried, so the page correctly answered "still matches no team" and the test
     // asserted plain success — the assertion was wrong rather than the page.
     await expect(page.getByText('Saved.')).toBeVisible();
+
+    // ⚠️ **The time box was posted untouched beside the bib, and must have moved nothing** —
+    // ADR-071's `unchanged`, which is what keeps every bib correction from re-deriving a time.
+    expect(
+      (
+        await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'clean'))
+      )?.captured_at.toISOString(),
+    ).toBe('2026-11-01T11:32:00.000Z');
+  });
+
+  /**
+   * [ADR-071](../../../../../docs/architecture/decisions/adr-071-a-crossing-can-be-added-and-retimed-from-the-log.md):
+   * a time copied off the marshals' paper, typed as a London clock and stored as the instant it
+   * names on the race's own day. The fixture race is 1 November 2026, which is GMT — so the
+   * stored instant reads the same as what was typed, and an hour's drift would show.
+   */
+  test('corrects the time of a capture', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    const clean = page
+      .locator('#crossings .triage-card', { hasText: 'Recorded' })
+      .first();
+    await clean.getByLabel('Time crossed').fill('11:33:15');
+    await clean.getByRole('button', { name: 'Save changes' }).click();
+
+    await expect(page.getByText('Saved.')).toBeVisible();
+    expect(
+      (
+        await anomalyCrossing(anomalyCrossingId(testInfo.project.name, 'clean'))
+      )?.captured_at.toISOString(),
+    ).toBe('2026-11-01T11:33:15.000Z');
+  });
+
+  test('adds a finish nobody captured, and shows it', async ({ page }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    // The second team has no capture at all on this race — exactly the runner the paper has
+    // and the phones do not.
+    const add = page.locator('#crossings .log-add');
+    await add.getByLabel('Bib').fill(ANOMALY_SECOND_TEAM_NUMBER);
+    await add.getByLabel('Time crossed').fill('114732');
+    await add.getByRole('button', { name: 'Add this crossing' }).click();
+
+    await expect(page.getByText(/^Added\./)).toBeVisible();
+    // ⚠️ **Opened on the bib that was added**, because the log is newest-first by crossing time
+    // and an 11:47 finish added at teatime would otherwise be buried.
+    await expect(page).toHaveURL(new RegExp(`log_q=${ANOMALY_SECOND_TEAM_NUMBER}`));
+    await expect(
+      page.locator('#crossings .triage-card', { hasText: 'added by hand' }),
+    ).toHaveCount(1);
+
+    expect(
+      await anomalyCrossingsForBib(testInfo.project.name, ANOMALY_SECOND_TEAM_NUMBER),
+    ).toEqual([{ captured_at: new Date('2026-11-01T11:47:32Z'), source: 'manual' }]);
+  });
+
+  test('refuses to add a second crossing for a bib that already has one', async ({
+    page,
+  }, testInfo) => {
+    await signInAs(page, TIMING_ADMIN_EMAIL);
+    await page.goto(crossingsPath(testInfo.project.name));
+
+    const add = page.locator('#crossings .log-add');
+    await add.getByLabel('Bib').fill(ANOMALY_TEAM_NUMBER);
+    await add.getByLabel('Time crossed').fill('11:47:32');
+    await add.getByRole('button', { name: 'Add this crossing' }).click();
+
+    await expect(page.getByText(/already has a crossing that counts/)).toBeVisible();
+    // Opened on the capture that does count, which is the one to correct instead.
+    await expect(page).toHaveURL(new RegExp(`log_q=${ANOMALY_TEAM_NUMBER}`));
+    expect(
+      (await anomalyCrossingsForBib(testInfo.project.name, ANOMALY_TEAM_NUMBER)).every(
+        (row) => row.source === 'tap',
+      ),
+    ).toBe(true);
   });
 
   test('searches by bib, and the searched view is a URL somebody can send', async ({

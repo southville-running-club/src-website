@@ -26,6 +26,18 @@ const REASONS = [
   'incomplete',
   'refused',
   'unavailable',
+  // ADR-071's add and typed time.
+  'added',
+  'already_captured',
+  'unknown_bib',
+  'before_start',
+  'in_future',
+  'published',
+  'time_required',
+  'time_unreadable',
+  'time_ambiguous',
+  'time_nonexistent',
+  'no_such_event',
 ];
 
 describe('every outcome the two pages can be sent', () => {
