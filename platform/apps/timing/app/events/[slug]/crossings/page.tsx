@@ -8,6 +8,12 @@ import { PageHead, raceEyebrow } from '../../../chrome/page-head';
 import { RaceUnavailable } from '../../../chrome/race-unavailable';
 import type { EventDetail } from '../sections/event-detail';
 import { CrossingsSection, type LoggedCrossing } from '../sections/crossings';
+import {
+  CROSSING_LOG_LIMIT,
+  crossingLogArgs,
+  crossingLogCapped,
+  crossingLogCount,
+} from '../../../../lib/crossing-log';
 
 export const generateMetadata = raceMetadata('Timing log');
 
@@ -17,6 +23,10 @@ export const generateMetadata = raceMetadata('Timing log');
  *
  * Behind `timing.crossing.resolve`, with the same `event_detail()` caveat the anomalies page
  * carries in its header.
+ *
+ * ⚠️ **It asks for every capture, and until 1 November 2026 it asked for the newest 200** —
+ * `crossing_log()`'s default, taken by not passing a limit. `lib/crossing-log.ts` says why
+ * that hid the first finishers and what the status line now claims.
  */
 export const dynamic = 'force-dynamic';
 
@@ -38,10 +48,7 @@ export default async function TimingLogPage({
 
   const [detail, list] = await Promise.all([
     readEventDetail<EventDetail>(slug),
-    readTiming<LoggedCrossing[]>('crossing_log', {
-      p_event_slug: slug,
-      p_search: search === '' ? null : search,
-    }),
+    readTiming<LoggedCrossing[]>('crossing_log', crossingLogArgs(slug, search)),
   ]);
 
   if (detail.state === 'unavailable') {
@@ -66,6 +73,7 @@ export default async function TimingLogPage({
   // an empty list on its own reads as "nothing here", which is a claim about the race.
   const rows = list.state === 'ok' ? list.data : [];
   const unread = list.state !== 'ok';
+  const capped = crossingLogCapped(rows.length);
 
   return (
     <RaceFrame slug={slug} current="crossings">
@@ -80,7 +88,7 @@ export default async function TimingLogPage({
             </p>
           }
           status={{
-            count: `${rows.length} ${rows.length === 1 ? 'capture' : 'captures'}${search === '' ? '' : ' matching'}`,
+            count: crossingLogCount(rows.length, search),
             refresh: `/timing/events/${encodeURIComponent(slug)}/crossings`,
           }}
         />
@@ -89,6 +97,15 @@ export default async function TimingLogPage({
           <p className="club-notice timing-notice-bad">
             The club&rsquo;s database could not be reached, so this list could not be
             read. Nothing has been changed. Try again in a moment.
+          </p>
+        ) : null}
+
+        {/* Said out loud rather than left to the count, because a list that stops is otherwise
+            indistinguishable from a race that did. */}
+        {capped ? (
+          <p className="club-notice">
+            Only the newest {CROSSING_LOG_LIMIT} captures are shown. Search by bib or team
+            number to find an older one.
           </p>
         ) : null}
 
