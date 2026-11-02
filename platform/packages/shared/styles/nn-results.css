@@ -1,21 +1,40 @@
 /*
- * `/nn/<year>/results/` — the results table.
+ * `/nn/<year>/results/` — the results table, in the race's own frame.
  *
- * **The club brand, not `nn-theme.css`, and that is a decision rather than an omission.** The
- * campaign theme is the race's own horror palette, written for pages a runner reads before
- * entering; this page is a staff tool behind `nn.results.read`, and it is read on a phone at
- * the finish. It also carries the trap that stylesheet's own footer records — colours computed
- * against a surface the component does not carry — and a table of times has no business
- * inheriting it. Same reasoning as `nn-admin.css`: a tool is in the club brand.
+ * ⚠️ **The frame is the campaign's and the table is the club's, and that split is a decision.**
+ * Until 2 November 2026 the whole page was in the club brand, on the argument that it was a
+ * staff tool behind `nn.results.read`. Publication made it the page the public reads after the
+ * race, so it now wears `/nn/<year>/`'s gradient, masthead, display face and footer —
+ * `nn-theme.css` is concatenated ahead of this file by `results.css.ts`. **The table did not
+ * move**: a table of times is read rather than enjoyed, on a phone at the finish, and the
+ * campaign palette has nothing to say about it.
+ *
+ * ⚠️ **So the table carries its own surface and its own ink**, which is the trap
+ * `nn-theme.css`'s footer records: a component whose colours were computed against a surface it
+ * does not carry breaks silently the first time it is moved. `body.theme-nn` sets bone text on
+ * a blood gradient, and every cell here used to inherit `base.css`'s dark ink — moved into the
+ * theme without `.results-scroll`'s `color`, the whole table would have been bone on paper.
+ * Everything else on the page above the table is an `.nn-card`, which brings its own white and
+ * ink.
  *
  * ⚠️ **Every colour here is a `--src-*` token and there is not one hex value**, so the club
- * palette is the only thing that decides them and a contrast check has one place to look.
+ * palette is the only thing that decides the table's colours and a contrast check has one place
+ * to look.
  */
 
-.results-page {
-  max-width: 60rem;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 3rem;
+/*
+ * **The year page's measure, so the two pages share a left edge.** `/nn/<year>/` widens every
+ * `.nn-wrap` to its column plus its rail and gap — `body.theme-nn:has(.nn-layout)` in
+ * `nn-theme.css` — and a six-column table needs that width far more than a page of prose
+ * does. The 344px is that rule's `--nn-rail` and `--nn-rail-gap` together; change one, change
+ * both.
+ */
+body.theme-nn:has(.results-page) .nn-wrap {
+  max-width: calc(var(--nn-column) + 344px);
+}
+
+.results-body {
+  padding-block-end: 48px;
 }
 
 .results-meta {
@@ -33,6 +52,9 @@
 .results-scroll {
   position: relative;
   overflow-x: auto;
+  /* Its own ink and face — see the header. Without these it inherits the theme's bone. */
+  color: var(--src-ink);
+  font-family: var(--src-font-body);
   border: 1px solid var(--src-rule);
   border-radius: var(--src-radius-card);
   background: var(--src-paper);
@@ -86,34 +108,20 @@
 }
 
 /*
- * A runner with no finish time on a race that is over, and the note that says why. The mark is
- * bold so it can be found against a name, and the Status cell says the same thing in words.
- * The note sits above the table rather than under it, because under it is two hundred rows
+ * A runner with no finish time on a race that is over. The mark is bold so it can be found
+ * against a name, and the Status cell says the same thing in words. The note that explains it
+ * is an `.nn-card` above the table rather than under it, because under it is two hundred rows
  * away from anybody looking for their own name.
  */
 .results-mark {
   font-weight: 700;
 }
 
-.results-note {
-  margin: 0 0 1.5rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--src-rule);
-  border-radius: var(--src-radius-card);
-  background: var(--src-paper);
-}
-
 .results-empty {
-  padding: 2rem 1rem;
   text-align: center;
-  color: var(--src-slate);
 }
 
 @media (max-width: 40rem) {
-  .results-page {
-    padding: 1rem 0.75rem 2.5rem;
-  }
-
   .results-table th,
   .results-table td {
     padding: 0.5rem;
@@ -121,12 +129,8 @@
 }
 
 /* The race photos are out (brief slice 4). Shown above the table only once the photos are
-   published and the runners' links have gone, so it is a fact rather than a promise. */
+   published and the runners' links have gone, so it is a fact rather than a promise. An
+   `.nn-card`, which supplies the surface. */
 .results-photos {
-  margin: 0 0 1.5rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--src-rule);
-  border-radius: var(--src-radius-card);
-  background: var(--src-paper);
   font-weight: 600;
 }

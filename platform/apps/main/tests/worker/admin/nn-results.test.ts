@@ -416,7 +416,7 @@ describe('a running that is finished and not published', () => {
     // The fixture's one runner, whoever it is: the mark is what is asserted, not the name.
     expect(row?.[RUNNER]).toMatch(/ \*$/);
     expect(row?.[POS]).toBe('—');
-    expect(markup).toContain('class="results-note"');
+    expect(markup).toContain('results-note');
     expect(markup).not.toContain('On course');
   });
 });
@@ -487,7 +487,8 @@ describe('a running whose results the club has published', () => {
 
     expect(markup).not.toContain('On course');
 
-    const note = /<p class="results-note">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? '';
+    const note =
+      /<p class="[^"]*\bresults-note\b[^"]*">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? '';
     expect(note, 'no note above the table').not.toBe('');
     expect(note).toContain(`href="mailto:${race.contact}"`);
     expect(note).toContain('If you ran and your time is missing');

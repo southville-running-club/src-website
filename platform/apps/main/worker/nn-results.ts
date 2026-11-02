@@ -70,6 +70,7 @@ import {
   createAnonClient,
   createUserClient,
   fetchPhotosReady,
+  formatLondonDate,
   type SupabaseConfig,
 } from '@src/shared';
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -89,6 +90,7 @@ import type {
   TimingTeam,
 } from '@src/shared/timing/rows';
 import race from '../src/content/race.json';
+import { clubLogo } from './club-chrome';
 import { html, type Html } from './html';
 import {
   nnEventSlugForResultsPath,
@@ -96,7 +98,7 @@ import {
   nnYearPathForEventSlug,
 } from './routing';
 import { readSession } from './session';
-import { faviconLink, siteBanner, siteFooter, siteNav } from './site-chrome';
+import { faviconLink, siteBanner, siteFooter } from './site-chrome';
 
 export interface NnResultsEnv {
   PUBLIC_SUPABASE_URL: string;
@@ -344,7 +346,7 @@ function resultRow(
  * writes to the inbox that already handles every other question about this race.
  */
 function noTimeNote(): Html {
-  return html`<p class="results-note">
+  return html`<p class="nn-card results-note">
     <span class="results-mark">*</span> We do not have a finish time for the runners
     marked with an asterisk. Race numbers can be hard to see at the finish — under a
     costume, for example — so a missing time does not mean somebody did not finish. If you
@@ -361,7 +363,7 @@ function resultsTable(payload: ResultsPayload): Html {
   );
 
   if (results.length === 0) {
-    return html`<p class="results-empty">
+    return html`<p class="nn-card results-empty">
       Nothing has been captured for this race yet.
     </p>`;
   }
@@ -442,12 +444,72 @@ type Visibility = 'private' | 'public';
 /** See the header. Sixty seconds is chosen against ADR-042's withdrawal, not against load. */
 const PUBLISHED_MAX_AGE_SECONDS = 60;
 
+/**
+ * The running a page belongs to, for the two things in its frame that name one: the masthead's
+ * button and the footer's race block. **Null on a refusal**, which may name no year — a 404
+ * whose footer said "Nightingale Nightmare 2027" would be the disclosure the refusal exists to
+ * avoid.
+ */
+type Running = { name: string; yearPath: string };
+
+/** `NnMasthead.astro`'s wordmark width, so the two mastheads are the same size. */
+const NN_LOGO_WIDTH = 176;
+
+/**
+ * **`NnMasthead.astro`, rendered by the Worker** — the bar every other Nightingale Nightmare
+ * page carries, so the results read as part of the race rather than as a club tool.
+ *
+ * ⚠️ **A second copy of that component's markup, deliberately**, for the reason
+ * `club-chrome.ts` gives about `ClubHeader.astro`: this page is built as strings and Astro is
+ * not in the request path. `nn-results.spec.ts` compares this bar's links with `/nn/`'s in a
+ * browser, so the two cannot drift apart without a test going red.
+ *
+ * **The button is "Race details", pointing at the running's own page**, which is what the
+ * Worker paints on the other campaign pages once entries have closed — and a running with
+ * results has always closed. A refusal draws no button at all: it has no running to point at.
+ *
+ * **Sticky, like every campaign page but the year page.** `/nn/<year>/` unsticks the bar on a
+ * phone only because it pins an entry bar at the bottom as well; this page has no second strip.
+ */
+function nnMasthead(running: Running | null): Html {
+  return html`<header class="nn-masthead">
+    <div class="nn-wrap">
+      <a class="nn-masthead-mark" href="/" aria-label="Southville Running Club, home">
+        ${clubLogo('nn-logo', NN_LOGO_WIDTH, false)}
+      </a>
+      <nav class="nn-nav" aria-label="Nightingale Nightmare">
+        <ul class="nn-nav-links">
+          <li><a href="/nn/">Race</a></li>
+          <li><a href="/nn/privacy/">Privacy</a></li>
+        </ul>
+      </nav>
+      ${
+        running === null
+          ? null
+          : html`<a
+              class="nn-nav-cta"
+              href="${running.yearPath}"
+              aria-label="Race details"
+            >
+              <span class="nn-nav-cta-long">Race details</span>
+              <span class="nn-nav-cta-short">Details</span>
+            </a>`
+      }
+    </div>
+  </header>`;
+}
+
+/**
+ * **The race's frame around a table that keeps the club's** — the gradient, the masthead, the
+ * display face and the footer's race block are `/nn/<year>/`'s, and the table is unchanged.
+ * See `nn-results.css` for why the table carries its own surface and ink.
+ */
 function page(
   title: string,
   body: Html,
-  pathname: string,
   status: number,
   visibility: Visibility,
+  running: Running | null,
 ): Response {
   const document = html`<!doctype html>
     <html lang="en-GB">
@@ -466,8 +528,14 @@ function page(
         ${faviconLink()}
         <link rel="stylesheet" href="/nn/results.css" />
       </head>
-      <body>
-        ${siteBanner()} ${siteNav(pathname)} ${body} ${siteFooter()}
+      <body class="theme-nn">
+        <a class="skip-link" href="#main">Skip to content</a>
+        ${siteBanner()} ${nnMasthead(running)} ${body}
+        ${siteFooter(
+          running === null
+            ? undefined
+            : { name: running.name, privacy: '/nn/privacy/', contact: race.contact },
+        )}
       </body>
     </html>`;
 
@@ -495,16 +563,22 @@ function page(
  * not let in, and a shared cache holding it could go on refusing somebody the page was
  * published to.
  */
-function notFound(pathname: string): Response {
+function notFound(): Response {
   return page(
     'Not found',
     html`<main class="results-page" id="main">
-      <h1>Not found</h1>
-      <p>There is nothing at this address.</p>
+      <header class="nn-hero">
+        <div class="nn-wrap">
+          <h1>Not found</h1>
+        </div>
+      </header>
+      <div class="nn-wrap results-body">
+        <p class="nn-card">There is nothing at this address.</p>
+      </div>
     </main>`,
-    pathname,
     404,
     'private',
+    null,
   );
 }
 
@@ -537,12 +611,12 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
   }
 
   return event.finished_at === null
-    ? html`<p class="results-meta">
+    ? html`<p class="nn-card results-banner">
         These results are not published, and this race is still being timed. This page is
         visible only to people the club has given permission to read them, and the times
         on it are provisional until the race director confirms them.
       </p>`
-    : html`<p class="results-meta">
+    : html`<p class="nn-card results-banner">
         These results are not published. The race has been called finished, and nobody has
         published its results yet. This page is visible only to people the club has given
         permission to read them, and the times on it are provisional until the race
@@ -559,7 +633,9 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
  * adds the way to ask for a lost link, which is where this will point.
  */
 function photosBanner(): Html {
-  return html`<p class="results-photos">Your Nightingale Nightmare photos are ready</p>`;
+  return html`<p class="nn-card results-photos">
+    Your Nightingale Nightmare photos are ready
+  </p>`;
 }
 
 export async function handleNnResults(
@@ -590,7 +666,7 @@ export async function handleNnResults(
 
   const slug = nnEventSlugForResultsPath(url.pathname);
   if (slug === null) {
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   // ⚠️ **A signed-out visitor is no longer refused before anything is read**, which is #242's
@@ -611,11 +687,11 @@ export async function handleNnResults(
     // by design, and an error page here would itself disclose which years are real. A code and
     // a message, never a row.
     console.error(`timing: results read unavailable — ${error.code}: ${error.message}`);
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   if (data === null) {
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   const payload = data as unknown as ResultsPayload;
@@ -632,14 +708,30 @@ export async function handleNnResults(
     ? await fetchPhotosReady(createAnonClient(cfg), slug)
     : false;
 
+  // **The hero is `/nn/<year>/`'s**: the race's name in the display face and the day it was run
+  // in the dateline's gold, both from the running's own row rather than from `race.json`, so a
+  // later year's results never borrow this year's date.
   const body = html`<main class="results-page" id="main">
-    <h1>${payload.event.name} — results</h1>
-    ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
-    ${resultsTable(payload)}
+    <header class="nn-hero">
+      <div class="nn-wrap">
+        <h1>${payload.event.name} results</h1>
+        <p class="nn-dateline">${formatLondonDate(payload.event.start_at)}</p>
+      </div>
+    </header>
+    <div class="nn-wrap results-body">
+      ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
+      ${resultsTable(payload)}
+    </div>
   </main>`;
 
+  // `nnEventSlugForResultsPath` only ever answers an `nn-<year>` slug, so this is never null in
+  // practice — and if it were, the frame would simply draw no button and no race block.
+  const yearPath = nnYearPathForEventSlug(slug);
+  const running: Running | null =
+    yearPath === null ? null : { name: payload.event.name, yearPath };
+
   return withCookies(
-    page(`${payload.event.name} results`, body, url.pathname, 200, visibility),
+    page(`${payload.event.name} results`, body, 200, visibility, running),
     setCookies,
   );
 }
