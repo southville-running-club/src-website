@@ -294,6 +294,31 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
 ];
 
 /**
+ * ⚠️ **A visually impaired runner's guide**, on Rhodri's entry, in the shape
+ * `import_from_entries()` writes: leg 2 of the runner's own solo team (ADR-022), wearing a number
+ * of their own as the leg-2 override (ADR-061) — the one straight after nobody's, since `9` is
+ * free here — and captured crossing the line a second behind their runner.
+ *
+ * **What the published page must show for them is ADR-073's whole decision**: their own number
+ * and their own time, no position — so Ozzy is still third — no category, and **nothing that
+ * says they are a guide**, because that says Rhodri is visually impaired. The answer withholds
+ * the guide's `role` once a race is published, so the page has only leg 2 to go on.
+ *
+ * An address, a club and an age, like every runner on this running, so the leak assertions
+ * cover the guide too. **The age is chosen to collide with no time, bib or position here**,
+ * because it is matched against the table's own cells.
+ */
+export const PUBLISHED_GUIDE = {
+  teamId: '0c0c0c0c-0000-4000-8000-000000000042',
+  bib: '9',
+  firstName: 'Tegwen',
+  lastName: 'Rowlands',
+  ageOnDay: 47,
+  crossedAt: '2095-11-06T11:52:31.000Z',
+  expectedTime: '52:31.00',
+} as const;
+
+/**
  * ⚠️ **The exact ages the published page may not print** — ADR-043, which withholds
  * `age_on_day` from `results_for_event()`'s answer the moment a race is published.
  *
@@ -302,4 +327,7 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
  * rendered markup full of SVG path data. They are checked against the table's own cells, where
  * a number can only have got there by being printed as a fact about somebody.
  */
-export const PUBLISHED_AGES = PUBLISHED_TEAMS.map((team) => String(team.ageOnDay));
+export const PUBLISHED_AGES = [
+  ...PUBLISHED_TEAMS.map((team) => String(team.ageOnDay)),
+  String(PUBLISHED_GUIDE.ageOnDay),
+];

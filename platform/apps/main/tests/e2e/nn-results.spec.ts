@@ -8,6 +8,7 @@ import {
   LEAKED_CLUB,
   LEAKED_EMAIL_DOMAIN,
   PUBLISHED_EVENT_NAME,
+  PUBLISHED_GUIDE,
   PUBLISHED_PATH,
   PUBLISHED_TEAMS,
   RESULTS_EVENT_NAME,
@@ -119,6 +120,27 @@ test.describe('a race whose results the club has published', () => {
   });
 
   /**
+   * ⚠️ **ADR-073, as a reader meets it**: the guide's own row, their own time, no position — and
+   * nowhere on the table a word saying they are a guide, which would say their runner is
+   * visually impaired. `tests/worker/admin/nn-results.test.ts` asserts the order and every cell;
+   * this is the same promise read off the accessibility tree.
+   */
+  test('lists a guide with their own time, and never says they are one', async ({
+    page,
+  }) => {
+    await page.goto(PUBLISHED_PATH);
+
+    const row = page.getByRole('row').filter({ hasText: PUBLISHED_GUIDE.lastName });
+    await expect(row).toHaveCount(1);
+    await expect(
+      row.getByRole('cell', { name: PUBLISHED_GUIDE.expectedTime, exact: true }),
+    ).toBeVisible();
+    await expect(row.getByRole('cell').first()).toHaveText('—');
+
+    await expect(page.locator('.results-table')).not.toContainText(/guid/i);
+  });
+
+  /**
    * ⚠️ **Three categories, and the middle one is the whole of ADR-031.** Rhodri is `non_binary`
    * and asked to be placed with the men; a page resolving `gender` alone renders no category
    * for them however they answered, which is a silent wrong answer rather than a failure. Ozzy
@@ -184,9 +206,9 @@ test.describe('a race whose results the club has published', () => {
 
     const html = (await page.content()).replace(/<svg[\s\S]*?<\/svg>/g, '');
 
-    for (const team of PUBLISHED_TEAMS) {
-      expect(html, `${team.lastName}: email address`).not.toContain(
-        `${team.firstName.toLowerCase()}@${LEAKED_EMAIL_DOMAIN}`,
+    for (const person of [...PUBLISHED_TEAMS, PUBLISHED_GUIDE]) {
+      expect(html, `${person.lastName}: email address`).not.toContain(
+        `${person.firstName.toLowerCase()}@${LEAKED_EMAIL_DOMAIN}`,
       );
     }
 

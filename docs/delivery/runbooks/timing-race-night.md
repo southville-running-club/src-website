@@ -376,7 +376,10 @@ marshal's attention.
 the Anomalies list for somebody to fix before the results can be published.
 
 **A guide's number is captured like anybody's.** Tap and type it when they cross; it lands on
-their runner's entry and times nothing, so it does not matter which of the two crosses first.
+their runner's entry without changing the entry's time, so it does not matter which of the two
+crosses first. **It is the guide's own time on the results**, on a row of their own with no
+position — [ADR-073](../../architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md) —
+so a guide whose number is missed is simply not listed.
 
 **The dark bar along the top** says which race and who is signed in, how many crossings are
 **awaiting bib**, and **Online** or **Offline**. The **⋯** beside it shows how many are syncing,
@@ -523,6 +526,11 @@ added on race day 2026. **Timing log** — `/timing/events/nn-2026/crossings`.
 
 - [ ] **`/timing/events/nn-2026/results/`**. **State** reads *Finished, not published*, and
       **Open captures** reads 0
+- [ ] **Each guide whose number was captured has a row of their own**, reading *Guide*, with
+      their own time and no position — and the public page shows the same row with a dash
+      where *Guide* is ([ADR-073](../../architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md)).
+      A guide with no row was not captured; fix it on the Timing log before publishing if they
+      should have one
 - [ ] The race's Home, under **Race details**: **Actually started** shows the moment Start was
       pressed. ⚠️ **Publication does not check it.** Every time in the race is measured from
       the actual start if there is one and from the *scheduled* 11:00:00 if there is not, and
