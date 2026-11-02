@@ -2598,9 +2598,18 @@ nothing** — [ADR-061](docs/architecture/decisions/adr-061-a-guide-wears-a-numb
 solo leg 2 derived the team number and `set_bib_override()` refused it, so a guide read as
 wearing their runner's bib and the desk could not record theirs. Now the guide's number is the
 leg-2 override, which a **Guide's bib** box can change. `assign_bibs()` and `add_walk_in()` step
-past any number already held as an override, and a guide's crossing times nothing, because a solo
-result reads leg 1 alone. **`derivedBib()` was ported unchanged and this is its one deliberate
-change**; `bib.ts` and `effective_bib()` carry it together.
+past any number already held as an override. **`derivedBib()` was ported unchanged and this is
+its one deliberate change**; `bib.ts` and `effective_bib()` carry it together.
+
+⚠️ **A guide's crossing times their entry nothing, and has a row of its own on the results since
+2 November 2026** — [ADR-073](docs/architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md).
+The entry is still timed from leg 1 alone. A guide whose own number was captured is listed on
+`/nn/<year>/results/` and the staff preview with their own time, **no position and no category**,
+and **the published page never says "guide"**, because that says their runner is visually
+impaired. `resultLines()` in `packages/shared/src/timing/result-lines.ts` draws both tables; do
+not number a results table anywhere else. ⚠️ **The published answer already carries a guide as
+leg 2 of their runner's solo team**, which discloses who is guided to anybody holding the anon
+key whether or not `role` is withheld — recorded in that ADR, and not yet closed.
 
 ⚠️ **Since 25 October 2026 Assign bibs numbers the guides too** —
 [ADR-067](docs/architecture/decisions/adr-067-assign-bibs-numbers-a-guide.md), taken on the first

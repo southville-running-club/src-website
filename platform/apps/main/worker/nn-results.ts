@@ -76,10 +76,10 @@ import {
 import { effectiveBib } from '@src/shared/timing/bib';
 import { deriveCategory } from '@src/shared/timing/categories';
 import { placementFor } from '@src/shared/timing/gender';
+import { resultLines, type GuideLine } from '@src/shared/timing/result-lines';
 import {
   buildResults,
   formatDuration,
-  sortResults,
   type Result,
   type ResultStatus,
 } from '@src/shared/timing/results';
@@ -333,6 +333,48 @@ function resultRow(
 }
 
 /**
+ * A visually impaired runner's guide, on a row of their own —
+ * [ADR-073](../../../../docs/architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md).
+ *
+ * **Their own number and their own time**, read from their own capture by `resultLines()`.
+ *
+ * ⚠️ **Nothing on this row says "guide", and that is the decision rather than a gap.** A row
+ * saying so says *"the runner beside them is visually impaired"* about a named person, which is
+ * Article 9 data (ADR-022, ADR-043), and whether the published table may ever say it is the
+ * committee's call. So the row is what the club publishes for anybody — a name, a number and a
+ * time — with a dash for the position, because a guide is in no prize and placing them would
+ * move every runner behind them, and a dash for the category, because a guide is never asked
+ * for one. The staff preview at `/timing/…/results` is where "Guide" is written.
+ *
+ * **It never carries the no-time asterisk**: `resultLines()` lists a guide only when their own
+ * number was captured, so a guide's row is never one the club has no time for.
+ *
+ * **Nothing here branches on publication either**, which is `categoryWords()`'s rule: the
+ * preview a permission holder reads on this page before publication is the table the public
+ * will read.
+ */
+function guideRow(
+  line: GuideLine<ResultsPayload['teams'][number]>,
+  format: TimingEvent['format'],
+  raceFinished: boolean,
+): Html {
+  return html`<tr>
+    <td class="results-num">—</td>
+    <td class="results-num">${line.bib}</td>
+    <td class="results-name">${runnerName(line.guide)}</td>
+    <td>—</td>
+    <td class="results-num">${formatDuration(line.result.totalMs)}</td>
+    <td class="results-status">
+      ${statusWords(line.result.status, format, raceFinished)}${
+        line.result.hasOpenAnomaly
+          ? html` <span class="results-suspect">— being checked</span>`
+          : ''
+      }
+    </td>
+  </tr>`;
+}
+
+/**
  * What the asterisk means, and what to do about it — shown only when some row carries one.
  *
  * ⚠️ **Every clause is chosen so that it cannot be wrong about the runner it is read by.** The
@@ -357,39 +399,38 @@ function noTimeNote(): Html {
 }
 
 function resultsTable(payload: ResultsPayload): Html {
-  const results = sortResults(
-    buildResults(payload.event, payload.teams, payload.crossings),
-    'total',
-  );
+  // **Position counts finished entries in finishing order, and a guide is never counted** —
+  // `resultLines()` owns both, so a team still on the course, one that did not finish and a
+  // guide are each given no number rather than a misleading one, and the staff preview cannot
+  // number the field differently from this page.
+  const lines = resultLines(payload.event, payload.teams, payload.crossings);
 
-  if (results.length === 0) {
+  if (lines.length === 0) {
     return html`<p class="nn-card results-empty">
       Nothing has been captured for this race yet.
     </p>`;
   }
 
-  const byId = new Map(payload.teams.map((team) => [team.id, team]));
   const raceFinished = payload.event.finished_at !== null;
 
-  // **Position counts finished rows in the order `sortResults` put them in.** It partitions
-  // every terminal status below every timed and in-progress team and then sorts by total, so
-  // a running count is the placing — and a team still on the course, or one that did not
-  // finish, is given no number at all rather than a misleading one.
-  let finished = 0;
-  const rows = results.map((result) => {
-    const placed = result.status === 'finished';
-    if (placed) finished += 1;
-    return resultRow(
-      result,
-      byId.get(result.team.id),
-      payload.event.format,
-      placed ? finished : null,
-      raceFinished,
-    );
-  });
+  // The caption counts **entries**, as it always has. A guide is on their runner's entry, so a
+  // guide's row is a person on the table rather than an entry of their own.
+  const entries = lines.filter((line) => line.kind === 'entry').length;
 
-  const anyUnrecorded = results.some((result) =>
-    noTimeRecorded(result.status, raceFinished),
+  const rows = lines.map((line) =>
+    line.kind === 'guide'
+      ? guideRow(line, payload.event.format, raceFinished)
+      : resultRow(
+          line.result,
+          line.team,
+          payload.event.format,
+          line.position,
+          raceFinished,
+        ),
+  );
+
+  const anyUnrecorded = lines.some((line) =>
+    noTimeRecorded(line.result.status, raceFinished),
   );
 
   // ⚠️ **A scrollable region has to be reachable by keyboard, and this table contains nothing
@@ -411,7 +452,7 @@ function resultsTable(payload: ResultsPayload): Html {
   >
     <table class="results-table">
       <caption class="results-meta" id="results-table-caption">
-        ${String(results.length)} entries
+        ${String(entries)} entries
       </caption>
       <thead>
         <tr>
@@ -749,9 +790,12 @@ export async function handleNnResults(
  * the public table does not; and it builds the results the same way, so the two pages cannot
  * print different times for one runner.
  *
- * **Solo only, and a runner's leg-1 bib only.** A guide's number times nothing (ADR-061), and a
- * relay pair's time is not one runner's. Every failure is `null`: the photos page reads fine
- * without a time, and a time that might be wrong is worse than none.
+ * **Solo only, and a runner's leg-1 bib only.** A relay pair's time is not one runner's. ⚠️ **A
+ * guide's own number is not looked up here, though the results table shows their time since
+ * ADR-073** — giving it to a guide's photos page is a separate change nobody has asked for yet,
+ * and until then that page shows their photos with no time rather than a different one. Every
+ * failure is `null`: the photos page reads fine without a time, and a time that might be wrong
+ * is worse than none.
  */
 export async function finishTimeForBib(
   env: NnResultsEnv,

@@ -12,6 +12,7 @@ import {
   LEAKED_EMAIL_DOMAIN,
   PUBLISHED_AGES,
   PUBLISHED_EVENT_NAME,
+  PUBLISHED_GUIDE,
   PUBLISHED_PATH,
   PUBLISHED_TEAMS,
   RESULTS_EVENT_NAME,
@@ -436,7 +437,45 @@ describe('a running whose results the club has published', () => {
 
   it('renders the table to somebody who is signed in to nothing', async () => {
     expect(markup).toContain(PUBLISHED_EVENT_NAME);
-    expect(rows).toHaveLength(PUBLISHED_TEAMS.length);
+    // Every entry, and the one guide whose own number was captured — ADR-073.
+    expect(rows).toHaveLength(PUBLISHED_TEAMS.length + 1);
+  });
+
+  /**
+   * ⚠️ **ADR-073: a guide has a time of their own, and the page never says they are a guide.**
+   * Tegwen ran beside Rhodri, wearing number 9, and crossed a second behind. Their row carries
+   * their own number and their own time — and **no position**, so Ozzy is still third on a table
+   * people have already read, and **no category**, because a guide is never asked for one.
+   *
+   * **The negative half is the one that matters.** "Guide" anywhere on this table says Rhodri is
+   * visually impaired, about a named person, on the page the internet reads — Article 9 data,
+   * ADR-022 and ADR-043. The answer withholds the guide's role once a race is published, so a
+   * page that printed it would have had to go looking for it, and this is what would notice.
+   */
+  it("lists a guide on a row of their own, with their own time and nothing that says they're one", () => {
+    const guideName = `${PUBLISHED_GUIDE.firstName} ${PUBLISHED_GUIDE.lastName}`;
+
+    expect(rows.map((cells) => [cells[POS], cells[BIB], cells[RUNNER]])).toEqual([
+      ['1', '3', 'Nesta Vaughan'],
+      ['2', '8', 'Rhodri Bevan'],
+      ['—', PUBLISHED_GUIDE.bib, guideName],
+      ['3', '15', 'Ozzy Treharne'],
+      // #385's runner with no recorded time, after every timed row and still unplaced. The
+      // guide is never one of these: a guide is listed only when their number was captured.
+      ['—', '22', 'Morfydd Pugh *'],
+    ]);
+
+    const guide = rows.find((cells) => cells[RUNNER] === guideName);
+    expect(guide?.[CATEGORY]).toBe('—');
+    expect(guide?.[TIME]).toBe(PUBLISHED_GUIDE.expectedTime);
+    expect(guide?.[STATUS]).toBe('Finished');
+
+    // Nothing in any cell names the role — not the guide's row, and not their runner's.
+    expect(rows.flat().join(' | ')).not.toMatch(/guid/i);
+
+    // **The caption still counts entries.** A guide is on their runner's entry, so their row
+    // is one more person on the table rather than one more entry.
+    expect(markup).toContain(`${String(PUBLISHED_TEAMS.length)} entries`);
   });
 
   /**
