@@ -210,8 +210,8 @@ scope.** The new one is `/timing/`. That is a rehearsal item rather than a check
 - [ ] Check **Entries** and **Runners** against what `/admin/nn/` says is sold
 - [ ] ⚠️ **Cancel any tester entry first, and count them if you cannot.** The import takes
       every paid purchase and knows nothing about fees, so a £1 Tester entry is imported, given
-      a bib, printed on the start list and the medical sheet, and published as "On course" like
-      anybody else — while `/admin/nn/` hides tester entries unless its Tester pill is chosen,
+      a bib, printed on the start list and the medical sheet, and published as "No time
+      recorded" like anybody else with no crossing — while `/admin/nn/` hides tester entries unless its Tester pill is chosen,
       so the two counts disagree by exactly that number. [#112](https://github.com/southville-running-club/src-website/issues/112)
       cancelled the ones made on 31 August; the pill is how to be sure none has been made since
 - [ ] Press **Assign bibs**. *"Numbering carries on from the highest number already given out,
@@ -512,9 +512,14 @@ added on race day 2026. **Timing log** — `/timing/events/nn-2026/crossings`.
       what is there — `apps/timing/app/events/[slug]/roster/panels.tsx`.)*
 - [ ] ⚠️ **Every runner who never started is marked DNS before the preview is read.** A runner
       with no crossing at all is not a DNS to the application — they are **"On course"**, with
-      no position, and publication does not refuse them, so an unmarked no-show is published as
-      still running, for ever. The preview's "On course" rows after the last finisher are the
-      list to work through, against the paper at registration
+      no position, and publication does not refuse them. The preview's "On course" rows after
+      the last finisher are the list to work through, against the paper at registration.
+      **Anybody left unmarked is published as "No time recorded"**, with an asterisk on their
+      name and a note above the table asking a runner who did finish to email the race's
+      contact address — since 1 November 2026, when four runners on the 2026 field could be
+      accounted for neither way. The public page (`/nn/<year>/results/`) says it as soon as
+      the race is called finished. That covers a number missed at the line; a known no-show is
+      still DNS
 - [ ] ⚠️ **A status is a label on top of the crossings and never a change to one.** A runner
       who did not finish **keeps** the handover time a marshal recorded; they simply have no
       finishing time. Both the setting *and* the lifting are recorded
