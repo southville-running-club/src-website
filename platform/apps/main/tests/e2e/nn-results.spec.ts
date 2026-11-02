@@ -122,7 +122,7 @@ test.describe('a race whose results the club has published', () => {
     await page.goto(PUBLISHED_PATH);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      `${PUBLISHED_EVENT_NAME} — results`,
+      `${PUBLISHED_EVENT_NAME} results`,
     );
 
     for (const team of PUBLISHED_TEAMS) {
@@ -156,6 +156,41 @@ test.describe('a race whose results the club has published', () => {
         `${team.lastName}: category`,
       ).toBeVisible();
     }
+  });
+
+  /**
+   * ⚠️ **The race's own frame, built by the Worker rather than by Astro** — so the masthead is a
+   * second copy of `NnMasthead.astro`'s markup, and this is what keeps the two from drifting:
+   * the same links, to the same places, as the race's front door. The footer carries the race's
+   * block, as `/nn/<year>/`'s does, and the club's bar is not on the page at all (ADR-014).
+   */
+  test('wears the race’s masthead and footer, the same as /nn/', async ({ page }) => {
+    const raceLinks = async (): Promise<string[]> =>
+      page
+        .getByRole('navigation', { name: 'Nightingale Nightmare' })
+        .getByRole('link')
+        .evaluateAll((anchors) =>
+          anchors.map(
+            (a) => `${a.textContent?.trim() ?? ''} → ${a.getAttribute('href') ?? ''}`,
+          ),
+        );
+
+    await page.goto('/nn/');
+    const expected = await raceLinks();
+    expect(
+      expected.length,
+      '/nn/ has no race navigation to compare with',
+    ).toBeGreaterThan(0);
+
+    await page.goto(PUBLISHED_PATH);
+
+    expect(await raceLinks()).toEqual(expected);
+    await expect(page.locator('body')).toHaveClass(/theme-nn/);
+    await expect(page.locator('.nn-masthead-mark')).toHaveAttribute('href', '/');
+    await expect(page.locator('.site-nav')).toHaveCount(0);
+    await expect(
+      page.getByRole('contentinfo').getByRole('link', { name: race.contact }),
+    ).toBeVisible();
   });
 
   /**
