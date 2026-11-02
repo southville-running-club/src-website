@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SELF } from 'cloudflare:test';
+import { comingUpOn, parseEvents } from '@src/shared/club-content';
+import events from '../../src/content/events.json';
 
 /**
  * The Worker, in the real runtime, against the real build output.
@@ -58,7 +60,17 @@ describe('the club website', () => {
   it('links to the race, and not to the timing app it keeps to staff', async () => {
     const page = await (await SELF.fetch(`${SITE}/`)).text();
 
-    expect(page).toContain('href="/nn/"');
+    // ⚠️ **Only while the race card is current.** It has a `showUntil` in `events.json` and
+    // leaves the page at the first build after race day, on purpose — asked here with the same
+    // function the page is built with, so a later running needs no edit. `tests/race-card.ts`
+    // is the Playwright side of the same question; this runtime has no filesystem to read it.
+    const raceCardIsCurrent = comingUpOn(parseEvents(events), new Date()).some(
+      (entry) => entry.href === '/nn/',
+    );
+
+    if (raceCardIsCurrent) {
+      expect(page).toContain('href="/nn/"');
+    }
     // Staff-only since 11 September 2026: the timing Worker answers 404 to everybody without
     // a `timing.*` permission, so a public link to it is a link to "nothing here".
     expect(page).not.toContain('href="/timing"');

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { raceCardIsCurrent } from '../race-card';
 
 /**
  * The whole site, in a real browser, on one origin — exactly as the public will meet it.
@@ -56,7 +57,13 @@ test.describe('the club website', () => {
     // replaced it: the race's name is the card's heading and the link beside it reads "Race
     // details". The property worth holding is that the home page sends somebody to the race
     // at its evergreen address, not what the button happens to say this month.
-    await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+    //
+    // ⚠️ **Only while the race card is current.** The card that carries this link leaves the
+    // page at the first build after race day, on purpose — `tests/race-card.ts` — and
+    // `club-pages.spec.ts` asserts that it has gone.
+    if (raceCardIsCurrent()) {
+      await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+    }
 
     // **And not to `/timing`**, which is staff-only since 11 September 2026 and answers 404
     // to anybody without a `timing.*` permission. Linking a runner there would send them to a
