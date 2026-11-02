@@ -44,7 +44,7 @@ import {
   sortResults,
   type Result,
 } from './results';
-import { resultCategoryLabel } from './result-category';
+import { isGuide, resultCategoryLabel } from './result-category';
 import type { TimingCrossing, TimingEvent, TimingRunner, TimingTeam } from './rows';
 
 /** A team as an export reads it: the timing row, plus the names and the runners on it. */
@@ -68,7 +68,10 @@ export interface ResultExportRow {
   bibs: string;
   teamNumber: string;
   teamName: string;
-  /** `Ada Lovelace`, or `Ada Lovelace & Grace Hopper`. */
+  /**
+   * `Ada Lovelace`, or `Ada Lovelace & Grace Hopper` for a relay pair. A guide is not named —
+   * see `runnerNames()`.
+   */
   runners: string;
   /** `Women's Vet 40`, `Mixed Pair`, or empty when the club has not placed them. */
   category: string;
@@ -136,8 +139,22 @@ export function runnerBibs(team: ExportTeam, format: EventFormat): string[] {
     .filter((bib): bib is string => bib !== null);
 }
 
+/**
+ * Who the row's time belongs to, in leg order.
+ *
+ * **A guide is left out when there is anybody else on the team.** On a solo race a visually
+ * impaired runner and their guide share one team (ADR-022, ADR-061), and the result is the
+ * runner's alone — the guide's crossing times nothing. Naming both on one line would also put
+ * "this person ran with a guide" into a file the race-night runbook says may leave the
+ * building, which is the inference ADR-043 keeps off the published page. A team that is *only*
+ * a guide, which the import never produces, keeps the name rather than printing a blank: a
+ * blank row names nobody, and the bib beside it would be the only clue left.
+ */
 function runnerNames(team: ExportTeam): string {
-  return team.runners
+  const placeable = team.runners.filter((runner) => !isGuide(runner));
+  const named = placeable.length > 0 ? placeable : team.runners;
+
+  return named
     .slice()
     .sort((a, b) => a.leg - b.leg)
     .map((runner) => `${runner.firstname} ${runner.lastname}`.trim())

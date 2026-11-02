@@ -102,10 +102,18 @@ export function resultCategoryLabel(
   storedCategory: string | null = null,
 ): string | null {
   if (format === 'solo') {
-    // A solo entry is one runner. A team carrying more than one on a solo race is not a shape
-    // the import can produce, and picking the first would be a guess about which of them the
-    // time belongs to.
-    const runner = runners.length === 1 ? runners[0] : undefined;
+    // **A solo entry is one runner, and a guide is not a second one.** `import_from_entries()`
+    // puts a visually impaired runner on leg 1 and their guide on leg 2 of the same team
+    // (ADR-022, ADR-061), so the guide is set aside first — `awards.ts`'s `soloRunner()` does
+    // the same, which is why the prize list was never wrong about this. Two runners who are
+    // *both* placeable on a solo race is still not a shape the import can produce, and picking
+    // the first would be a guess about which of them the time belongs to, so that stays `null`.
+    //
+    // ⚠️ Until 26 October 2026 this counted the guide, so every runner with a guide had no
+    // category on the preview, the live board and both exports — while the public page and
+    // the prizes, which read the leg-1 runner and filter guides respectively, were right.
+    const placeable = runners.filter((runner) => !isGuide(runner));
+    const runner = placeable.length === 1 ? placeable[0] : undefined;
     const derived = runner === undefined ? null : soloLabel(runner);
     return derived ?? storedCategory ?? null;
   }

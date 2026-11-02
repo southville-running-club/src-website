@@ -66,6 +66,24 @@ describe('resultCategoryLabel on a solo race', () => {
     expect(soloAgeCategory(guide)).toBeNull();
   });
 
+  it('places the runner, and not nobody, when their guide rides on the same team', () => {
+    // **The shape `import_from_entries()` actually produces** — ADR-022, ADR-061: the visually
+    // impaired runner on leg 1 and their guide on leg 2 of one solo team. Until 26 October 2026
+    // the guide counted as a second runner, and the runner had no category on the preview, the
+    // live board and both exports while the public page and the prizes were right.
+    const vi = runner({ gender: 'male', age_on_day: 52 });
+    const guide = runner({ role: 'guide', age_on_day: 30 });
+
+    expect(resultCategoryLabel([vi, guide], 'solo')).toBe("Men's Vet 50");
+    expect(resultCategoryLabel([guide, vi], 'solo')).toBe("Men's Vet 50");
+  });
+
+  it('still refuses to guess between two placeable runners on a solo race', () => {
+    expect(
+      resultCategoryLabel([runner(), runner({ gender: 'male' })], 'solo'),
+    ).toBeNull();
+  });
+
   it('gives a runner with no recorded age no category, rather than a guess', () => {
     expect(resultCategoryLabel([runner({ age_on_day: null })], 'solo')).toBeNull();
   });
