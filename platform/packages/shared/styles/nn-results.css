@@ -85,6 +85,24 @@
   font-weight: 600;
 }
 
+/*
+ * A runner with no finish time on a race that is over, and the note that says why. The mark is
+ * bold so it can be found against a name, and the Status cell says the same thing in words.
+ * The note sits above the table rather than under it, because under it is two hundred rows
+ * away from anybody looking for their own name.
+ */
+.results-mark {
+  font-weight: 700;
+}
+
+.results-note {
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--src-rule);
+  border-radius: var(--src-radius-card);
+  background: var(--src-paper);
+}
+
 .results-empty {
   padding: 2rem 1rem;
   text-align: center;

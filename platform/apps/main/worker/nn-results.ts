@@ -88,6 +88,7 @@ import type {
   TimingRunner,
   TimingTeam,
 } from '@src/shared/timing/rows';
+import race from '../src/content/race.json';
 import { html, type Html } from './html';
 import {
   nnEventSlugForResultsPath,
@@ -130,8 +131,40 @@ type ResultsPayload = {
   crossings: TimingCrossing[];
 };
 
+/**
+ * Whether a row has **no finish time on a race that is over** — the runners this page marks
+ * with an asterisk and explains above the table.
+ *
+ * ⚠️ **"On course" stops being true the moment the race is called finished**, and before this
+ * it was what a published table said for ever about anybody with no crossing: the race-night
+ * runbook asks for every no-show to be marked DNS, and publication does not refuse one who was
+ * not. What is left after that is a runner nobody can account for — a race number hidden under
+ * a costume and missed at the line, or somebody who never came — and the club cannot tell
+ * which. So the row claims neither: it says no time was recorded, which is the one thing that
+ * is certainly true, and the note asks a runner who did finish to get in touch.
+ *
+ * **Keyed on `finished_at` rather than on publication**, so the preview a permission holder
+ * reads before pressing publish shows exactly what the public will. A published race is always
+ * finished — `publish_results()` refuses one that is not, and `reopen_event()` refuses a
+ * published one — so the public page can never meet the other branch.
+ *
+ * **DNS, DNF and DQ are not this**: each is a decision somebody recorded, and the row says so.
+ * A relay team with only leg A is, because it has no finish time either.
+ */
+function noTimeRecorded(status: ResultStatus, raceFinished: boolean): boolean {
+  return raceFinished && (status === 'pending' || status === 'leg1');
+}
+
 /** Words for a row that has no time, so a blank cell never has to be interpreted. */
-function statusWords(status: ResultStatus, format: TimingEvent['format']): string {
+function statusWords(
+  status: ResultStatus,
+  format: TimingEvent['format'],
+  raceFinished: boolean,
+): string {
+  if (noTimeRecorded(status, raceFinished)) {
+    return 'No time recorded';
+  }
+
   switch (status) {
     case 'finished':
       return 'Finished';
@@ -243,6 +276,7 @@ function resultRow(
   team: ResultsPayload['teams'][number] | undefined,
   format: TimingEvent['format'],
   position: number | null,
+  raceFinished: boolean,
 ): Html {
   const runners = team?.runners ?? [];
   // A solo entry is one runner on leg 1; a relay pair is both legs, in leg order.
@@ -269,20 +303,55 @@ function resultRow(
             .filter((one): one is string => one !== null)
             .join(' / ') || null;
 
+  /**
+   * **The asterisk goes on the name, because the name is what somebody looks for.** At 320px
+   * the Time and Status columns are off the edge of a sideways-scrolling table, so a runner
+   * scanning for themselves on a phone meets the asterisk before anything else — and the note
+   * it points to is above the table rather than under two hundred rows. The Status cell says
+   * the same thing in words, so nothing rests on the symbol alone.
+   */
+  const mark = noTimeRecorded(result.status, raceFinished)
+    ? html`<span class="results-mark">*</span>`
+    : null;
+
   return html`<tr>
     <td class="results-num">${position === null ? '—' : String(position)}</td>
     <td class="results-num">${bib ?? '—'}</td>
-    <td class="results-name">${team?.name ? `${who} (${team.name})` : who}</td>
+    <td class="results-name">${team?.name ? `${who} (${team.name})` : who}${mark}</td>
     <td>${teamCategory(team, format)}</td>
     <td class="results-num">${formatDuration(result.totalMs)}</td>
     <td class="results-status">
-      ${statusWords(result.status, format)}${
+      ${statusWords(result.status, format, raceFinished)}${
         result.hasOpenAnomaly
           ? html` <span class="results-suspect">— being checked</span>`
           : ''
       }
     </td>
   </tr>`;
+}
+
+/**
+ * What the asterisk means, and what to do about it — shown only when some row carries one.
+ *
+ * ⚠️ **Every clause is chosen so that it cannot be wrong about the runner it is read by.** The
+ * club does not know whether a runner with no time finished unseen or never came, so the note
+ * says neither: it says there is no time, gives the ordinary reason a time goes missing without
+ * blaming anybody for it, and asks a runner who *did* finish to say so. It promises to look and
+ * to update the result, and not to accept a time unseen — a correction is still *unpublish,
+ * fix, publish* (ADR-042), made by a person who has checked.
+ *
+ * **The address is `race.json`'s `contact`**, the one the race's own pages publish, so a runner
+ * writes to the inbox that already handles every other question about this race.
+ */
+function noTimeNote(): Html {
+  return html`<p class="results-note">
+    <span class="results-mark">*</span> We do not have a finish time for the runners
+    marked with an asterisk. Race numbers can be hard to see at the finish — under a
+    costume, for example — so a missing time does not mean somebody did not finish. If you
+    ran and your time is missing, please email
+    <a href="mailto:${race.contact}">${race.contact}</a> with your name and race number,
+    and we will look into it and update your result.
+  </p>`;
 }
 
 function resultsTable(payload: ResultsPayload): Html {
@@ -298,6 +367,7 @@ function resultsTable(payload: ResultsPayload): Html {
   }
 
   const byId = new Map(payload.teams.map((team) => [team.id, team]));
+  const raceFinished = payload.event.finished_at !== null;
 
   // **Position counts finished rows in the order `sortResults` put them in.** It partitions
   // every terminal status below every timed and in-progress team and then sorts by total, so
@@ -312,8 +382,13 @@ function resultsTable(payload: ResultsPayload): Html {
       byId.get(result.team.id),
       payload.event.format,
       placed ? finished : null,
+      raceFinished,
     );
   });
+
+  const anyUnrecorded = results.some((result) =>
+    noTimeRecorded(result.status, raceFinished),
+  );
 
   // ⚠️ **A scrollable region has to be reachable by keyboard, and this table contains nothing
   // focusable at all.** `.results-scroll` scrolls horizontally at narrow widths, and axe's
@@ -326,7 +401,7 @@ function resultsTable(payload: ResultsPayload): Html {
   // region that does not scroll is not a scrollable region. `admin-people.ts` carries the
   // longer note: this is the second page to meet it, and the first to meet it with no
   // controls anywhere on the table rather than by taking the controls away.
-  return html`<div
+  const table = html`<div
     class="results-scroll"
     tabindex="0"
     role="region"
@@ -351,6 +426,8 @@ function resultsTable(payload: ResultsPayload): Html {
       </tbody>
     </table>
   </div>`;
+
+  return anyUnrecorded ? html`${noTimeNote()} ${table}` : table;
 }
 
 /**
