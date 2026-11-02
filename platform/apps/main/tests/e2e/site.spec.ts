@@ -454,9 +454,9 @@ test.describe('the bar between the parts of this site', () => {
       //
       // ⚠️ **`/account/sign-in/` was the Worker's sample page until 1 October 2026**, and it
       // carries the club's header since ADR-052, so it offers no "Events" item to focus. The
-      // Worker's `siteNav()` is still rendered — by `/nn/<year>/results/`, which answers 404 to
-      // a signed-out visitor until a race is published — so this checks the Astro side alone,
-      // and the Worker's copy of the *club* header is compared with the Astro one in
+      // Worker's `siteNav()` is rendered by nothing at all since 2 November 2026, when
+      // `/nn/<year>/results/` moved into the race's own frame — so this checks the Astro side
+      // alone, and the Worker's copy of the *club* header is compared with the Astro one in
       // `club-chrome.spec.ts` instead.
       for (const path of ['/privacy/']) {
         await page.setViewportSize({ width: 1100, height: 800 });
@@ -477,7 +477,10 @@ test.describe('the bar between the parts of this site', () => {
     // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
     // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
     // hand-written constant, so every anchor on the page lands behind it.
-    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/']) {
+    //
+    // **The results refusal is a campaign page too**, since it moved into the race's frame:
+    // the Worker builds its masthead rather than Astro, so it is the one that could drift.
+    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/', '/nn/2026/results/']) {
       await page.goto(path);
 
       await expect(page.locator('.site-nav')).toHaveCount(0);

@@ -70,6 +70,7 @@ import {
   createAnonClient,
   createUserClient,
   fetchPhotosReady,
+  formatLondonDate,
   type SupabaseConfig,
 } from '@src/shared';
 import { effectiveBib } from '@src/shared/timing/bib';
@@ -88,6 +89,8 @@ import type {
   TimingRunner,
   TimingTeam,
 } from '@src/shared/timing/rows';
+import race from '../src/content/race.json';
+import { clubLogo } from './club-chrome';
 import { html, type Html } from './html';
 import {
   nnEventSlugForResultsPath,
@@ -95,7 +98,7 @@ import {
   nnYearPathForEventSlug,
 } from './routing';
 import { readSession } from './session';
-import { faviconLink, siteBanner, siteFooter, siteNav } from './site-chrome';
+import { faviconLink, siteBanner, siteFooter } from './site-chrome';
 
 export interface NnResultsEnv {
   PUBLIC_SUPABASE_URL: string;
@@ -130,8 +133,40 @@ type ResultsPayload = {
   crossings: TimingCrossing[];
 };
 
+/**
+ * Whether a row has **no finish time on a race that is over** — the runners this page marks
+ * with an asterisk and explains above the table.
+ *
+ * ⚠️ **"On course" stops being true the moment the race is called finished**, and before this
+ * it was what a published table said for ever about anybody with no crossing: the race-night
+ * runbook asks for every no-show to be marked DNS, and publication does not refuse one who was
+ * not. What is left after that is a runner nobody can account for — a race number hidden under
+ * a costume and missed at the line, or somebody who never came — and the club cannot tell
+ * which. So the row claims neither: it says no time was recorded, which is the one thing that
+ * is certainly true, and the note asks a runner who did finish to get in touch.
+ *
+ * **Keyed on `finished_at` rather than on publication**, so the preview a permission holder
+ * reads before pressing publish shows exactly what the public will. A published race is always
+ * finished — `publish_results()` refuses one that is not, and `reopen_event()` refuses a
+ * published one — so the public page can never meet the other branch.
+ *
+ * **DNS, DNF and DQ are not this**: each is a decision somebody recorded, and the row says so.
+ * A relay team with only leg A is, because it has no finish time either.
+ */
+function noTimeRecorded(status: ResultStatus, raceFinished: boolean): boolean {
+  return raceFinished && (status === 'pending' || status === 'leg1');
+}
+
 /** Words for a row that has no time, so a blank cell never has to be interpreted. */
-function statusWords(status: ResultStatus, format: TimingEvent['format']): string {
+function statusWords(
+  status: ResultStatus,
+  format: TimingEvent['format'],
+  raceFinished: boolean,
+): string {
+  if (noTimeRecorded(status, raceFinished)) {
+    return 'No time recorded';
+  }
+
   switch (status) {
     case 'finished':
       return 'Finished';
@@ -243,6 +278,7 @@ function resultRow(
   team: ResultsPayload['teams'][number] | undefined,
   format: TimingEvent['format'],
   position: number | null,
+  raceFinished: boolean,
 ): Html {
   const runners = team?.runners ?? [];
   // A solo entry is one runner on leg 1; a relay pair is both legs, in leg order.
@@ -269,14 +305,25 @@ function resultRow(
             .filter((one): one is string => one !== null)
             .join(' / ') || null;
 
+  /**
+   * **The asterisk goes on the name, because the name is what somebody looks for.** At 320px
+   * the Time and Status columns are off the edge of a sideways-scrolling table, so a runner
+   * scanning for themselves on a phone meets the asterisk before anything else — and the note
+   * it points to is above the table rather than under two hundred rows. The Status cell says
+   * the same thing in words, so nothing rests on the symbol alone.
+   */
+  const mark = noTimeRecorded(result.status, raceFinished)
+    ? html`<span class="results-mark">*</span>`
+    : null;
+
   return html`<tr>
     <td class="results-num">${position === null ? '—' : String(position)}</td>
     <td class="results-num">${bib ?? '—'}</td>
-    <td class="results-name">${team?.name ? `${who} (${team.name})` : who}</td>
+    <td class="results-name">${team?.name ? `${who} (${team.name})` : who}${mark}</td>
     <td>${teamCategory(team, format)}</td>
     <td class="results-num">${formatDuration(result.totalMs)}</td>
     <td class="results-status">
-      ${statusWords(result.status, format)}${
+      ${statusWords(result.status, format, raceFinished)}${
         result.hasOpenAnomaly
           ? html` <span class="results-suspect">— being checked</span>`
           : ''
@@ -299,6 +346,9 @@ function resultRow(
  * move every runner behind them, and a dash for the category, because a guide is never asked
  * for one. The staff preview at `/timing/…/results` is where "Guide" is written.
  *
+ * **It never carries the no-time asterisk**: `resultLines()` lists a guide only when their own
+ * number was captured, so a guide's row is never one the club has no time for.
+ *
  * **Nothing here branches on publication either**, which is `categoryWords()`'s rule: the
  * preview a permission holder reads on this page before publication is the table the public
  * will read.
@@ -306,6 +356,7 @@ function resultRow(
 function guideRow(
   line: GuideLine<ResultsPayload['teams'][number]>,
   format: TimingEvent['format'],
+  raceFinished: boolean,
 ): Html {
   return html`<tr>
     <td class="results-num">—</td>
@@ -314,13 +365,37 @@ function guideRow(
     <td>—</td>
     <td class="results-num">${formatDuration(line.result.totalMs)}</td>
     <td class="results-status">
-      ${statusWords(line.result.status, format)}${
+      ${statusWords(line.result.status, format, raceFinished)}${
         line.result.hasOpenAnomaly
           ? html` <span class="results-suspect">— being checked</span>`
           : ''
       }
     </td>
   </tr>`;
+}
+
+/**
+ * What the asterisk means, and what to do about it — shown only when some row carries one.
+ *
+ * ⚠️ **Every clause is chosen so that it cannot be wrong about the runner it is read by.** The
+ * club does not know whether a runner with no time finished unseen or never came, so the note
+ * says neither: it says there is no time, gives the ordinary reason a time goes missing without
+ * blaming anybody for it, and asks a runner who *did* finish to say so. It promises to look and
+ * to update the result, and not to accept a time unseen — a correction is still *unpublish,
+ * fix, publish* (ADR-042), made by a person who has checked.
+ *
+ * **The address is `race.json`'s `contact`**, the one the race's own pages publish, so a runner
+ * writes to the inbox that already handles every other question about this race.
+ */
+function noTimeNote(): Html {
+  return html`<p class="nn-card results-note">
+    <span class="results-mark">*</span> We do not have a finish time for the runners
+    marked with an asterisk. Race numbers can be hard to see at the finish — under a
+    costume, for example — so a missing time does not mean somebody did not finish. If you
+    ran and your time is missing, please email
+    <a href="mailto:${race.contact}">${race.contact}</a> with your name and race number,
+    and we will look into it and update your result.
+  </p>`;
 }
 
 function resultsTable(payload: ResultsPayload): Html {
@@ -331,10 +406,12 @@ function resultsTable(payload: ResultsPayload): Html {
   const lines = resultLines(payload.event, payload.teams, payload.crossings);
 
   if (lines.length === 0) {
-    return html`<p class="results-empty">
+    return html`<p class="nn-card results-empty">
       Nothing has been captured for this race yet.
     </p>`;
   }
+
+  const raceFinished = payload.event.finished_at !== null;
 
   // The caption counts **entries**, as it always has. A guide is on their runner's entry, so a
   // guide's row is a person on the table rather than an entry of their own.
@@ -342,8 +419,18 @@ function resultsTable(payload: ResultsPayload): Html {
 
   const rows = lines.map((line) =>
     line.kind === 'guide'
-      ? guideRow(line, payload.event.format)
-      : resultRow(line.result, line.team, payload.event.format, line.position),
+      ? guideRow(line, payload.event.format, raceFinished)
+      : resultRow(
+          line.result,
+          line.team,
+          payload.event.format,
+          line.position,
+          raceFinished,
+        ),
+  );
+
+  const anyUnrecorded = lines.some((line) =>
+    noTimeRecorded(line.result.status, raceFinished),
   );
 
   // ⚠️ **A scrollable region has to be reachable by keyboard, and this table contains nothing
@@ -357,7 +444,7 @@ function resultsTable(payload: ResultsPayload): Html {
   // region that does not scroll is not a scrollable region. `admin-people.ts` carries the
   // longer note: this is the second page to meet it, and the first to meet it with no
   // controls anywhere on the table rather than by taking the controls away.
-  return html`<div
+  const table = html`<div
     class="results-scroll"
     tabindex="0"
     role="region"
@@ -382,6 +469,8 @@ function resultsTable(payload: ResultsPayload): Html {
       </tbody>
     </table>
   </div>`;
+
+  return anyUnrecorded ? html`${noTimeNote()} ${table}` : table;
 }
 
 /**
@@ -396,12 +485,72 @@ type Visibility = 'private' | 'public';
 /** See the header. Sixty seconds is chosen against ADR-042's withdrawal, not against load. */
 const PUBLISHED_MAX_AGE_SECONDS = 60;
 
+/**
+ * The running a page belongs to, for the two things in its frame that name one: the masthead's
+ * button and the footer's race block. **Null on a refusal**, which may name no year — a 404
+ * whose footer said "Nightingale Nightmare 2027" would be the disclosure the refusal exists to
+ * avoid.
+ */
+type Running = { name: string; yearPath: string };
+
+/** `NnMasthead.astro`'s wordmark width, so the two mastheads are the same size. */
+const NN_LOGO_WIDTH = 176;
+
+/**
+ * **`NnMasthead.astro`, rendered by the Worker** — the bar every other Nightingale Nightmare
+ * page carries, so the results read as part of the race rather than as a club tool.
+ *
+ * ⚠️ **A second copy of that component's markup, deliberately**, for the reason
+ * `club-chrome.ts` gives about `ClubHeader.astro`: this page is built as strings and Astro is
+ * not in the request path. `nn-results.spec.ts` compares this bar's links with `/nn/`'s in a
+ * browser, so the two cannot drift apart without a test going red.
+ *
+ * **The button is "Race details", pointing at the running's own page**, which is what the
+ * Worker paints on the other campaign pages once entries have closed — and a running with
+ * results has always closed. A refusal draws no button at all: it has no running to point at.
+ *
+ * **Sticky, like every campaign page but the year page.** `/nn/<year>/` unsticks the bar on a
+ * phone only because it pins an entry bar at the bottom as well; this page has no second strip.
+ */
+function nnMasthead(running: Running | null): Html {
+  return html`<header class="nn-masthead">
+    <div class="nn-wrap">
+      <a class="nn-masthead-mark" href="/" aria-label="Southville Running Club, home">
+        ${clubLogo('nn-logo', NN_LOGO_WIDTH, false)}
+      </a>
+      <nav class="nn-nav" aria-label="Nightingale Nightmare">
+        <ul class="nn-nav-links">
+          <li><a href="/nn/">Race</a></li>
+          <li><a href="/nn/privacy/">Privacy</a></li>
+        </ul>
+      </nav>
+      ${
+        running === null
+          ? null
+          : html`<a
+              class="nn-nav-cta"
+              href="${running.yearPath}"
+              aria-label="Race details"
+            >
+              <span class="nn-nav-cta-long">Race details</span>
+              <span class="nn-nav-cta-short">Details</span>
+            </a>`
+      }
+    </div>
+  </header>`;
+}
+
+/**
+ * **The race's frame around a table that keeps the club's** — the gradient, the masthead, the
+ * display face and the footer's race block are `/nn/<year>/`'s, and the table is unchanged.
+ * See `nn-results.css` for why the table carries its own surface and ink.
+ */
 function page(
   title: string,
   body: Html,
-  pathname: string,
   status: number,
   visibility: Visibility,
+  running: Running | null,
 ): Response {
   const document = html`<!doctype html>
     <html lang="en-GB">
@@ -420,8 +569,14 @@ function page(
         ${faviconLink()}
         <link rel="stylesheet" href="/nn/results.css" />
       </head>
-      <body>
-        ${siteBanner()} ${siteNav(pathname)} ${body} ${siteFooter()}
+      <body class="theme-nn">
+        <a class="skip-link" href="#main">Skip to content</a>
+        ${siteBanner()} ${nnMasthead(running)} ${body}
+        ${siteFooter(
+          running === null
+            ? undefined
+            : { name: running.name, privacy: '/nn/privacy/', contact: race.contact },
+        )}
       </body>
     </html>`;
 
@@ -449,16 +604,22 @@ function page(
  * not let in, and a shared cache holding it could go on refusing somebody the page was
  * published to.
  */
-function notFound(pathname: string): Response {
+function notFound(): Response {
   return page(
     'Not found',
     html`<main class="results-page" id="main">
-      <h1>Not found</h1>
-      <p>There is nothing at this address.</p>
+      <header class="nn-hero">
+        <div class="nn-wrap">
+          <h1>Not found</h1>
+        </div>
+      </header>
+      <div class="nn-wrap results-body">
+        <p class="nn-card">There is nothing at this address.</p>
+      </div>
     </main>`,
-    pathname,
     404,
     'private',
+    null,
   );
 }
 
@@ -491,12 +652,12 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
   }
 
   return event.finished_at === null
-    ? html`<p class="results-meta">
+    ? html`<p class="nn-card results-banner">
         These results are not published, and this race is still being timed. This page is
         visible only to people the club has given permission to read them, and the times
         on it are provisional until the race director confirms them.
       </p>`
-    : html`<p class="results-meta">
+    : html`<p class="nn-card results-banner">
         These results are not published. The race has been called finished, and nobody has
         published its results yet. This page is visible only to people the club has given
         permission to read them, and the times on it are provisional until the race
@@ -513,7 +674,9 @@ function previewBanner(event: ResultsPayload['event']): Html | null {
  * adds the way to ask for a lost link, which is where this will point.
  */
 function photosBanner(): Html {
-  return html`<p class="results-photos">Your Nightingale Nightmare photos are ready</p>`;
+  return html`<p class="nn-card results-photos">
+    Your Nightingale Nightmare photos are ready
+  </p>`;
 }
 
 export async function handleNnResults(
@@ -544,7 +707,7 @@ export async function handleNnResults(
 
   const slug = nnEventSlugForResultsPath(url.pathname);
   if (slug === null) {
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   // ⚠️ **A signed-out visitor is no longer refused before anything is read**, which is #242's
@@ -565,11 +728,11 @@ export async function handleNnResults(
     // by design, and an error page here would itself disclose which years are real. A code and
     // a message, never a row.
     console.error(`timing: results read unavailable — ${error.code}: ${error.message}`);
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   if (data === null) {
-    return withCookies(notFound(url.pathname), setCookies);
+    return withCookies(notFound(), setCookies);
   }
 
   const payload = data as unknown as ResultsPayload;
@@ -586,14 +749,30 @@ export async function handleNnResults(
     ? await fetchPhotosReady(createAnonClient(cfg), slug)
     : false;
 
+  // **The hero is `/nn/<year>/`'s**: the race's name in the display face and the day it was run
+  // in the dateline's gold, both from the running's own row rather than from `race.json`, so a
+  // later year's results never borrow this year's date.
   const body = html`<main class="results-page" id="main">
-    <h1>${payload.event.name} — results</h1>
-    ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
-    ${resultsTable(payload)}
+    <header class="nn-hero">
+      <div class="nn-wrap">
+        <h1>${payload.event.name} results</h1>
+        <p class="nn-dateline">${formatLondonDate(payload.event.start_at)}</p>
+      </div>
+    </header>
+    <div class="nn-wrap results-body">
+      ${previewBanner(payload.event)} ${photosReady ? photosBanner() : null}
+      ${resultsTable(payload)}
+    </div>
   </main>`;
 
+  // `nnEventSlugForResultsPath` only ever answers an `nn-<year>` slug, so this is never null in
+  // practice — and if it were, the frame would simply draw no button and no race block.
+  const yearPath = nnYearPathForEventSlug(slug);
+  const running: Running | null =
+    yearPath === null ? null : { name: payload.event.name, yearPath };
+
   return withCookies(
-    page(`${payload.event.name} results`, body, url.pathname, 200, visibility),
+    page(`${payload.event.name} results`, body, 200, visibility, running),
     setCookies,
   );
 }

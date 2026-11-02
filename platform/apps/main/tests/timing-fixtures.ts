@@ -224,8 +224,16 @@ export interface PublishedTeamFixture {
   /** ADR-031's answer, and null for everybody who was never asked. */
   resultPlacement: 'female' | 'male' | null;
   ageOnDay: number | null;
-  crossedAt: string;
+  /** When this runner crossed, or null for somebody with no finish time recorded at all. */
+  crossedAt: string | null;
   expectedTime: string;
+  /** What the Status column must show on the published page. */
+  expectedStatus: string;
+  /**
+   * Whether the row carries the asterisk that points at the note above the table — a runner
+   * with no finish time on a race that is over.
+   */
+  expectedMark: boolean;
   /**
    * What the Category column must show **on the published page**, where there is no age to
    * derive a band from — ADR-043. The band the same runner shows in the preview is
@@ -238,7 +246,7 @@ export interface PublishedTeamFixture {
 
 /**
  * Three finishers, chosen so that the category column has something to be wrong about in each
- * of the three ways it can be.
+ * of the three ways it can be — and a fourth runner with no time at all.
  *
  * - **Nesta is `female` in `entries`' vocabulary**, which the legacy `'F'` fixtures above do
  *   not exercise at all — `normaliseTimingGender()` accepts both and a page that only ever met
@@ -249,6 +257,12 @@ export interface PublishedTeamFixture {
  *   that is a silent wrong answer rather than a failure.
  * - **Ozzy has no gender recorded**, so there is no category and the column says so. Unknown
  *   means no band rather than a guess, which is the rule everywhere else in the timing logic.
+ * - ⚠️ **Morfydd never crossed and nobody marked her DNS**, which is the state a runner is
+ *   published in when their race number was missed at the line — or when they never came, and
+ *   the club cannot tell which. On a race that is over that row is **"No time recorded"** with
+ *   an asterisk and no position, never "On course", and the note above the table says what to
+ *   do about it. Her age is chosen so that it collides with no time, bib or position here,
+ *   because the published-age assertions match it against the table's cells.
  */
 export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
   {
@@ -262,6 +276,8 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
     crossedAt: '2095-11-06T11:44:10.000Z',
     // 11:00:00 → 11:44:10 is 44m 10s. `start_at` only: this running was not delayed.
     expectedTime: '44:10.00',
+    expectedStatus: 'Finished',
+    expectedMark: false,
     expectedCategory: 'Women',
     previewCategory: "Women's Vet 60",
   },
@@ -275,6 +291,8 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
     ageOnDay: 41,
     crossedAt: '2095-11-06T11:52:30.000Z',
     expectedTime: '52:30.00',
+    expectedStatus: 'Finished',
+    expectedMark: false,
     expectedCategory: 'Men',
     previewCategory: "Men's Vet 40",
   },
@@ -288,8 +306,25 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
     ageOnDay: 33,
     crossedAt: '2095-11-06T12:01:05.000Z',
     expectedTime: '1:01:05',
+    expectedStatus: 'Finished',
+    expectedMark: false,
     expectedCategory: '—',
     previewCategory: '—',
+  },
+  {
+    id: '0c0c0c0c-0000-4000-8000-000000000044',
+    teamNumber: '22',
+    firstName: 'Morfydd',
+    lastName: 'Pugh',
+    gender: 'female',
+    resultPlacement: null,
+    ageOnDay: 29,
+    crossedAt: null,
+    expectedTime: '—',
+    expectedStatus: 'No time recorded',
+    expectedMark: true,
+    expectedCategory: 'Women',
+    previewCategory: "Women's Senior",
   },
 ];
 

@@ -84,8 +84,8 @@ changes how the same answer is drawn.
   (`finishTimeForBib()`), so a guide's photos page shows their photos and no time. Each is a
   separate change if somebody wants it. The export lists entries only, and its positions still
   match the page's because a guide is never placed.
-- **A guide row never carries the "No time recorded" mark** proposed in #385, because it only
-  exists when there is a capture.
+- **A guide row never carries the "No time recorded" mark** that #385 added for a runner with
+  no crossing on a finished race, because a guide's row only exists when there is a capture.
 
 ## Alternatives considered
 

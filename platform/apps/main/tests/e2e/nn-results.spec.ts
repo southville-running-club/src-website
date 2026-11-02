@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath, URL } from 'node:url';
 import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 import { seedTimingFixtures } from '../timing-db';
@@ -14,6 +16,19 @@ import {
   RESULTS_EVENT_NAME,
   RESULTS_PATH,
 } from '../timing-fixtures';
+
+/**
+ * The race's contact address, which the note under the asterisk asks a runner to email.
+ * **Read from disk rather than `import`ed**, `events.spec.ts`'s reason: a bare JSON import
+ * fails in a Playwright spec with *"needs an import attribute of type: json"*, and it fails the
+ * whole file before a single test is collected.
+ */
+const race = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../src/content/race.json', import.meta.url)),
+    'utf8',
+  ),
+) as { contact: string };
 
 /**
  * `/nn/<year>/results/` in a real browser, to somebody who is signed in to nothing — which is
@@ -108,7 +123,7 @@ test.describe('a race whose results the club has published', () => {
     await page.goto(PUBLISHED_PATH);
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
-      `${PUBLISHED_EVENT_NAME} — results`,
+      `${PUBLISHED_EVENT_NAME} results`,
     );
 
     for (const team of PUBLISHED_TEAMS) {
@@ -163,6 +178,75 @@ test.describe('a race whose results the club has published', () => {
         `${team.lastName}: category`,
       ).toBeVisible();
     }
+  });
+
+  /**
+   * ⚠️ **The race's own frame, built by the Worker rather than by Astro** — so the masthead is a
+   * second copy of `NnMasthead.astro`'s markup, and this is what keeps the two from drifting:
+   * the same links, to the same places, as the race's front door. The footer carries the race's
+   * block, as `/nn/<year>/`'s does, and the club's bar is not on the page at all (ADR-014).
+   */
+  test('wears the race’s masthead and footer, the same as /nn/', async ({ page }) => {
+    const raceLinks = async (): Promise<string[]> =>
+      page
+        .getByRole('navigation', { name: 'Nightingale Nightmare' })
+        .getByRole('link')
+        .evaluateAll((anchors) =>
+          anchors.map(
+            (a) => `${a.textContent?.trim() ?? ''} → ${a.getAttribute('href') ?? ''}`,
+          ),
+        );
+
+    await page.goto('/nn/');
+    const expected = await raceLinks();
+    expect(
+      expected.length,
+      '/nn/ has no race navigation to compare with',
+    ).toBeGreaterThan(0);
+
+    await page.goto(PUBLISHED_PATH);
+
+    expect(await raceLinks()).toEqual(expected);
+    await expect(page.locator('body')).toHaveClass(/theme-nn/);
+    await expect(page.locator('.nn-masthead-mark')).toHaveAttribute('href', '/');
+    await expect(page.locator('.site-nav')).toHaveCount(0);
+    await expect(
+      page.getByRole('contentinfo').getByRole('link', { name: race.contact }),
+    ).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **A runner the club has no time for, as the public meets them.** Morfydd never crossed
+   * and was never marked DNS. On a race that is over the row says so in words, her name
+   * carries the asterisk, and the note above the table asks a runner who did finish to email
+   * the race — read here as a reader reads it, link and all, rather than as markup.
+   */
+  test('marks a runner with no recorded time, and asks them to get in touch', async ({
+    page,
+  }) => {
+    await page.goto(PUBLISHED_PATH);
+
+    for (const team of PUBLISHED_TEAMS.filter((one) => one.expectedMark)) {
+      const row = page.getByRole('row').filter({ hasText: team.lastName });
+      await expect(
+        row.getByRole('cell', { name: 'No time recorded', exact: true }),
+      ).toBeVisible();
+      await expect(
+        row.getByRole('cell', {
+          name: `${team.firstName} ${team.lastName}*`,
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
+
+    const note = page.locator('.results-note');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('If you ran and your time is missing');
+    await expect(note.getByRole('link', { name: race.contact })).toHaveAttribute(
+      'href',
+      `mailto:${race.contact}`,
+    );
+    await expect(page.getByText('On course')).toHaveCount(0);
   });
 
   /**

@@ -40,8 +40,9 @@
  *
  * **No `Numbers from` facts row.** The reference template's fourth facts row states a time and
  * a venue — 09:15, Ashton Park School — and nothing in `entries.claim_outbox_batch()`'s
- * projection carries either. Race facts belong to `race.json`, which no file in `worker/`
- * imports; hardcoding "09:15, Ashton Park School" here would be exactly the invented race fact
+ * projection carries either. Race facts belong to `race.json`, which `worker/` imports only
+ * for the race's contact address (`nn-results.ts`); hardcoding "09:15, Ashton Park School"
+ * here would be exactly the invented race fact
  * this repository forbids in a template. The CTA below carries a runner to the race-day page,
  * which is where that fact actually lives and can never go stale.
  *

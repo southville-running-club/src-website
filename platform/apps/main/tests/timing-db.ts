@@ -274,6 +274,9 @@ async function seedFinishedAndPublished(db: Client): Promise<void> {
       ],
     );
 
+    // A runner with no time recorded has no crossing at all — not a crossing with no time.
+    if (team.crossedAt === null) continue;
+
     await db.query(
       `insert into timing.crossings (event_id, bib, captured_at)
          values ($1, $2, $3::timestamptz)`,
