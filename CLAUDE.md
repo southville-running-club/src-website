@@ -1241,12 +1241,30 @@ nothing failing except, sometimes, one test marked `✘` with no error text. Tha
 whichever test was running when the clock stopped, and it passes when it is run again.
 **Nothing was hung**: `playwright.config.ts`'s `globalTimeout` was ten minutes everywhere, and
 `./dev test` runs the whole config, all three projects, in one process, which by then sat
-right at ten minutes on a laptop — 9.9 on a quiet one, over ten on a busier one. CI never saw
-it, because it shards the config three ways.
-**The cap is twenty-five minutes locally and ten in CI now**, keyed on `CI`. If it is hit
+right at ten minutes on a laptop — 9.9 on a quiet one, over ten on a busier one. CI did not
+see it then, because it shards the config three ways.
+**The cap is twenty-five minutes locally and fifteen in CI now**, keyed on `CI`. If it is hit
 again, the tell is a run that stops at exactly the cap's length, and the answer is to raise
-the local figure rather than to go looking for a deadlock. Running one project at a time
+the figure rather than to go looking for a deadlock. Running one project at a time
 (`./dev e2e --project=chromium`, and so on) covers the same tests in the meantime.
+
+⚠️ **CI's cap was ten until 1 November 2026, and one shard outgrew it, which reads as a red
+pull request with nothing failing.** `Acceptance (base-2)` is the shard Playwright fills with
+`mobile-safari`, and over thirteen runs from 25 to 31 October it took a median 8.8 minutes
+and up to 10.0, while no other shard passed 6.3. It hit the cap on 27 and 31 October, the
+second time on a branch that touched nothing under `platform/`: 686 passed, 20 did not run,
+no failure. **A fourth shard is not the fix**, and `ci.yml` says why with the run that tried
+it. **The cap and the job's `timeout-minutes` move together** — 15 and 36 now, against 10 and
+25 — because the step can run Playwright twice and the job has to hold both passes.
+
+⚠️ **"Where the suite spent its time" has printed nothing since it was added on 25 August
+2026 (#93), and the reason is a Playwright precedence rule.** `ci.yml` named each shard's report with
+`PLAYWRIGHT_JSON_OUTPUT_NAME`, which Playwright reads only when the reporter has no
+`outputFile`, and `playwright.config.ts` sets one. So every shard wrote `results.json`, the
+step's `results-*.json` matched nothing, and the per-file table that `ci.yml` calls *the next
+move* never appeared. `PLAYWRIGHT_JSON_OUTPUT_FILE` is read before the config, and is what CI
+sets now. Proven in a scratch run on 1.62.1: `_NAME` produced `results.json`, `_FILE`
+produced `results-base-2.json`.
 
 **`./dev test` fails one Worker test on any machine that has a Stripe key, and it is the
 machine rather than the branch.** `tests/worker/admin/tester.test.ts`'s "gets the tester entry
