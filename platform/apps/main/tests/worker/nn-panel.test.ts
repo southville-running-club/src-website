@@ -4,8 +4,11 @@ import {
   feeLine,
   renderNnEntryView,
   renderNnPreviousYears,
+  renderNnRaceView,
   NN_PREVIOUS_SLOTS,
   type NnEntryView,
+  type NnRaceView,
+  type NnRunning,
 } from '../../worker/nn-entry';
 
 /**
@@ -383,5 +386,91 @@ describe('which of the three states the year page renders', () => {
 
     expect(isHidden(html, 'data-nn-interest')).toBe(false);
     expect(isHidden(html, 'data-nn-closed')).toBe(true);
+  });
+});
+
+describe('the race page’s panel note, per window state', () => {
+  /**
+   * The panel's own markup, fabricated, so the renderer can be driven through the state the
+   * seeded database never holds. The "closed" half of this file is `pre_open` — the window
+   * before entries open — and the state after the window has no fixture at all: a past close
+   * date on the real row would turn every other assertion here into a claim about a window
+   * that had ended.
+   *
+   * ⚠️ **`closed` is what production serves from the moment entries close until the next
+   * running exists**, because `current_entry_state('nn')` falls back to the most recent past
+   * one. Until 26 October 2026 the renderer hid the "not open yet" note only for `open`, so
+   * the front door would have invited people to leave their name for a window that had gone —
+   * from the close, through race day, and all winter.
+   */
+  const PANEL = [
+    '<section data-nn-panel hidden>',
+    '<p data-nn-panel-date></p>',
+    '<span data-nn-panel-time></span>',
+    '<a class="nn-ghost" href="" data-nn-panel-action data-nn-panel-link="year">',
+    'The race this year',
+    '</a>',
+    '<p data-nn-panel-shut>Entries are not open yet. Leave your name.</p>',
+    '<p data-nn-panel-open hidden><span data-nn-panel-fees></span></p>',
+    '</section>',
+  ].join('');
+
+  const running = (state: NnRunning['state']): NnRaceView => ({
+    running: {
+      year: '2026',
+      yearPath: '/nn/2026/',
+      state,
+      date: '1 November 2026',
+      startTime: '11:00',
+      fees: [],
+      previous: [],
+    },
+  });
+
+  const render = async (view: NnRaceView): Promise<string> => {
+    const response = renderNnRaceView(new HTMLRewriter(), view).transform(
+      new Response(PANEL, { headers: { 'content-type': 'text/html' } }),
+    );
+    return response.text();
+  };
+
+  /** `hidden` on the element carrying this attribute, whatever order the attributes are in. */
+  const isHidden = (html: string, marker: string): boolean =>
+    new RegExp(`<[^>]*\\b${marker}\\b[^>]*\\bhidden\\b`).test(html);
+
+  it('says entries are not open before the window opens', async () => {
+    const html = await render(running('pre_open'));
+
+    // The panel's own tag rather than `isHidden()`: `data-nn-panel` is a prefix of every other
+    // marker here and `\b` treats the hyphen after it as a boundary, so the fee line, which
+    // ships `hidden`, would answer for the section.
+    expect(html).toContain('<section data-nn-panel>');
+    expect(isHidden(html, 'data-nn-panel-shut')).toBe(false);
+    expect(isHidden(html, 'data-nn-panel-open')).toBe(true);
+    expect(html).toMatch(/class="nn-ghost"[^>]*href="\/nn\/2026\/"/);
+    expect(html).toContain('The 2026 race');
+  });
+
+  it('quotes the fee and the filled action while the window is open', async () => {
+    const html = await render(running('open'));
+
+    expect(isHidden(html, 'data-nn-panel-shut')).toBe(true);
+    expect(isHidden(html, 'data-nn-panel-open')).toBe(false);
+    expect(html).toMatch(/class="nn-cta"[^>]*href="\/nn\/2026\/#enter"/);
+    expect(html).toContain('Enter the race');
+  });
+
+  it('says nothing about entries once the window has ended', async () => {
+    // **Neither note.** "Not open yet" is false, "leave your name" points at an interest form
+    // `/nn/2026/` hides in its ended state, and the fee line is for a place nobody can buy.
+    // The running's own page is where "Entries have closed" is said, and this panel only ever
+    // points there — quietly, with the same outlined action it offers before the window.
+    const html = await render(running('closed'));
+
+    expect(html).toContain('<section data-nn-panel>');
+    expect(isHidden(html, 'data-nn-panel-shut')).toBe(true);
+    expect(isHidden(html, 'data-nn-panel-open')).toBe(true);
+    expect(html).toMatch(/class="nn-ghost"[^>]*href="\/nn\/2026\/"/);
+    expect(html).toContain('The 2026 race');
   });
 });
