@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { axeViolations } from '../axe';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
+import { raceCardIsCurrent } from '../race-card';
 
 /**
  * The whole site, in a real browser, on one origin — exactly as the public will meet it.
@@ -56,7 +57,13 @@ test.describe('the club website', () => {
     // replaced it: the race's name is the card's heading and the link beside it reads "Race
     // details". The property worth holding is that the home page sends somebody to the race
     // at its evergreen address, not what the button happens to say this month.
-    await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+    //
+    // ⚠️ **Only while the race card is current.** The card that carries this link leaves the
+    // page at the first build after race day, on purpose — `tests/race-card.ts` — and
+    // `club-pages.spec.ts` asserts that it has gone.
+    if (raceCardIsCurrent()) {
+      await expect(content.locator('a[href="/nn/"]')).not.toHaveCount(0);
+    }
 
     // **And not to `/timing`**, which is staff-only since 11 September 2026 and answers 404
     // to anybody without a `timing.*` permission. Linking a runner there would send them to a
@@ -447,9 +454,9 @@ test.describe('the bar between the parts of this site', () => {
       //
       // ⚠️ **`/account/sign-in/` was the Worker's sample page until 1 October 2026**, and it
       // carries the club's header since ADR-052, so it offers no "Events" item to focus. The
-      // Worker's `siteNav()` is still rendered — by `/nn/<year>/results/`, which answers 404 to
-      // a signed-out visitor until a race is published — so this checks the Astro side alone,
-      // and the Worker's copy of the *club* header is compared with the Astro one in
+      // Worker's `siteNav()` is rendered by nothing at all since 2 November 2026, when
+      // `/nn/<year>/results/` moved into the race's own frame — so this checks the Astro side
+      // alone, and the Worker's copy of the *club* header is compared with the Astro one in
       // `club-chrome.spec.ts` instead.
       for (const path of ['/privacy/']) {
         await page.setViewportSize({ width: 1100, height: 800 });
@@ -470,7 +477,10 @@ test.describe('the bar between the parts of this site', () => {
     // The ADR-014 rule, asserted where somebody would break it. A club bar here is not a
     // cosmetic mistake — it is 40-odd pixels above a sticky header whose inset is a
     // hand-written constant, so every anchor on the page lands behind it.
-    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/']) {
+    //
+    // **The results refusal is a campaign page too**, since it moved into the race's frame:
+    // the Worker builds its masthead rather than Astro, so it is the one that could drift.
+    for (const path of ['/nn/', '/nn/privacy/', '/nn/2026/', '/nn/2026/results/']) {
       await page.goto(path);
 
       await expect(page.locator('.site-nav')).toHaveCount(0);

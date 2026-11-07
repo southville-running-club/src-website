@@ -1,5 +1,6 @@
 import { SELF } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
+import race from '../../../src/content/race.json';
 import { ADMIN_PASSWORD, NN_RESULTS_EMAIL, REGISTERED_EMAIL } from '../../admin-fixtures';
 import {
   ABSENT_PATH,
@@ -11,6 +12,7 @@ import {
   LEAKED_EMAIL_DOMAIN,
   PUBLISHED_AGES,
   PUBLISHED_EVENT_NAME,
+  PUBLISHED_GUIDE,
   PUBLISHED_PATH,
   PUBLISHED_TEAMS,
   RESULTS_EVENT_NAME,
@@ -246,6 +248,24 @@ describe("one running's results, to somebody who may read them", () => {
   });
 
   /**
+   * ⚠️ **The negative case for the asterisk, and it is this running because it is not
+   * finished.** A runner with no crossing on a race still being timed is genuinely on the
+   * course, so the row says so and the note about missing times is not on the page — asked
+   * about a race in progress, "we do not have a finish time" would be a claim about somebody
+   * who is still running.
+   */
+  it('keeps a runner with no crossing "On course" while the race is being timed', async () => {
+    const out = RESULTS_TEAMS.find((team) => team.crossedAt === null);
+    expect(out, 'the fixture has nobody without a crossing').toBeDefined();
+
+    const row = rows.find((cells) => cells[RUNNER]?.includes(out!.lastName));
+    expect(row?.[STATUS]).toBe('On course');
+    expect(row?.[RUNNER]).not.toContain('*');
+    expect(markup).not.toContain('results-note');
+    expect(markup).not.toContain('No time recorded');
+  });
+
+  /**
    * ⚠️ **The rule with no symptom until the one year the start slips.** Splits are measured
    * against `coalesce(actually_started_at, start_at)`, and this fixture's start ran two minutes
    * late. A page reading the scheduled start would render times two minutes longer — plausible,
@@ -382,6 +402,24 @@ describe('a running that is finished and not published', () => {
     expect(markup).toContain('The race has been called finished');
     expect(markup).toContain('provisional until the race director confirms them');
   });
+
+  /**
+   * **The preview shows a holder what publication will show**, which is why the asterisk keys
+   * on the race being finished rather than on it being published: this running's one runner
+   * never crossed, and somebody reading the preview before pressing publish should see the row
+   * and the note the public will.
+   */
+  it('marks a runner with no crossing as having no time recorded, before publication', async () => {
+    const markup = squash(await (await get(FINISHED_PATH, reader)).text());
+    const [row] = tableRows(markup);
+
+    expect(row?.[STATUS]).toBe('No time recorded');
+    // The fixture's one runner, whoever it is: the mark is what is asserted, not the name.
+    expect(row?.[RUNNER]).toMatch(/ \*$/);
+    expect(row?.[POS]).toBe('—');
+    expect(markup).toContain('results-note');
+    expect(markup).not.toContain('On course');
+  });
 });
 
 describe('a running whose results the club has published', () => {
@@ -399,7 +437,45 @@ describe('a running whose results the club has published', () => {
 
   it('renders the table to somebody who is signed in to nothing', async () => {
     expect(markup).toContain(PUBLISHED_EVENT_NAME);
-    expect(rows).toHaveLength(PUBLISHED_TEAMS.length);
+    // Every entry, and the one guide whose own number was captured — ADR-073.
+    expect(rows).toHaveLength(PUBLISHED_TEAMS.length + 1);
+  });
+
+  /**
+   * ⚠️ **ADR-073: a guide has a time of their own, and the page never says they are a guide.**
+   * Tegwen ran beside Rhodri, wearing number 9, and crossed a second behind. Their row carries
+   * their own number and their own time — and **no position**, so Ozzy is still third on a table
+   * people have already read, and **no category**, because a guide is never asked for one.
+   *
+   * **The negative half is the one that matters.** "Guide" anywhere on this table says Rhodri is
+   * visually impaired, about a named person, on the page the internet reads — Article 9 data,
+   * ADR-022 and ADR-043. The answer withholds the guide's role once a race is published, so a
+   * page that printed it would have had to go looking for it, and this is what would notice.
+   */
+  it("lists a guide on a row of their own, with their own time and nothing that says they're one", () => {
+    const guideName = `${PUBLISHED_GUIDE.firstName} ${PUBLISHED_GUIDE.lastName}`;
+
+    expect(rows.map((cells) => [cells[POS], cells[BIB], cells[RUNNER]])).toEqual([
+      ['1', '3', 'Nesta Vaughan'],
+      ['2', '8', 'Rhodri Bevan'],
+      ['—', PUBLISHED_GUIDE.bib, guideName],
+      ['3', '15', 'Ozzy Treharne'],
+      // #385's runner with no recorded time, after every timed row and still unplaced. The
+      // guide is never one of these: a guide is listed only when their number was captured.
+      ['—', '22', 'Morfydd Pugh *'],
+    ]);
+
+    const guide = rows.find((cells) => cells[RUNNER] === guideName);
+    expect(guide?.[CATEGORY]).toBe('—');
+    expect(guide?.[TIME]).toBe(PUBLISHED_GUIDE.expectedTime);
+    expect(guide?.[STATUS]).toBe('Finished');
+
+    // Nothing in any cell names the role — not the guide's row, and not their runner's.
+    expect(rows.flat().join(' | ')).not.toMatch(/guid/i);
+
+    // **The caption still counts entries.** A guide is on their runner's entry, so their row
+    // is one more person on the table rather than one more entry.
+    expect(markup).toContain(`${String(PUBLISHED_TEAMS.length)} entries`);
   });
 
   /**
@@ -426,6 +502,35 @@ describe('a running whose results the club has published', () => {
       expect(row?.[CATEGORY], `${team.lastName}: category`).toBe(team.expectedCategory);
       expect(row?.[TIME], `${team.lastName}: time`).toBe(team.expectedTime);
     }
+  });
+
+  /**
+   * ⚠️ **What the club says about a runner it has no time for, on the page the public reads.**
+   * Morfydd never crossed and nobody marked her DNS — a number missed at the line, or somebody
+   * who never came, and the club cannot tell which. The row may claim neither: no position, no
+   * "On course" for a race that is over, an asterisk on the name, and the words in the Status
+   * cell. The note is the club asking, and the address is the race's own.
+   */
+  it('marks a runner with no recorded time, and says what to do about it', () => {
+    for (const team of PUBLISHED_TEAMS) {
+      const row = rows.find((cells) => cells[RUNNER]?.includes(team.lastName));
+      expect(row, `${team.lastName} is not on the page`).toBeDefined();
+      expect(row?.[STATUS], `${team.lastName}: status`).toBe(team.expectedStatus);
+      expect(row?.[RUNNER]?.endsWith('*'), `${team.lastName}: asterisk`).toBe(
+        team.expectedMark,
+      );
+      if (team.expectedMark) {
+        expect(row?.[POS], `${team.lastName}: position`).toBe('—');
+      }
+    }
+
+    expect(markup).not.toContain('On course');
+
+    const note =
+      /<p class="[^"]*\bresults-note\b[^"]*">([\s\S]*?)<\/p>/.exec(markup)?.[1] ?? '';
+    expect(note, 'no note above the table').not.toBe('');
+    expect(note).toContain(`href="mailto:${race.contact}"`);
+    expect(note).toContain('If you ran and your time is missing');
   });
 
   /**
