@@ -327,7 +327,15 @@ jobs:
     # as whatever assertion happened to be running, so it reads as a regression rather than
     # as load. Runs 34523453143 and 34523912941 both died that way on branches that changed
     # four markdown files and one workflow file respectively, and both passed on a re-run.
-    timeout-minutes: 25
+    #
+    # ⚠️ **Thirty-six minutes, and it moves with `globalTimeout` in `playwright.config.ts`.**
+    # The "Acceptance tests" step can run Playwright twice, when the web server died mid-run,
+    # so the job has to hold the setup before it, two passes of the cap and the steps after.
+    # Measured on 52 shards from 25 to 31 October 2026, setup took 2.5 to 4.1 minutes, so:
+    # 4 + 15 + 15 + 1 = 35, and one spare. It was 25 against a ten-minute cap, which is the
+    # same sum. Raise one and not the other and the job is cancelled mid-retry, which reads
+    # as nothing at all rather than as a timeout.
+    timeout-minutes: 36
 
     strategy:
       # **`fail-fast: false`**, because the two configs answer different questions. Killing
@@ -428,7 +436,7 @@ jobs:
         # caches from `main` so this job finds them warm. The reasoning lives in that file.
         #
         # **Its own twelve minutes**, so a cold cache on a bad mirror fails here, by name,
-        # instead of eating the job's 25 and surfacing as an unexplained cancel. A warm run
+        # instead of eating the job's 36 and surfacing as an unexplained cancel. A warm run
         # takes seconds; a cold one on a healthy mirror, about a minute.
         timeout-minutes: 12
         uses: ./.github/actions/browsers
@@ -497,7 +505,15 @@ jobs:
             # One report per job, or a shard lands on another's and the timing summary
             # describes part of the suite while looking like all of it. Keyed on the matrix
             # id rather than the config, because three shards share one config.
-            export PLAYWRIGHT_JSON_OUTPUT_NAME="playwright-report/results-${label}.json"
+            #
+            # ⚠️ **`_OUTPUT_FILE`, not `_OUTPUT_NAME`**, and the difference is the whole of why
+            # "Where the suite spent its time" printed nothing from #93 on. Playwright reads, in
+            # order, `PLAYWRIGHT_JSON_OUTPUT_FILE`, then the reporter's `outputFile` in the
+            # config, and only when neither is set `PLAYWRIGHT_JSON_OUTPUT_NAME`. The config
+            # sets `outputFile`, so `_NAME` was never read, every shard wrote `results.json`,
+            # and `results-*.json` matched nothing. Checked against Playwright 1.62.1's
+            # `resolveOutputFile()`. Relative to the step's working directory, `platform/`.
+            export PLAYWRIGHT_JSON_OUTPUT_FILE="playwright-report/results-${label}.json"
 
             if npx playwright test --config="$config" "${shard_arg[@]}" 2>&1 | tee "$log"; then
               return 0
