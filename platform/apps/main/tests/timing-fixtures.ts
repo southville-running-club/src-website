@@ -334,10 +334,11 @@ export const PUBLISHED_TEAMS: readonly PublishedTeamFixture[] = [
  * of their own as the leg-2 override (ADR-061) — the one straight after nobody's, since `9` is
  * free here — and captured crossing the line a second behind their runner.
  *
- * **What the published page must show for them is ADR-073's whole decision**: their own number
- * and their own time, no position — so Ozzy is still third — no category, and **nothing that
- * says they are a guide**, because that says Rhodri is visually impaired. The answer withholds
- * the guide's `role` once a race is published, so the page has only leg 2 to go on.
+ * **What the published page must show for them is ADR-073's decision and ADR-074's place**:
+ * their own number, their own time and their own place — third, so Ozzy is fourth — no category,
+ * and **nothing that says they are a guide**, because that says Rhodri is visually impaired. The
+ * answer withholds the guide's `role` once a race is published, so the page has only leg 2 to go
+ * on.
  *
  * An address, a club and an age, like every runner on this running, so the leak assertions
  * cover the guide too. **The age is chosen to collide with no time, bib or position here**,

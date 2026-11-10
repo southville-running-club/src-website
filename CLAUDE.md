@@ -2604,10 +2604,16 @@ its one deliberate change**; `bib.ts` and `effective_bib()` carry it together.
 ⚠️ **A guide's crossing times their entry nothing, and has a row of its own on the results since
 2 November 2026** — [ADR-073](docs/architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md).
 The entry is still timed from leg 1 alone. A guide whose own number was captured is listed on
-`/nn/<year>/results/` and the staff preview with their own time, **no position and no category**,
-and **the published page never says "guide"**, because that says their runner is visually
-impaired. `resultLines()` in `packages/shared/src/timing/result-lines.ts` draws both tables; do
-not number a results table anywhere else. ⚠️ **The published answer already carries a guide as
+`/nn/<year>/results/` and the staff preview with their own time and **no category**, and **the
+published page never says "guide"**, because that says their runner is visually impaired.
+⚠️ **They have a position since 10 November 2026, and "no position" is the rule people
+remember** — [ADR-074](docs/architecture/decisions/adr-074-a-guide-takes-a-place-in-the-finishing-order.md)
+superseded ADR-073's dash, because an unnumbered finisher with a time read to the race's
+organisers as a result the club had lost. One count numbers every finisher, guide or entry, so a
+runner behind a guide is one place lower than under ADR-073; a place is still not a prize, and
+`awards.ts` never reads a guide. `resultLines()` in `packages/shared/src/timing/result-lines.ts`
+draws the published page, the staff preview **and the results export**, which lists the guide's
+row too so its places match the page's; do not number a results table anywhere else. ⚠️ **The published answer already carries a guide as
 leg 2 of their runner's solo team**, which discloses who is guided to anybody holding the anon
 key whether or not `role` is withheld — recorded in that ADR, and not yet closed.
 

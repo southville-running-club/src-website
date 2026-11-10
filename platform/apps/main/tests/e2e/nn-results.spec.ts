@@ -135,12 +135,12 @@ test.describe('a race whose results the club has published', () => {
   });
 
   /**
-   * ⚠️ **ADR-073, as a reader meets it**: the guide's own row, their own time, no position — and
-   * nowhere on the table a word saying they are a guide, which would say their runner is
-   * visually impaired. `tests/worker/admin/nn-results.test.ts` asserts the order and every cell;
-   * this is the same promise read off the accessibility tree.
+   * ⚠️ **ADR-073 and ADR-074, as a reader meets them**: the guide's own row, their own time and
+   * their own place — and nowhere on the table a word saying they are a guide, which would say
+   * their runner is visually impaired. `tests/worker/admin/nn-results.test.ts` asserts the
+   * order and every cell; this is the same promise read off the accessibility tree.
    */
-  test('lists a guide with their own time, and never says they are one', async ({
+  test('lists a guide with their own time and place, and never says they are one', async ({
     page,
   }) => {
     await page.goto(PUBLISHED_PATH);
@@ -150,7 +150,8 @@ test.describe('a race whose results the club has published', () => {
     await expect(
       row.getByRole('cell', { name: PUBLISHED_GUIDE.expectedTime, exact: true }),
     ).toBeVisible();
-    await expect(row.getByRole('cell').first()).toHaveText('—');
+    // Third: behind Nesta and Rhodri, ahead of Ozzy — numbered like everybody who finished.
+    await expect(row.getByRole('cell').first()).toHaveText('3');
 
     await expect(page.locator('.results-table')).not.toContainText(/guid/i);
   });
