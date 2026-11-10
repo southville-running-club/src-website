@@ -162,7 +162,14 @@ const SUMMARY_LINKS = [
   A white card in the established pattern rather than a horror flourish. Somebody has just
   had bad news; the campaign's atmosphere belongs on the poster, not on this. There is no
   waiting list to join yet, so this does not offer one — it gives the address that already
-  exists and says plainly that nothing was taken. */
+  exists and says plainly that nothing was taken.
+
+  ⚠️ **"The last place went while this form was open" was false for most people who met it
+  until ADR-070**, 27 October 2026: a full race kept serving this form, so everybody who arrived
+  after the last place had gone filled it in and was told it went while they typed. The page
+  says "The race is full" in place of the form now, and only a POST re-renders this — so the
+  sentence is true again. `/nn/2026/`'s `[data-nn-full]` notice reuses this one's email
+  sentence word for word; change both or neither. */
 }
 <div
   class="notice notice-bad nn-card"

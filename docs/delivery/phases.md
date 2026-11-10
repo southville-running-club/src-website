@@ -509,6 +509,13 @@ club's own database.
 
 **Change freeze from the week before.** No deploys, no migrations, nothing.
 
+⚠️ **Exceptions taken inside it are recorded where they are decided.**
+[ADR-067](../architecture/decisions/adr-067-assign-bibs-numbers-a-guide.md) (Assign bibs numbers
+a guide) on 25 October, and
+[ADR-070](../architecture/decisions/adr-070-a-full-race-says-so-before-the-form.md) (a full race
+says so in place of the entry form) on 27 October, after the race sold out three days before the
+close. Each covers its own change and nothing else.
+
 ⚠️ **One club header everywhere is two pull requests, split by this freeze.**
 [ADR-052](../architecture/decisions/adr-052-one-club-header-on-the-account-and-admin-pages.md).
 

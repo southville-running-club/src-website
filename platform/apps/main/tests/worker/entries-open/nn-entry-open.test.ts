@@ -216,6 +216,15 @@ describe('the year page, once the event row says entries are open', () => {
     expect(html).not.toMatch(/data-nn-entry hidden/);
   });
 
+  it('does not say the race is full while places are left', async () => {
+    // ADR-070's notice is revealed only on a clean count of zero. This run has all 250, so the
+    // page must be exactly the open page it was before that state existed — on the race page
+    // as well as here. `tests/worker/sold-out/nn-race-full.test.ts` is the other half.
+    expect(await page()).toMatch(/data-nn-full hidden/);
+    expect(await page()).toMatch(/data-nn-card-full hidden/);
+    expect(await racePage()).toMatch(/data-nn-panel-full hidden/);
+  });
+
   it('takes its prices from entries.fees and none from the markup', async () => {
     // £18 and £20 live in `entries.fees.price_pence` and nowhere else. Nothing in `dist/`
     // knows either number — `nn-entry.test.ts` asserts the same page carries no `£` at all
