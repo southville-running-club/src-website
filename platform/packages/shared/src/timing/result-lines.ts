@@ -13,8 +13,8 @@
  * their runner's entry, and then read by nothing. Their time existed and no table showed it.
  *
  * [ADR-073](../../../../../docs/architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md)
- * puts it on the table, and this module is the one place that does it, so the published page and
- * the staff preview cannot disagree about who is listed or who came third.
+ * puts it on the table, and this module is the one place that does it, so the published page, the
+ * staff preview and the results export cannot disagree about who is listed or who came third.
  *
  * ## The four rules, and where each comes from
  *
@@ -22,8 +22,8 @@
  * | --- | --- |
  * | **A guide is timed exactly as an entry is** | Their own number is handed to `buildResults()` as a solo team's leg-1 bib, carrying the team's status — so the start, the earliest capture, a discard, an open anomaly and DNS / DNF / DQ all work the way they do for everybody, from code that already does it |
  * | **A guide is listed only when their own number was captured** | A guide row with no crossing would read "On course" — or, once a race is over, a time the club failed to record — about somebody who ran beside a runner the table already lists. Without a capture there is nothing of theirs to show |
- * | **A guide takes no position** | ADR-022: in no category and no prize. Placing them would also move every runner behind them down one, on a table people have already read |
- * | **The entry's own row is untouched** | Positions, times and the entry count are what they were without this module |
+ * | **A guide is placed like anybody who finished** | [ADR-074](../../../../../docs/architecture/decisions/adr-074-a-guide-takes-a-place-in-the-finishing-order.md), superseding ADR-073's "no position": an unnumbered row with a time read to the race's own organisers as a result the club had lost. A place in the finishing order is still not a prize — ADR-022 keeps a guide in no category, and `awards.ts` never reads these lines |
+ * | **An entry's row is drawn as it was** | Its time, status and the entry count are what they were without this module; its position counts the finishers ahead of it, guides included |
  *
  * ## ⚠️ What this module cannot see is whether the page may say "guide"
  *
@@ -68,8 +68,8 @@ export type EntryLine<T> = {
   position: number | null;
 };
 
-/** A guide's row: their own time, from their own number, and never a position. */
-export type GuideLine<T extends LineTeam> = {
+/** A guide's time, from their own number — what `guideResults()` finds, before anybody is placed. */
+export type GuideTime<T extends LineTeam> = {
   kind: 'guide';
   result: Result;
   /** The entry the guide is on — the runner they ran beside is its leg 1. */
@@ -77,6 +77,16 @@ export type GuideLine<T extends LineTeam> = {
   guide: RunnerOf<T>;
   /** The number the guide wore, which is what their time was read from. */
   bib: string;
+};
+
+/**
+ * A guide's row: their own time and their place in the finishing order — ADR-074.
+ *
+ * `position` follows exactly the entry rule: a number for a guide who finished, null for one
+ * whose entry did not start, did not finish or was disqualified.
+ */
+export type GuideLine<T extends LineTeam> = GuideTime<T> & {
+  position: number | null;
 };
 
 export type ResultLine<T extends LineTeam> = EntryLine<T> | GuideLine<T>;
@@ -114,8 +124,8 @@ export function guideResults<T extends LineTeam>(
   event: LineEvent,
   teams: T[],
   crossings: LineCrossing[],
-): GuideLine<T>[] {
-  const lines: GuideLine<T>[] = [];
+): GuideTime<T>[] {
+  const lines: GuideTime<T>[] = [];
 
   for (const team of teams) {
     const guide = guideOn(team.runners, event.format);
@@ -152,9 +162,10 @@ export function guideResults<T extends LineTeam>(
  * Every row of the table, in the order a results page draws them.
  *
  * `sortResults(…, 'total')` orders entries and guides together — a guide sits where their time
- * puts them, which is almost always straight after the runner they guided — and the running
- * count that numbers the finishers skips a guide, so every entry's position is exactly what it
- * was before guides had rows.
+ * puts them, which is almost always straight after the runner they guided — and **one running
+ * count numbers every finisher, guide or entry**, so the table reads 1, 2, 3 with no gap and no
+ * unnumbered row (ADR-074). A runner behind a guide is therefore one place lower than they were
+ * under ADR-073, which is the cost that decision was avoiding and this one accepts.
  */
 export function resultLines<T extends LineTeam>(
   event: LineEvent,
@@ -173,17 +184,18 @@ export function resultLines<T extends LineTeam>(
 
   return sortResults([...entries, ...guides.map((line) => line.result)], 'total').map(
     (result): ResultLine<T> => {
-      const guide = guideFor.get(result);
-      if (guide !== undefined) return guide;
-
       const placed = result.status === 'finished';
       if (placed) finished += 1;
+      const position = placed ? finished : null;
+
+      const guide = guideFor.get(result);
+      if (guide !== undefined) return { ...guide, position };
 
       return {
         kind: 'entry',
         result,
         team: byId.get(result.team.id),
-        position: placed ? finished : null,
+        position,
       };
     },
   );

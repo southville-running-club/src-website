@@ -437,15 +437,16 @@ describe('a running whose results the club has published', () => {
 
   it('renders the table to somebody who is signed in to nothing', async () => {
     expect(markup).toContain(PUBLISHED_EVENT_NAME);
-    // Every entry, and the one guide whose own number was captured — ADR-073.
+    // Every entry, and the one guide whose own number was captured — ADR-073 and ADR-074.
     expect(rows).toHaveLength(PUBLISHED_TEAMS.length + 1);
   });
 
   /**
    * ⚠️ **ADR-073: a guide has a time of their own, and the page never says they are a guide.**
    * Tegwen ran beside Rhodri, wearing number 9, and crossed a second behind. Their row carries
-   * their own number and their own time — and **no position**, so Ozzy is still third on a table
-   * people have already read, and **no category**, because a guide is never asked for one.
+   * their own number, their own time and — since **ADR-074** — **their own place**, third, so
+   * Ozzy is fourth and every finisher is numbered with no gap; and **no category**, because a
+   * guide is never asked for one.
    *
    * **The negative half is the one that matters.** "Guide" anywhere on this table says Rhodri is
    * visually impaired, about a named person, on the page the internet reads — Article 9 data,
@@ -458,8 +459,8 @@ describe('a running whose results the club has published', () => {
     expect(rows.map((cells) => [cells[POS], cells[BIB], cells[RUNNER]])).toEqual([
       ['1', '3', 'Nesta Vaughan'],
       ['2', '8', 'Rhodri Bevan'],
-      ['—', PUBLISHED_GUIDE.bib, guideName],
-      ['3', '15', 'Ozzy Treharne'],
+      ['3', PUBLISHED_GUIDE.bib, guideName],
+      ['4', '15', 'Ozzy Treharne'],
       // #385's runner with no recorded time, after every timed row and still unplaced. The
       // guide is never one of these: a guide is listed only when their number was captured.
       ['—', '22', 'Morfydd Pugh *'],

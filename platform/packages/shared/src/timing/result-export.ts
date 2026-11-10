@@ -1,5 +1,6 @@
 /**
- * The results export — one row per team that has a result, ranked.
+ * The results export — one row per team that has a result, and one per guide whose own number
+ * was captured, ranked exactly as `/nn/<year>/results/` ranks them.
  *
  * ⚠️ **Written here rather than ported.** [#205](https://github.com/southville-running-club/src-website/issues/205)
  * says *"copy `lib/result-export.ts` with its tests"*, and
@@ -37,13 +38,8 @@
 
 import { csvDocument } from '../csv';
 import { effectiveBib, type EventFormat, type Leg } from './bib';
-import {
-  buildResults,
-  durationToHMSss,
-  isTerminalStatus,
-  sortResults,
-  type Result,
-} from './results';
+import { resultLines } from './result-lines';
+import { durationToHMSss, isTerminalStatus, type Result } from './results';
 import { resultCategoryLabel } from './result-category';
 import type { TimingCrossing, TimingEvent, TimingRunner, TimingTeam } from './rows';
 
@@ -62,7 +58,7 @@ export type ExportTeam = TimingTeam & {
  * turning a bib of `"0311"` into `311`.
  */
 export interface ResultExportRow {
-  /** 1-based among finishers, or `null` for a DNS, DNF or DQ. */
+  /** 1-based among finishers, guides included (ADR-074), or `null` for a DNS, DNF or DQ. */
   position: number | null;
   /** `311`, or `1311 / 2311` for a relay pair — one entry per **runner**, in leg order. */
   bibs: string;
@@ -136,8 +132,16 @@ export function runnerBibs(team: ExportTeam, format: EventFormat): string[] {
     .filter((bib): bib is string => bib !== null);
 }
 
-function runnerNames(team: ExportTeam): string {
+/**
+ * The names on an entry's row, in leg order.
+ *
+ * **A solo entry names its leg-1 runner only.** On a solo race leg 2 is a visually impaired
+ * runner's guide, who has a row of their own in this file since ADR-074 — naming them on their
+ * runner's row as well would list one person twice, at two different places.
+ */
+function runnerNames(team: ExportTeam, format: EventFormat): string {
   return team.runners
+    .filter((runner) => format !== 'solo' || runner.leg === 1)
     .slice()
     .sort((a, b) => a.leg - b.leg)
     .map((runner) => `${runner.firstname} ${runner.lastname}`.trim())
@@ -148,10 +152,16 @@ function runnerNames(team: ExportTeam): string {
 /**
  * The file's rows, derived from the same three inputs the leaderboard reads.
  *
- * `sortResults(_, 'total')` already partitions every terminal status below every timed and
- * in-progress team and orders the rest by total time, so walking it in order and counting the
- * finishers is the placing — the identical rule `/nn/<year>/results/` uses to number its own
- * table, which is why the published page and the file cannot disagree about who came third.
+ * **The rows and their places are `resultLines()`'s** — the function `/nn/<year>/results/` and
+ * the staff preview draw their tables with — so the published page and the file cannot disagree
+ * about who came third. Since [ADR-074](../../../../../docs/architecture/decisions/adr-074-a-guide-takes-a-place-in-the-finishing-order.md)
+ * that includes a visually impaired runner's guide whose own number was captured: they are
+ * placed on the page, so they are a row here too, or every place after them would differ
+ * between the two.
+ *
+ * ⚠️ **A guide's row carries no category and no team.** The file goes to people outside the
+ * club, and a row labelled as a guide says the runner beside them is visually impaired
+ * (ADR-022) — the same reason the published page never says it.
  */
 export function buildExportRows(
   event: Pick<TimingEvent, 'actually_started_at' | 'start_at' | 'format'>,
@@ -161,13 +171,10 @@ export function buildExportRows(
     'bib' | 'captured_at' | 'anomaly_flag' | 'resolved_at' | 'resolved_action'
   >[],
 ): ResultExportRow[] {
-  const byId = new Map(teams.map((team) => [team.id, team]));
-  const sorted = sortResults(buildResults(event, teams, crossings), 'total');
-
   const rows: ResultExportRow[] = [];
-  let finished = 0;
 
-  for (const result of sorted) {
+  for (const line of resultLines(event, teams, crossings)) {
+    const { result } = line;
     const terminal = isTerminalStatus(result.status);
 
     // ⚠️ **Pending teams are absent, and `leg1` is pending.** A relay team that has handed over
@@ -175,17 +182,40 @@ export function buildExportRows(
     // to explain it — which reads as a finisher whose clock was lost.
     if (!terminal && result.status !== 'finished') continue;
 
-    const team = byId.get(result.team.id);
+    const timing = {
+      total: durationToHMSss(result.totalMs, { nullValue: '' }),
+      status: statusWord(result.status),
+      // ⚠️ **A published race can never carry one** — publication is refused while an anomaly is
+      // open — so this column is only ever non-empty on a **preview** export. It is here
+      // because that is exactly when somebody is checking, and a file that quietly dropped the
+      // warning would be the confidently-wrong answer `results.ts` exists to avoid.
+      beingChecked: result.hasOpenAnomaly ? 'Yes' : '',
+    };
+
+    if (line.kind === 'guide') {
+      rows.push({
+        position: line.position,
+        bibs: line.bib,
+        teamNumber: '',
+        teamName: '',
+        runners: `${line.guide.firstname} ${line.guide.lastname}`.trim(),
+        category: '',
+        legA: '',
+        legB: '',
+        ...timing,
+      });
+      continue;
+    }
+
+    const team = line.team;
     if (team === undefined) continue;
 
-    if (!terminal) finished += 1;
-
     rows.push({
-      position: terminal ? null : finished,
+      position: line.position,
       bibs: runnerBibs(team, event.format).join(' / '),
       teamNumber: team.team_number ?? '',
       teamName: team.name ?? '',
-      runners: runnerNames(team),
+      runners: runnerNames(team, event.format),
       category: resultCategoryLabel(team.runners, event.format, team.category) ?? '',
       // A solo race has no legs at all, so the two columns are blank rather than repeating the
       // total — `buildResults` already leaves both null there, and this states it once more
@@ -198,13 +228,7 @@ export function buildExportRows(
         event.format === 'solo'
           ? ''
           : durationToHMSss(result.splitBMs, { nullValue: '' }),
-      total: durationToHMSss(result.totalMs, { nullValue: '' }),
-      status: statusWord(result.status),
-      // ⚠️ **A published race can never carry one** — publication is refused while an anomaly is
-      // open — so this column is only ever non-empty on a **preview** export. It is here
-      // because that is exactly when somebody is checking, and a file that quietly dropped the
-      // warning would be the confidently-wrong answer `results.ts` exists to avoid.
-      beingChecked: result.hasOpenAnomaly ? 'Yes' : '',
+      ...timing,
     });
   }
 

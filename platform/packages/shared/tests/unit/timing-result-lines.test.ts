@@ -1,5 +1,6 @@
 /**
- * A guide's own time on the results table — ADR-073.
+ * A guide's own time on the results table — ADR-073 — and their place in the finishing order —
+ * ADR-074.
  *
  * Every team here is the shape `import_from_entries()` actually writes: a visually impaired
  * runner on **leg 1** and their guide on **leg 2** of one solo team, the guide wearing a number
@@ -67,11 +68,12 @@ function crossing(
 
 /** One line in the words a reader would use: who, which number, where, how long. */
 function describeLine(line: ResultLine<Team>): string {
+  const place = line.position === null ? '—' : `P${String(line.position)}`;
   if (line.kind === 'guide') {
-    return `${line.guide.name} #${line.bib} — ${line.result.status} ${String(line.result.totalMs)}`;
+    return `${line.guide.name} #${line.bib} ${place} ${line.result.status} ${String(line.result.totalMs)}`;
   }
   const who = line.team?.runners[0]?.name ?? '?';
-  return `${who} ${line.position === null ? '—' : `P${String(line.position)}`} ${line.result.status} ${String(line.result.totalMs)}`;
+  return `${who} ${place} ${line.result.status} ${String(line.result.totalMs)}`;
 }
 
 const MINUTE = 60_000;
@@ -133,15 +135,25 @@ describe('guideOn', () => {
 });
 
 describe('resultLines', () => {
-  it('lists the guide where their own time puts them, with no position', () => {
+  /**
+   * ⚠️ **ADR-074: one count, guides included.** Under ADR-073 Cy had a dash and Dot was third;
+   * the race's organisers read the dash as a result the club had lost, so Cy is third and Dot
+   * fourth. The numbers run 1, 2, 3, 4 with no gap and no unnumbered row.
+   */
+  it('places the guide where their own time puts them, in the same count as everybody', () => {
     expect(resultLines(SOLO, field(), FIELD_CROSSINGS).map(describeLine)).toEqual([
       `Ada P1 finished ${String(40 * MINUTE)}`,
       `Bea P2 finished ${String(45 * MINUTE)}`,
-      `Cy #003 — finished ${String(45 * MINUTE + 1000)}`,
-      // ⚠️ Still third. A guide placed in the count would have made Dot fourth, on a table
-      // people had already read.
-      `Dot P3 finished ${String(50 * MINUTE)}`,
+      `Cy #003 P3 finished ${String(45 * MINUTE + 1000)}`,
+      `Dot P4 finished ${String(50 * MINUTE)}`,
     ]);
+  });
+
+  it('numbers every finisher once, with no gap and no unnumbered row', () => {
+    const positions = resultLines(SOLO, field(null), FIELD_CROSSINGS).map(
+      (line) => line.position,
+    );
+    expect(positions).toEqual([1, 2, 3, 4]);
   });
 
   it('lists the guide just the same from the published answer, which withholds the role', () => {
@@ -159,8 +171,8 @@ describe('resultLines', () => {
     const lines = resultLines(SOLO, [field()[1]!], crossings);
 
     expect(lines.map(describeLine)).toEqual([
-      `Cy #003 — finished ${String(45 * MINUTE)}`,
-      `Bea P1 finished ${String(45 * MINUTE + 1000)}`,
+      `Cy #003 P1 finished ${String(45 * MINUTE)}`,
+      `Bea P2 finished ${String(45 * MINUTE + 1000)}`,
     ]);
   });
 

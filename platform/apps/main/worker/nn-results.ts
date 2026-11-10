@@ -341,10 +341,15 @@ function resultRow(
  * ⚠️ **Nothing on this row says "guide", and that is the decision rather than a gap.** A row
  * saying so says *"the runner beside them is visually impaired"* about a named person, which is
  * Article 9 data (ADR-022, ADR-043), and whether the published table may ever say it is the
- * committee's call. So the row is what the club publishes for anybody — a name, a number and a
- * time — with a dash for the position, because a guide is in no prize and placing them would
- * move every runner behind them, and a dash for the category, because a guide is never asked
- * for one. The staff preview at `/timing/…/results` is where "Guide" is written.
+ * committee's call. So the row is what the club publishes for anybody — a place, a name, a
+ * number and a time — with a dash for the category, because a guide is never asked for one. The
+ * staff preview at `/timing/…/results` is where "Guide" is written.
+ *
+ * **The place is theirs since
+ * [ADR-074](../../../../docs/architecture/decisions/adr-074-a-guide-takes-a-place-in-the-finishing-order.md)**,
+ * which superseded ADR-073's dash: an unnumbered row with a time read as a result the club had
+ * lost. `resultLines()` numbers it in the same count as every entry, and a place in the
+ * finishing order is not a prize — `awards.ts` never sees a guide's line.
  *
  * **It never carries the no-time asterisk**: `resultLines()` lists a guide only when their own
  * number was captured, so a guide's row is never one the club has no time for.
@@ -359,7 +364,7 @@ function guideRow(
   raceFinished: boolean,
 ): Html {
   return html`<tr>
-    <td class="results-num">—</td>
+    <td class="results-num">${line.position === null ? '—' : String(line.position)}</td>
     <td class="results-num">${line.bib}</td>
     <td class="results-name">${runnerName(line.guide)}</td>
     <td>—</td>
@@ -399,10 +404,10 @@ function noTimeNote(): Html {
 }
 
 function resultsTable(payload: ResultsPayload): Html {
-  // **Position counts finished entries in finishing order, and a guide is never counted** —
-  // `resultLines()` owns both, so a team still on the course, one that did not finish and a
-  // guide are each given no number rather than a misleading one, and the staff preview cannot
-  // number the field differently from this page.
+  // **Position counts everybody who finished, in finishing order, a guide included** (ADR-074).
+  // `resultLines()` owns the count, so a team still on the course or one that did not finish is
+  // given no number rather than a misleading one, and neither the staff preview nor the results
+  // export can number the field differently from this page.
   const lines = resultLines(payload.event, payload.teams, payload.crossings);
 
   if (lines.length === 0) {
