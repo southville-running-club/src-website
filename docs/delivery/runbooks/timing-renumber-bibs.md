@@ -35,12 +35,20 @@ Whether Assign bibs should number by surname from 2027 is a decision for after t
 - [ ] **No race number has gone anywhere** — not printed beside a name, not packed into an
       envelope, not told to a runner. **If one has, stop**: renumbering then puts two runners
       on one vest.
+- [ ] **Nothing has been captured on the race — and this check comes before the import.** The
+      script refuses if anything has, because a capture keeps the runner it matched when their
+      number changes. ⚠️ **Do not press Reset unless something has been captured.** Reset in the
+      race's **Danger zone** deletes the captures **and the whole entry list with every number
+      on it**, not only a rehearsal's captures. It cost the 2026 field on 30 October 2026, when
+      nothing had been captured and the reset was not needed. The step 1 preview shows nobody
+      at all if the entry list is empty, which is the tell. If you do reset, import again
+      before going on.
 - [ ] **The field is final.** Cancel any tester entry, then press **Import from entries** on
       `/timing/events/nn-2026/registration/` (`timing-race-night.md` step 1.5). You do not need
       to press **Assign bibs** first: this numbers everybody, with a number or without one.
-- [ ] **Nothing has been captured on the race.** The script refuses if anything has, because a
-      capture keeps the runner it matched when their number changes. A rehearsal is cleared
-      from the **Danger zone** first.
+- [ ] **Any name corrected on the Roster since the last import is still corrected.** A Roster
+      **Edit** changes the timing app's copy only, so a reset and re-import brings back the name
+      as it was entered. Re-do the correction before numbering: the order is by name.
 - [ ] **Nobody else is on the Registration or Roster page.** The script locks the tables while
       it runs, which takes well under a second, but a number typed in a moment before it starts
       is replaced.
@@ -330,6 +338,11 @@ swaps two neighbours.
 - **A transfer keeps the number and changes the name**, so that runner is out of place too.
 - **Neither needs anything doing.** The collection sheet sorted by name still finds them.
   Running this script again after numbers have been handed out is exactly what Step 0 forbids.
+- **Before any number has gone anywhere, running it again is allowed**, and it puts a late
+  entry into their alphabetical place: everybody after them moves up one. Step 0 still applies
+  in full, and anything printed from the Roster since the previous run is reprinted. It was run
+  a second time on 30 October 2026 for one late entry, and a third to number the two guides
+  under their own surnames — see the record below.
 
 ---
 
@@ -416,7 +429,69 @@ $$;
 
 | Date | By | What the "Done." line said |
 | --- | --- | --- |
-| | | |
+| 30 October 2026, about 19:00 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, rather than pasted into the editor | 246 runners numbered 001 to 248, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 0 guide number(s) replaced. |
+| 30 October 2026, 21:25 GMT | bindalshah, maintainer. Run through the Supabase connector by Claude Code on that go-ahead, after a clean dry run | 247 runners numbered 001 to 249, with 2 guides each straight after their runner. 0 hand-typed runner number(s) cleared; 2 guide number(s) replaced. |
+| 30 October 2026, 21:57 GMT | bindalshah, maintainer. The variant below, run through the Supabase connector by Claude Code on that go-ahead, after a clean dry run | 247 runners and 2 guides numbered 001 to 249, each under their own surname. 0 hand-typed runner number(s) cleared; 2 guide number(s) replaced. Guides now wear 084, 224. |
+
+**30 October 2026, what led up to it.** Assign bibs had numbered the field at 18:23 in its own
+order. At 18:50 the race was **Reset** from the Danger zone with nothing captured, which deleted
+all 246 entries and their numbers; that is what the Step 0 warning above is for. The field was
+imported again, and the script ran on an unnumbered field. **A Roster name correction made at
+18:24 was lost with the reset and had not been re-done**, so one runner held with a one-letter
+surname was numbered under that letter, as held. A read-only check afterwards found 248
+different three-digit numbers with no gaps, every guide one above their runner, the number
+order matching the surname order for all 246 runners, and nothing captured.
+
+**30 October 2026, the second run.** One runner entered after the close, in a window reopened
+for that alone. **Import from entries** and **Assign bibs** at 20:57 gave that runner 249, the
+only number left, so 249 sat in the Roster between 040 and 042. Nothing had been printed or
+sent since the first run, so the script ran again: the late runner took 042, and the 206
+runners after them and one guide each moved up one. The connector does not show a `notice`, so the line above is the
+dry run's, which the real run repeats after "Done."; the audit row agrees, `bibs_renumbered`
+at 21:25:22 with 247 numbered from 001 to 249. A read-only check afterwards found 249
+different numbers from 001 to 249 with no gaps, every guide one above their runner, the number
+order matching the surname order for all 247 runners, and nothing captured.
+
+**30 October 2026, the third run — a guide under their own surname.** Numbered straight after
+their runner, as this script and ADR-067 do, each of the two guides sat on the Roster under
+their own surname with a number from the runner's place: 041 under F and 061 under V. The
+maintainer chose exact name order over consecutive vests for each pair, **for 2026 only**:
+ADR-067 still decides what Assign bibs does, and the script above is unchanged. Nothing had
+been printed or sent since the second run. 184 of the 249 numbers moved, from 041 to 224; the
+guides took 084 and 224, and their runners 040 and 059. The variant is the script above with
+its numbering loop replaced by this one, which puts runners and guides into one list:
+
+```sql
+  for v_person in
+    select r.team_id, r.leg
+      from timing.runners r
+      join timing.teams t on t.id = r.team_id
+     where t.event_id = v_event.id
+       and ((r.leg = 1 and r.role = 'runner') or (r.leg = 2 and r.role = 'guide'))
+     order by lower(r.lastname) collate "en-GB-x-icu",
+              lower(r.firstname) collate "en-GB-x-icu",
+              r.id
+  loop
+    v_bib := timing.padded_bib(v_next, v_event.bib_pad_width);
+    if v_person.leg = 1 then
+      update timing.teams set team_number = v_bib where id = v_person.team_id;
+    else
+      update timing.teams set bib_leg2 = v_bib where id = v_person.team_id;
+    end if;
+    v_first := coalesce(v_first, v_bib);
+    v_last := v_bib;
+    v_next := v_next + 1;
+  end loop;
+```
+
+It also refused, before writing the audit row, if any entry was left without a team number or
+if any person's place in name order differed from their place in number order, and its audit
+row's `order` reads _"surname, then first name; a guide under their own surname"_. A read-only
+check afterwards found 249 different numbers from 001 to 249 with no gaps, name order and number
+order identical for all 249 people, `timing.effective_bib()` agreeing with every one, and
+nothing captured. **The undo now restores the 21:25 numbers**, because it reads the most recent
+audit row; running it twice does not reach further back, since the undo writes no
+`bibs_renumbered` row of its own.
 
 ---
 
