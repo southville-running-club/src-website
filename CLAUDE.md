@@ -1629,7 +1629,12 @@ policy on `intake.nn_interest`.
 recent past one — and the Worker paints every link to a year page onto it. Publishing 2027 is a
 row in `entries.events` plus that year's content pages, with no edit to `/nn/` and none to the
 Worker. `/nn/<year>/` is the event `nn-<year>`, and `worker/routing.ts` owns that convention as
-two functions that are inverses of each other.
+two functions that are inverses of each other. ⚠️ **The panel's "Entries are not open yet"
+note is hidden for `closed` as well as `open`, since 26 October 2026.** `renderNnRaceView` hid
+it only for `open`, so from the close onwards the front door would have invited people to leave
+their name for a window that had gone — and `current_entry_state('nn')` answering the most
+recent past running would have kept it there all winter. Found four days before the close
+would have made it visible; `nn-panel.test.ts` drives the renderer through all three states.
 
 ### The entry form and discount codes
 

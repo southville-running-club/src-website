@@ -1303,6 +1303,21 @@ export function renderNnRaceView(rewriter: HTMLRewriter, view: NnRaceView): HTML
       );
   } else {
     rewriter.on('[data-nn-panel-action]', new PanelActionHandler(yearPath, year, false));
+
+    // **"Entries are not open yet" is true before the window and false after it.** The note
+    // ships visible, which is the `pre_open` rendering — the one state in which "leave your
+    // name and the club will email you the day they are" describes something on offer. Once
+    // the window has ended the running's own page says "Entries have closed" and hides its
+    // interest form, so this panel, which only ever points there, says nothing about entries
+    // at all rather than inviting somebody to register for a window that has gone.
+    //
+    // ⚠️ Until 26 October 2026 only `open` hid it. `current_entry_state('nn')` answers the
+    // most recent past running until the next one exists, so from the close the front door
+    // would have carried that invitation through race day and all winter. Found four days
+    // before the close would have made it visible; `nn-panel.test.ts` drives all three states.
+    if (state === 'closed') {
+      rewriter.on('[data-nn-panel-shut]', new HideHandler());
+    }
   }
 
   return renderNnPreviousYears(rewriter, previous);

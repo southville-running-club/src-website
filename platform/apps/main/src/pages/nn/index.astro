@@ -407,14 +407,18 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       </p>
 
       {
-        /* **Before entries open, and it names no month.** "Entries open in September" would be
-        a claim about a date nobody has confirmed — the entry open and close times are on this
-        repository's unconfirmed list and may not appear anywhere. What is true without
-        confirmation is that they are not open and that the club will say when they are.
+        /* **Before entries open only, and it names no month.** Ships visible, which is the
+        `pre_open` rendering, and the Worker hides it in the other two states: `open` reveals
+        the fee line beneath instead, and `closed` leaves this panel saying nothing about
+        entries — the running's own page is where "Entries have closed" is said, and the
+        interest form this sentence points somebody at is hidden there. Until 26 October 2026
+        only `open` hid it, so from the close onwards the front door would have invited people
+        to leave their name for a window that had gone, and would have gone on doing so all
+        winter, because `current_entry_state('nn')` answers the most recent past running until
+        the next one exists. `nn-panel.test.ts` drives the renderer through all three states.
 
-        When the committee settles the opening time, the honest home for it is
-        `entries.events.entries_open_at` — which `entry_state()` deliberately does not return
-        yet, for exactly this reason — and this line becomes painted like the date above it. */
+        The open and close times are still painted nowhere on this page — "Entries open in
+        September" would be a claim about a date this page has no business making. */
       }
       <p class="nn-panel-note" data-nn-panel-shut>
         Entries are not open yet. Leave your name and the club will email you the day they
