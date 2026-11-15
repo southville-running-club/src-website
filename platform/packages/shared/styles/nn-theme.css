@@ -3155,6 +3155,24 @@ body.theme-nn:has(.nn-layout) [data-nn-closed] {
   justify-content: center;
 }
 
+/* **Where the button was, once the race is full** — ADR-070. Ruled off from the fee exactly as
+   `.nn-entry-card-when` is, so the card keeps the shape it has in every other state. No colour
+   of its own: the text and the link take the card's, which are already measured on white. */
+.theme-nn .nn-entry-card-full {
+  padding-top: 16px;
+  border-top: 1px solid var(--colour-rule);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.theme-nn .nn-entry-card-full p {
+  margin: 0 0 8px;
+}
+
+.theme-nn .nn-entry-card-full p:last-child {
+  margin-bottom: 0;
+}
+
 /* -------------------------------------------------------------------------------------
  * Copy that has not been written yet
  * -------------------------------------------------------------------------------------

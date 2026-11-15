@@ -431,6 +431,17 @@ const canonical = 'https://new.southvillerunningclub.co.uk/nn/';
       </p>
 
       {
+        /* **The window is open and every place has gone** — ADR-070. In place of the fee line,
+        because a price for a place nobody can buy is the open state's signal on a race that is
+        not taking entries. The running's own page says the rest: how to ask about a place
+        that comes back. Painted from the same read as the bar's button, so the two cannot
+        disagree about whether the race is full. */
+      }
+      <p class="nn-panel-note" data-nn-panel-full hidden>
+        Every place has been taken — the race is full.
+      </p>
+
+      {
         /* **"Race instructions" and "Spooktators" were here and have gone, on request.**
          *
          * They were painted from the same read as everything else on this card, and nothing
