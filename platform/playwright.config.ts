@@ -115,9 +115,11 @@ export default defineConfig({
   maxFailures: process.env.CI ? 20 : 0,
   // `github` annotates the diff; the JSON alongside it is what `tools/suite-timing.py` reads
   // to say where the time went, per file and per project. A file rather than a second console
-  // reporter, because two writing to one stream interleave — and `ci.yml` overrides the name
-  // per config through `PLAYWRIGHT_JSON_OUTPUT_NAME`, so the second run does not land on the
-  // first's report. `playwright.config.serial.ts` spreads this config and inherits it.
+  // reporter, because two writing to one stream interleave — and `ci.yml` overrides the file
+  // per shard through `PLAYWRIGHT_JSON_OUTPUT_FILE`, so one shard does not land on another's
+  // report. **`_FILE`, never `_NAME`**: Playwright reads `_NAME` only when no `outputFile` is
+  // set, and this sets one, so `_NAME` is silently ignored. `playwright.config.serial.ts`
+  // spreads this config and inherits it.
   reporter: process.env.CI
     ? [['github'], ['json', { outputFile: 'playwright-report/results.json' }]]
     : 'list',
@@ -134,16 +136,24 @@ export default defineConfig({
   timeout: 30_000,
   // A hung run should fail in minutes rather than sit there looking like progress.
   //
-  // ⚠️ **Ten minutes in CI, twenty-five on a laptop, because they are not the same run.** CI
-  // shards this config three ways (`ci.yml`), so each shard is a few minutes of work. `./dev
+  // ⚠️ **Fifteen minutes in CI, twenty-five on a laptop, because they are not the same run.** CI
+  // shards this config three ways (`ci.yml`), so each shard is a part of the suite. `./dev
   // test` runs the whole config in one process, all three projects, and by October 2026 that
   // sat right at ten minutes on a laptop — 9.9 on a quiet one, over ten on a busy one. So a
   // single ten-minute cap stopped two local runs at exactly 10.0 minutes with hundreds of
   // tests unrun and nothing failing. **That reads as a hang and is not one**: it is the cap.
   // Twenty-five leaves room for the suite to grow and for a busy machine to be slow, and a
-  // run that is genuinely hung still stops within half an hour. GitHub Actions sets `CI`, as
-  // `maxFailures` and `reporter` above both rely on.
-  globalTimeout: (process.env.CI ? 10 : 25) * 60_000,
+  // run that is genuinely hung still stops within half an hour.
+  //
+  // **CI was ten minutes until 1 November 2026, and one shard had outgrown it.** Over thirteen
+  // runs from 25 to 31 October, base-2 — the shard Playwright fills with `mobile-safari`, the
+  // slowest engine — took a median 8.8 minutes and up to 10.0, and over 8 in seven of them,
+  // while no other shard passed 6.3. It hit the cap on 27 and 31 October with nothing failing,
+  // each time on a branch that changed nothing it tests. Fifteen is about 1.7 times that
+  // median. ⚠️ **Raise this and `timeout-minutes` on `ci.yml`'s acceptance job together**:
+  // that job has to fit setup and two passes of this, and says why. GitHub Actions sets `CI`,
+  // as `maxFailures` and `reporter` above both rely on.
+  globalTimeout: (process.env.CI ? 15 : 25) * 60_000,
 
   use: {
     // One origin for the whole site, exactly as in production. `/timing` is a different
