@@ -3,23 +3,44 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 from .config import DEFAULT_WORK, ConfigError, load_config
 from .files import SKIP_LABELS
-from .inputs import InputError, load_photographers
+from .inputs import InputError, load_bibs, load_photographers
 from .manifest import Manifest, ManifestError, State
 from .matching import DEFAULT_THRESHOLD
 from .overview import build_overview, human_bytes
-from .reader import FakeReader
+from .reader import FakeReader, ReaderStopped
 from .tag import TagBusy
 from .sqlfile import SqlRefused
 from .upload import UploadRefused
 from .words import plural, verb
 
-REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused, SqlRefused, TagBusy)
+REFUSALS = (ConfigError, InputError, ManifestError, UploadRefused, SqlRefused, TagBusy, ReaderStopped)
+
+API_KEY = "ANTHROPIC_API_KEY"
+
+
+def make_reader(config):
+    """The reader config.toml asks for. Claude's needs its key in the environment, and is
+    refused here rather than on the first photo, so a run without one changes nothing."""
+    if config.reader_kind == "claude":
+        if not os.environ.get(API_KEY, "").strip():
+            raise ConfigError(
+                f"Claude reads the bibs, and {API_KEY} is not set. Set it for this terminal "
+                "only, never in a file: README.md, under \"The Claude reader\", says how."
+            )
+        from .claude_reader import ClaudeReader, bib_length
+
+        return ClaudeReader(config.reader_model, bib_digits=bib_length(load_bibs(config.bibs_csv).bibs))
+    try:
+        return FakeReader.from_file(config.fake_reads, config.originals)
+    except (OSError, ValueError) as error:
+        raise ConfigError(f"The fake reads file could not be used: {error}") from None
 
 
 def counted(counter, labels=SKIP_LABELS) -> str:
@@ -30,10 +51,9 @@ def tag(args, say) -> int:
     from .tag import run_tag
 
     config = load_config(args.work)
-    try:
-        reader = FakeReader.from_file(config.fake_reads, config.originals)
-    except (OSError, ValueError) as error:
-        raise ConfigError(f"The fake reads file could not be used: {error}") from None
+    reader = make_reader(config)
+    if config.reader_kind == "claude":
+        say(f"{config.reader_model} reads the bibs. Only each photo's medium copy is sent.")
 
     run = run_tag(config, reader, args.confidence_threshold, say)
 

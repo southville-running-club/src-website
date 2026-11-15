@@ -6,7 +6,9 @@ For each JPEG under a listed photographer's folder, in a stable order:
 2. Read its time and camera (camera.py), make the three stripped copies (copies.py) and
    write them to the work folder.
 3. Send the **medium copy only** to the reader, and parse its answer strictly. A reader
-   that fails or answers nonsense sends the photo to review; it never stops the run.
+   that fails on the photo or answers nonsense sends the photo to review and the run goes
+   on. A reader that cannot go on at all — no key, no network, no credit — stops the run
+   with that photo unrecorded, so the next run reads it (``ReaderStopped``, reader.py).
 4. Check each read against the bib list (matching.py) and save the photo, its reads and its
    camera in one transaction.
 
@@ -45,7 +47,7 @@ from .inputs import Photographer, load_bibs, load_photographers
 from .london_time import to_utc_iso, utc_now
 from .manifest import Manifest, NewPhoto, NewRead, wall_value
 from .matching import check_threshold, classify
-from .reader import BibReader, parse_reads
+from .reader import BibReader, ReaderStopped, parse_reads
 
 PHOTO_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
 PROGRESS_EVERY = 25
@@ -124,11 +126,16 @@ def write_copies(copies_dir: Path, photo_id: str, images: dict[str, bytes]) -> N
 
 
 def ask(reader: BibReader, medium: bytes, photo_fingerprint: str) -> tuple[str | None, str | None]:
-    """(raw answer, problem). A reader that raises is a problem, never a crash; only the
-    exception's type is kept, because a provider's error text can carry a request or a key."""
+    """(raw answer, problem). A reader that raises is a problem with this photo, never a
+    crash; only the exception's type is kept, because a provider's error text can carry a
+    request or a key. The one exception is ``ReaderStopped``, which is about the reader
+    rather than the photo: it ends the run with the photo unrecorded, like Ctrl-C, so the
+    next run reads it again (reader.py says why)."""
     try:
         return reader.read(medium, photo_fingerprint), None
-    except Exception as error:  # noqa: BLE001 — any reader failure sends the photo to a person
+    except ReaderStopped:
+        raise
+    except Exception as error:  # noqa: BLE001 — any other reader failure sends the photo to a person
         return None, f"the reader failed ({type(error).__name__})"
 
 

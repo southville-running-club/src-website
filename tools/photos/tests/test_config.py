@@ -43,6 +43,9 @@ class ConfigTest(ConfigCase):
         self.assertEqual(config.bibs_csv, self.work / "bibs.csv")
         self.assertEqual(config.manifest_path, self.work / "manifest.sqlite")
         self.assertIsNone(config.fake_reads)
+        # The example is the real run: Claude reads, on Haiku 5.5 unless told otherwise.
+        self.assertEqual(config.reader_kind, "claude")
+        self.assertEqual(config.reader_model, "claude-haiku-5-5")
 
     def test_refuses_a_work_folder_inside_a_repository(self):
         (self.root / ".git").mkdir()
@@ -77,11 +80,52 @@ class ConfigTest(ConfigCase):
             load_config(self.work)
         self.assertIn("config.example.toml", str(caught.exception))
 
-    def test_refuses_any_reader_but_the_fake(self):
+    def test_refuses_a_reader_it_does_not_know(self):
         self.write(GOOD.replace('kind = "fake"', 'kind = "openai"'))
         with self.assertRaises(ConfigError) as caught:
             load_config(self.work)
-        self.assertIn("waits on the choice of provider", str(caught.exception))
+        self.assertIn('kind must be "claude"', str(caught.exception))
+
+    def test_the_fake_reader_has_no_model(self):
+        self.write(GOOD)
+        config = load_config(self.work)
+        self.assertEqual(config.reader_kind, "fake")
+        self.assertIsNone(config.reader_model)
+        self.write(GOOD + 'model = "claude-haiku-5-5"\n')
+        with self.assertRaises(ConfigError) as caught:
+            load_config(self.work)
+        self.assertIn('model is for kind = "claude" only', str(caught.exception))
+
+
+class ClaudeReaderSettingsTest(ConfigCase):
+    CLAUDE = GOOD.replace('kind = "fake"', 'kind = "claude"')
+
+    def test_claude_reads_on_haiku_unless_told_otherwise(self):
+        self.write(self.CLAUDE)
+        config = load_config(self.work)
+        self.assertEqual((config.reader_kind, config.reader_model), ("claude", "claude-haiku-5-5"))
+
+        self.write(self.CLAUDE + 'model = "claude-sonnet-5-5"\n')
+        self.assertEqual(load_config(self.work).reader_model, "claude-sonnet-5-5")
+
+    def test_refuses_a_model_that_is_not_a_claude_model_name(self):
+        for model in ('"gpt-5"', '"Claude Haiku"', '"claude-haiku-5-5; rm"', "5"):
+            with self.subTest(model=model):
+                self.write(self.CLAUDE + f"model = {model}\n")
+                with self.assertRaises(ConfigError) as caught:
+                    load_config(self.work)
+                self.assertIn("must be a Claude model name", str(caught.exception))
+
+    def test_refuses_fake_reads_with_the_real_reader(self):
+        self.write(self.CLAUDE + 'fake_reads = "fake-reads.json"\n')
+        with self.assertRaises(ConfigError) as caught:
+            load_config(self.work)
+        self.assertIn('fake_reads is for kind = "fake" only', str(caught.exception))
+
+    def test_the_default_model_is_the_one_the_reader_uses(self):
+        from racephotos import claude_reader, config
+
+        self.assertEqual(claude_reader.DEFAULT_MODEL, config.DEFAULT_CLAUDE_MODEL)
 
     def test_refuses_a_misspelt_setting(self):
         self.write('orginals = "x"\n' + GOOD)
