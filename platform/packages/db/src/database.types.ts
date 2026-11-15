@@ -2341,6 +2341,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_crossing: {
+        Args: {
+          p_bib: string
+          p_captured_at: string
+          p_event_slug: string
+          p_id: string
+        }
+        Returns: Json
+      }
       add_walk_in: {
         Args: {
           p_age_on_day?: number

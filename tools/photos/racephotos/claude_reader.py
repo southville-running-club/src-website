@@ -1,4 +1,4 @@
-"""``ClaudeReader``: Claude reads the bibs (ADR-071).
+"""``ClaudeReader``: Claude reads the bibs (ADR-072).
 
 **What it sends** is the medium copy and a fixed instruction, and nothing else. copies.py
 has already stripped the medium copy of everything but the picture (ADR-060); the photo's

@@ -15,7 +15,7 @@ valid answer: the model saw no bib.
 
 Two readers implement ``BibReader.read()``: ``FakeReader`` below, which answers from a file
 so everything else can be rehearsed, and ``ClaudeReader`` in ``claude_reader.py``, which
-asks Claude (ADR-071). A real reader sends the provider ``medium_jpeg`` and nothing else;
+asks Claude (ADR-072). A real reader sends the provider ``medium_jpeg`` and nothing else;
 ``fingerprint`` exists so the fake can answer per photo, and is an opaque hash in any case.
 
 A reader has two ways to fail, and they mean different things. Something about *this

@@ -20,7 +20,7 @@ photographers = "photographers.csv"
 bibs = "bibs.csv"
 
 [reader]
-# Who reads the bib numbers (ADR-071).
+# Who reads the bib numbers (ADR-072).
 #
 # "claude" sends each photo's medium copy, and nothing else, to Claude through Anthropic's
 # API. It needs an API key in ANTHROPIC_API_KEY for the terminal it runs in, never in this

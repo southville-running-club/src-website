@@ -321,7 +321,7 @@ describe('what may be called, and by whom', () => {
    * and nothing else; a grant on it would be a function anybody could call to probe how bibs
    * resolve. Both migrations revoke it defensively, and this is what says that held.
    */
-  it('grants exactly these thirty-seven functions, and anon exactly two of them', async () => {
+  it('grants exactly these thirty-eight functions, and anon exactly two of them', async () => {
     const { rows } = await db.query<{ routine_name: string; grantee: string }>(
       `select routine_name, grantee
          from information_schema.role_routine_grants
@@ -329,9 +329,18 @@ describe('what may be called, and by whom', () => {
         order by routine_name, grantee`,
     );
 
-    // Thirty-seven functions and thirty-nine rows: `results_for_event` and
+    // Thirty-eight functions and forty rows: `results_for_event` and
     // `results_published_at` each appear twice, which is the whole point of the list.
     expect(rows).toEqual([
+      /**
+       * ⚠️ **The thirty-eighth, ADR-071, written on race day.** A crossing nobody captured,
+       * added from the timing log behind `timing.crossing.resolve` — the permission that already
+       * re-bibs and discards captures there — with no roster check, because it is a desk copying
+       * the marshals' paper rather than a phone at the line. It refuses what `record_crossing()`
+       * deliberately does not, and audits what it writes; the block at the foot of
+       * "resolving an anomaly" asserts both.
+       */
+      { routine_name: 'add_crossing', grantee: 'authenticated' },
       { routine_name: 'add_walk_in', grantee: 'authenticated' },
       { routine_name: 'assign_bibs', grantee: 'authenticated' },
       { routine_name: 'assign_marshal', grantee: 'authenticated' },
@@ -3491,6 +3500,323 @@ describe('resolving an anomaly and correcting the log', () => {
       } finally {
         await db.query('rollback');
       }
+    });
+  });
+
+  /**
+   * [ADR-071](../../../../docs/architecture/decisions/adr-071-a-crossing-can-be-added-and-retimed-from-the-log.md)
+   * — a finish nobody captured, added from the log, and a time corrected on it.
+   *
+   * ⚠️ **Teams of their own, and that is not tidiness.** Every test above seeds crossings for
+   * `311`, so an add for `311` would answer `already_captured` or not depending on which of them
+   * ran first. Each test here adds for a bib nothing else in this file wears.
+   */
+  describe('adding a crossing nobody captured', () => {
+    const ADD = 'select timing.add_crossing($1, $2, $3, $4::timestamptz) as answer';
+    const TEAMS = [
+      ['00000000-0000-4000-8000-0000000000f3', '321'],
+      ['00000000-0000-4000-8000-0000000000f4', '322'],
+      ['00000000-0000-4000-8000-0000000000f5', '323'],
+      ['00000000-0000-4000-8000-0000000000f6', '324'],
+      ['00000000-0000-4000-8000-0000000000f7', '325'],
+    ] as const;
+
+    /** Every crossing on one of these bibs, and the audit rows about them — as the superuser. */
+    async function clearBib(bib: string): Promise<void> {
+      await db.query(
+        `delete from timing.admin_actions
+          where action = 'crossing_added' and detail ->> 'bib' = $1`,
+        [bib],
+      );
+      await db.query('delete from timing.crossings where event_id = $1 and bib = $2', [
+        EVENT_ID,
+        bib,
+      ]);
+    }
+
+    async function rowsFor(bib: string): Promise<
+      {
+        id: string;
+        captured_at: Date;
+        source: string;
+        marshal_id: string | null;
+        team_id: string | null;
+      }[]
+    > {
+      const { rows } = await db.query(
+        `select id, captured_at, source, marshal_id, team_id from timing.crossings
+          where event_id = $1 and bib = $2`,
+        [EVENT_ID, bib],
+      );
+      return rows;
+    }
+
+    beforeAll(async () => {
+      for (const [id, number] of TEAMS) {
+        await db.query(
+          `insert into timing.teams (id, event_id, team_number) values ($1, $2, $3)
+           on conflict (id) do nothing`,
+          [id, EVENT_ID, number],
+        );
+      }
+    });
+
+    beforeEach(async () => {
+      for (const [, number] of TEAMS) {
+        await clearBib(number);
+      }
+      await clearBib('8888');
+    });
+
+    it('adds it as a manual crossing, by the caller, matched to its team and audited', async () => {
+      const ID = 'cccccccc-0000-4000-8000-000000000001';
+
+      const answer = await asPersonCommitted<Envelope>(RESOLVER, ADD, [
+        ID,
+        SLUG,
+        ' 321 ',
+        '2026-11-01T11:47:32Z',
+      ]);
+
+      expect(answer).toEqual({ ok: true, id: ID, bib: '321' });
+
+      const [row] = await rowsFor('321');
+      expect(row).toMatchObject({
+        id: ID,
+        source: 'manual',
+        marshal_id: RESOLVER,
+        team_id: TEAMS[0][0],
+      });
+      expect(row?.captured_at.toISOString()).toBe('2026-11-01T11:47:32.000Z');
+
+      const { rows: audit } = await db.query<{ actor_id: string; detail: object }>(
+        `select actor_id, detail from timing.admin_actions
+          where action = 'crossing_added' and detail ->> 'crossing_id' = $1`,
+        [ID],
+      );
+      expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({
+        actor_id: RESOLVER,
+        detail: { bib: '321', team_id: TEAMS[0][0] },
+      });
+    });
+
+    /**
+     * ⚠️ **A double press, and the order of the checks is the whole test.** The replay has to be
+     * recognised before the duplicate check, or the second press of one form would be told the
+     * bib was already captured — by the first press.
+     */
+    it('answers ok to the same form posted twice, and writes once', async () => {
+      const ID = 'cccccccc-0000-4000-8000-000000000002';
+      const args = [ID, SLUG, '322', '2026-11-01T11:50:00Z'];
+
+      const first = await asPersonCommitted<Envelope>(RESOLVER, ADD, args);
+      const second = await asPersonCommitted<Envelope>(RESOLVER, ADD, args);
+
+      expect(first).toMatchObject({ ok: true });
+      expect(second).toMatchObject({ ok: true, replayed: true });
+      expect(await rowsFor('322')).toHaveLength(1);
+
+      const { rows } = await db.query(
+        `select 1 from timing.admin_actions
+          where action = 'crossing_added' and detail ->> 'crossing_id' = $1`,
+        [ID],
+      );
+      expect(rows).toHaveLength(1);
+    });
+
+    it('refuses a bib that already has a crossing that counts, and allows it once discarded', async () => {
+      const FIRST = 'cccccccc-0000-4000-8000-000000000003';
+      const SECOND = 'cccccccc-0000-4000-8000-000000000004';
+      await seedCrossing(FIRST, '323', { at: '2026-11-01T11:40:00Z' });
+
+      expect(
+        await asPersonCommitted(RESOLVER, ADD, [
+          SECOND,
+          SLUG,
+          '323',
+          '2026-11-01T11:41:00Z',
+        ]),
+      ).toEqual({ ok: false, reason: 'already_captured' });
+
+      await asPersonCommitted(
+        RESOLVER,
+        'select timing.resolve_crossing($1, $2) as answer',
+        [FIRST, 'discarded'],
+      );
+
+      expect(
+        await asPersonCommitted(RESOLVER, ADD, [
+          SECOND,
+          SLUG,
+          '323',
+          '2026-11-01T11:41:00Z',
+        ]),
+      ).toMatchObject({ ok: true });
+
+      await db.query('delete from timing.admin_actions where detail ->> $1 = any($2)', [
+        'crossing_id',
+        [FIRST, SECOND],
+      ]);
+    });
+
+    /**
+     * ⚠️ **Decided by the bib trigger, and nothing is left behind.** The row is inserted and
+     * rolled back inside the function when the trigger matched no team — so the assertion that
+     * matters is the second one: no orphan, and no audit row claiming an add that did not
+     * happen.
+     */
+    it('refuses a bib no team on the race wears, and writes nothing', async () => {
+      const ID = 'cccccccc-0000-4000-8000-000000000005';
+
+      expect(
+        await asPersonCommitted(RESOLVER, ADD, [
+          ID,
+          SLUG,
+          '8888',
+          '2026-11-01T11:45:00Z',
+        ]),
+      ).toEqual({ ok: false, reason: 'unknown_bib' });
+
+      expect(await rowsFor('8888')).toHaveLength(0);
+      const { rows } = await db.query(
+        `select 1 from timing.admin_actions where detail ->> 'crossing_id' = $1`,
+        [ID],
+      );
+      expect(rows).toHaveLength(0);
+    });
+
+    it('refuses a time before the gun, and a time that has not happened yet', async () => {
+      expect(
+        await asPerson(RESOLVER, ADD, [
+          'cccccccc-0000-4000-8000-000000000006',
+          SLUG,
+          '324',
+          '2026-11-01T10:59:59Z',
+        ]),
+      ).toEqual({ ok: false, reason: 'before_start' });
+
+      expect(
+        await asPerson(RESOLVER, ADD, [
+          'cccccccc-0000-4000-8000-000000000007',
+          SLUG,
+          '324',
+          new Date(Date.now() + 10 * 60_000).toISOString(),
+        ]),
+      ).toEqual({ ok: false, reason: 'in_future' });
+
+      expect(await rowsFor('324')).toHaveLength(0);
+    });
+
+    it('refuses an add with no bib, or no time', async () => {
+      expect(
+        await asPerson(RESOLVER, ADD, [
+          'cccccccc-0000-4000-8000-000000000008',
+          SLUG,
+          '   ',
+          '2026-11-01T11:45:00Z',
+        ]),
+      ).toEqual({ ok: false, reason: 'bib_required' });
+
+      expect(
+        await asPerson(RESOLVER, ADD, [
+          'cccccccc-0000-4000-8000-000000000008',
+          SLUG,
+          '325',
+          null,
+        ]),
+      ).toEqual({ ok: false, reason: 'incomplete' });
+    });
+
+    /**
+     * A correction after publication is *unpublish, fix, publish* — ADR-042 — and this answers
+     * the same refusal `reset_event()` and `reopen_event()` already give. One transaction,
+     * rolled back, so the race is never left published for a sibling to read.
+     */
+    it('refuses a race whose results are published', async () => {
+      await db.query('begin');
+      try {
+        await db.query(
+          'update timing.events set results_published_at = now() where id = $1',
+          [EVENT_ID],
+        );
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [RESOLVER],
+        );
+
+        const { rows } = await db.query<{ answer: Envelope }>(ADD, [
+          'cccccccc-0000-4000-8000-000000000009',
+          SLUG,
+          '325',
+          '2026-11-01T11:45:00Z',
+        ]);
+        expect(rows[0]?.answer).toEqual({ ok: false, reason: 'published' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    it('refuses somebody holding only timing.crossing.record, roster or not', async () => {
+      expect(
+        await asPerson(MARSHAL_ONLY, ADD, [
+          'cccccccc-0000-4000-8000-00000000000a',
+          SLUG,
+          '325',
+          '2026-11-01T11:45:00Z',
+        ]),
+      ).toEqual({ ok: false, reason: 'refused' });
+    });
+
+    it('refuses an anonymous caller on the grant, before the permission is asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query("select set_config('role', 'anon', true)");
+        await expect(
+          db.query(ADD, [
+            'cccccccc-0000-4000-8000-00000000000b',
+            SLUG,
+            '325',
+            '2026-11-01T11:45:00Z',
+          ]),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
+    /**
+     * Not new behaviour — `edit_crossing()` has taken a time since #252 — but ADR-071 is the
+     * first thing to send it a different one, so this is the first time it matters that it
+     * moves and that the audit row says from what.
+     */
+    it('moves a capture’s time through edit_crossing, and audits before and after', async () => {
+      const ID = 'cccccccc-0000-4000-8000-00000000000c';
+      await seedCrossing(ID, '325', { at: '2026-11-01T12:47:32Z' });
+
+      expect(
+        await asPersonCommitted<Envelope>(
+          RESOLVER,
+          'select timing.edit_crossing($1, $2, $3::timestamptz, $4, $5::timestamptz) as answer',
+          [ID, '325', '2026-11-01T11:47:32Z', '325', '2026-11-01T12:47:32Z'],
+        ),
+      ).toMatchObject({ ok: true });
+
+      const [row] = await rowsFor('325');
+      expect(row?.captured_at.toISOString()).toBe('2026-11-01T11:47:32.000Z');
+
+      const { rows } = await db.query<{ detail: Record<string, Record<string, string>> }>(
+        `select detail from timing.admin_actions
+          where action = 'crossing_edited' and detail ->> 'crossing_id' = $1`,
+        [ID],
+      );
+      expect(new Date(rows[0]!.detail.before!.captured_at!).toISOString()).toBe(
+        '2026-11-01T12:47:32.000Z',
+      );
+      expect(new Date(rows[0]!.detail.after!.captured_at!).toISOString()).toBe(
+        '2026-11-01T11:47:32.000Z',
+      );
     });
   });
 });

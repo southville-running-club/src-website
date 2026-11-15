@@ -373,7 +373,7 @@ def gives_bib(read) -> bool:
     confident read nobody has decided yet, or one a person or a burst settled.
 
     A confident read is the one that matters. Claude's are tagged with no person seeing them
-    (ADR-071), and typing the right number beside a wrong one adds a bib rather than replacing
+    (ADR-072), and typing the right number beside a wrong one adds a bib rather than replacing
     it, so the photo would go to both runners. Taking a read off rejects that read alone,
     which also leaves the other runner in a photo with two of them where they are."""
     if read["decision"] is None:

@@ -12,7 +12,7 @@ Why it works this way is in four decisions:
   tagging happens on one laptop, and the work folder lives outside any repository.
 - [ADR-060](../../docs/architecture/decisions/adr-060-only-stripped-copies-leave-the-laptop.md):
   only stripped copies leave the laptop.
-- [ADR-071](../../docs/architecture/decisions/adr-071-claude-haiku-reads-the-bib-numbers.md):
+- [ADR-072](../../docs/architecture/decisions/adr-072-claude-haiku-reads-the-bib-numbers.md):
   Claude Haiku 5.5 reads the bib numbers, from the medium copy alone.
 
 The whole feature is planned in [the race photos brief](../../docs/delivery/nn-photos-brief.md).
@@ -116,7 +116,7 @@ reach this tool. Export the bib column on its own. Bibs are kept as text, so `03
 `config.toml`'s `[reader]` section says who reads the bibs. `kind = "claude"`, which the
 example has, sends each photo's **medium copy and nothing else** to Claude through
 Anthropic's API, and asks for the race numbers and nothing about the people
-([ADR-071](../../docs/architecture/decisions/adr-071-claude-haiku-reads-the-bib-numbers.md)).
+([ADR-072](../../docs/architecture/decisions/adr-072-claude-haiku-reads-the-bib-numbers.md)).
 The model is `claude-haiku-5-5`. To use another, add a line under `[reader]`:
 
 ```toml

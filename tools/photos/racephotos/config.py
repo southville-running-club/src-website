@@ -28,7 +28,7 @@ SHORT_ID_PREFIX = re.compile(r"[A-Z0-9]{2,8}")
 TOP_LEVEL_KEYS = {"event_slug", "short_id_prefix", "originals", "photographers", "bibs", "reader", "r2"}
 READER_KEYS = {"kind", "fake_reads", "model"}
 READER_KINDS = ("fake", "claude")
-# Claude Haiku 5.5 reads the bibs unless config.toml names another model (ADR-071). It lives
+# Claude Haiku 5.5 reads the bibs unless config.toml names another model (ADR-072). It lives
 # here rather than in claude_reader.py so that loading a config never imports the SDK.
 DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5"
 CLAUDE_MODEL = re.compile(r"claude-[a-z0-9]+(?:-[a-z0-9]+)*")

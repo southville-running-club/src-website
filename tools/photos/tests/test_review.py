@@ -308,7 +308,7 @@ class CheckTest(ReviewCase):
 
     def tagged(self, name, *bibs):
         """A new photo the reader tagged with confidence, the way Claude does with no person
-        seeing it (ADR-071)."""
+        seeing it (ADR-072)."""
         path = make_jpeg(self.config.originals / f"Ross/{name}", recorded="2026:11:01 11:40:00", serial="B")
         run_tag(self.config, SpyReader({fingerprint(path): answer(*((bib, 0.97) for bib in bibs))}), 0.9,
                 say=lambda line: None)

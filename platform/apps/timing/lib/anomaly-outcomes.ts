@@ -93,7 +93,67 @@ const OUTCOMES: Record<string, Outcome> = {
   },
   bib_required: {
     tone: 'bad',
-    message: 'A corrected bib is needed to edit a capture. Nothing was changed.',
+    // Shared by an edit and an add since ADR-071, so it names neither.
+    message: 'A bib is needed. Nothing was changed.',
+  },
+  /**
+   * ADR-071's add, and the refusals `timing.add_crossing()` and `lib/typed-time.ts` give. ⚠️
+   * **Every one of them points at the paper**, because that is what the person is copying from
+   * and the likeliest place the mistake is — and none says "try again", which would add the
+   * same wrong thing twice.
+   */
+  added: {
+    tone: 'ok',
+    message:
+      'Added. It counts towards results straight away — it is the capture shown below, marked as added by hand.',
+  },
+  already_captured: {
+    tone: 'bad',
+    message:
+      'That bib already has a crossing that counts, so nothing was added. It is shown below — correct its time there instead.',
+  },
+  unknown_bib: {
+    tone: 'bad',
+    message:
+      'No team on this race carries that bib, so nothing was added. Check it against the paper and the entry list.',
+  },
+  before_start: {
+    tone: 'bad',
+    message:
+      'That time is before this race started, so nothing was added. Check the hour against the paper.',
+  },
+  in_future: {
+    tone: 'bad',
+    message:
+      'That time has not happened yet, so nothing was changed. Check the hour against the paper.',
+  },
+  published: {
+    tone: 'bad',
+    message:
+      'This race’s results are published, so nothing was added. Unpublish them on the Results page, make the correction, then publish again.',
+  },
+  time_required: {
+    tone: 'bad',
+    message: 'A time is needed, in hours, minutes and seconds. Nothing was changed.',
+  },
+  time_unreadable: {
+    tone: 'bad',
+    message:
+      'That time could not be read. Type it in hours, minutes and seconds, like 11:47:32. Nothing was changed.',
+  },
+  time_ambiguous: {
+    tone: 'bad',
+    message:
+      'That time happened twice on the race’s date, because the clocks went back, and this page cannot tell which was meant. Nothing was changed.',
+  },
+  time_nonexistent: {
+    tone: 'bad',
+    message:
+      'That time never happened on the race’s date, because the clocks went forward over it. Nothing was changed.',
+  },
+  no_such_event: {
+    tone: 'bad',
+    message: 'There is no race at this address, so nothing was changed.',
   },
   invalid_action: {
     tone: 'bad',

@@ -479,6 +479,24 @@ status changes what the table says and the table is about to be read.
       belongs. **It can be undone** — **Reopen the race** is on the same
       screen
 
+### 4.1a — the paper, and any time that is wrong 🎛️
+
+[ADR-071](../../architecture/decisions/adr-071-a-crossing-can-be-added-and-retimed-from-the-log.md),
+added on race day 2026. **Timing log** — `/timing/events/nn-2026/crossings`.
+
+- [ ] **A finish that is on the marshals' paper and not on the log**: type the bib and the time
+      into **Add a crossing nobody captured** at the top, then **Add this crossing**. The log
+      opens on that bib, marked **"added by hand"**
+- [ ] **A capture whose time is wrong** — usually a phone an hour out, which the log marks
+      **"Recorded before this race started"**: search for the bib, type the right time into
+      **Time crossed** on its card, then **Save changes**
+- [ ] ⚠️ **Type a time and never a date.** `11:47:32`, or `114732` on a phone's number pad. The
+      date is the race's, so this works the next morning too
+- [ ] ⚠️ **"Already has a crossing that counts"** means the bib is on the log already. The page
+      opens on it, so correct that capture's time rather than adding a second one
+- [ ] **Each add is audited** with who made it. A bib no team wears, a time before the gun and
+      a time not yet reached are refused, and nothing is written
+
 ### 4.2 — clear the triage list 🎛️
 
 - [ ] **Anomalies** until it reads **"Nothing is waiting to be
@@ -576,8 +594,10 @@ one sitting, at a laptop, with the correction already known.**
 1. **`/timing/events/nn-2026/results/`** → **Unpublish these results**. The page answers *"The
    public results page has gone back to not found, which is the honest state for a table being
    corrected."*
-2. Make the correction — the timing log for a bib, the status page for a DNF, the entry list
-   for a name.
+2. Make the correction — the timing log for a bib, a time or a missing finish (step 4.1a), the
+   status page for a DNF, the entry list for a name. ⚠️ **Adding a crossing is refused while
+   the results are published**, which is this phase's order enforced; correcting one is not
+   refused, so unpublish first anyway.
 3. **Publish these results** again, and check `/nn/2026/results/` signed out a second time.
 
 **Between 1 and 3 the club is publishing nothing**, and somebody who had the link gets a
@@ -645,7 +665,8 @@ what tells a missing role from a missing roster row.
 | "The screen is blank / says to use paper" | JavaScript is off on that phone. Use the paper; do not spend race morning on it |
 | "The publish button refused me" | Not finished, or the triage list is not empty. The page says which |
 | "The results page 404s for the public" | Not published, or published and then unpublished for a correction — [phase 5](#phase-5--a-correction-after-publication) |
-| "The times are all an hour out" | A phone's clock, not the platform's. The timing log marks a capture recorded before the gun |
+| "The times are all an hour out" | A phone's clock, not the platform's. The timing log marks a capture recorded before the gun, and its **Time crossed** box corrects it — step 4.1a |
+| "A runner finished and is not on the log" | Nobody captured them. If they are on the marshals' paper, **Add a crossing nobody captured** on the timing log — step 4.1a |
 | "Every page says the database could not be reached" | An outage, and **never a refusal** — every screen here words the two differently on purpose. Nothing was changed by anything that said this |
 
 ---

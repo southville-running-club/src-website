@@ -1,4 +1,4 @@
-# ADR-071: Claude Haiku 5.5 reads the bib numbers
+# ADR-072: Claude Haiku 5.5 reads the bib numbers
 
 **Status:** Accepted
 **Date:** 31 October 2026
