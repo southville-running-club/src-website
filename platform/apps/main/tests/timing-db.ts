@@ -12,6 +12,7 @@ import {
   PUBLISHED_EVENT_ID,
   PUBLISHED_EVENT_NAME,
   PUBLISHED_EVENT_SLUG,
+  PUBLISHED_GUIDE,
   PUBLISHED_START_AT,
   PUBLISHED_TEAMS,
   RESULTS_ACTUAL_START_AT,
@@ -273,12 +274,41 @@ async function seedFinishedAndPublished(db: Client): Promise<void> {
       ],
     );
 
+    // A runner with no time recorded has no crossing at all — not a crossing with no time.
+    if (team.crossedAt === null) continue;
+
     await db.query(
       `insert into timing.crossings (event_id, bib, captured_at)
          values ($1, $2, $3::timestamptz)`,
       [PUBLISHED_EVENT_ID, team.teamNumber, team.crossedAt],
     );
   }
+
+  // **A guide, on leg 2 of their runner's team** — ADR-022's shape, ADR-061's number and
+  // ADR-073's row. The number is the leg-2 override and the crossing is on it, which is what
+  // the capture screen writes for a guide; the trigger matches it to Rhodri's entry.
+  await db.query('update timing.teams set bib_leg2 = $2 where id = $1', [
+    PUBLISHED_GUIDE.teamId,
+    PUBLISHED_GUIDE.bib,
+  ]);
+  await db.query(
+    `insert into timing.runners
+         (team_id, leg, firstname, lastname, role, email, club_name, age_on_day)
+       values ($1, 2, $2, $3, 'guide', $4, $5, $6)`,
+    [
+      PUBLISHED_GUIDE.teamId,
+      PUBLISHED_GUIDE.firstName,
+      PUBLISHED_GUIDE.lastName,
+      `${PUBLISHED_GUIDE.firstName.toLowerCase()}@${LEAKED_EMAIL_DOMAIN}`,
+      LEAKED_CLUB,
+      PUBLISHED_GUIDE.ageOnDay,
+    ],
+  );
+  await db.query(
+    `insert into timing.crossings (event_id, bib, captured_at)
+       values ($1, $2, $3::timestamptz)`,
+    [PUBLISHED_EVENT_ID, PUBLISHED_GUIDE.bib, PUBLISHED_GUIDE.crossedAt],
+  );
 }
 
 /**

@@ -138,6 +138,66 @@ describe('buildExportRows', () => {
     expect(rows[1]?.category).toBe('');
   });
 
+  /**
+   * ⚠️ **ADR-074: the file is ranked exactly as the page is.** The page places a guide whose own
+   * number was captured, so the file lists them too — otherwise every place after a guide would
+   * differ between the two. The shape here is the one `import_from_entries()` writes: the runner
+   * on leg 1 and the guide on leg 2 of one solo team, wearing their own number (ADR-061).
+   */
+  describe('a guide on their runner’s entry', () => {
+    const guided: ExportTeam = soloTeam('12', 'Bea', {
+      bib_leg2: '13',
+      runners: [runner('r-12', 1, 'Bea'), runner('r-12g', 2, 'Cy', 'male', 30, 'guide')],
+    });
+    const rows = () =>
+      buildExportRows(
+        SOLO,
+        [soloTeam('11', 'Ada'), guided, soloTeam('14', 'Dot')],
+        [
+          crossing('11', 40),
+          crossing('12', 45),
+          crossing('13', 45.02),
+          crossing('14', 50),
+        ],
+      );
+
+    it('lists the guide on a row of their own, placed in the same count as everybody', () => {
+      expect(rows().map((row) => [row.position, row.bibs, row.runners])).toEqual([
+        [1, '11', 'Ada Test'],
+        [2, '12', 'Bea Test'],
+        [3, '13', 'Cy Test'],
+        [4, '14', 'Dot Test'],
+      ]);
+    });
+
+    it('names only the runner on their own entry’s row, so nobody is listed twice', () => {
+      expect(rows()[1]?.runners).toBe('Bea Test');
+    });
+
+    it('gives the guide no category and no team, and the file never says "guide"', () => {
+      const guideRow = rows()[2];
+      expect([guideRow?.category, guideRow?.teamNumber, guideRow?.teamName]).toEqual([
+        '',
+        '',
+        '',
+      ]);
+      expect(resultExportCsv(rows()).toLowerCase()).not.toContain('guide');
+    });
+
+    it('lists no guide whose own number was never captured', () => {
+      const withoutGuide = buildExportRows(
+        SOLO,
+        [soloTeam('11', 'Ada'), guided, soloTeam('14', 'Dot')],
+        [crossing('11', 40), crossing('12', 45), crossing('14', 50)],
+      );
+      expect(withoutGuide.map((row) => [row.position, row.bibs])).toEqual([
+        [1, '11'],
+        [2, '12'],
+        [3, '14'],
+      ]);
+    });
+  });
+
   it('leaves the leg columns empty on a solo race and fills them on a relay', () => {
     const solo = buildExportRows(SOLO, [soloTeam('11', 'Ada')], [crossing('11', 45)]);
     expect([solo[0]?.legA, solo[0]?.legB]).toEqual(['', '']);

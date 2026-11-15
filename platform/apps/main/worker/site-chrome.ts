@@ -8,9 +8,12 @@ import { html, raw, type Html } from './html';
  * ⚠️ **`/account/` and `/admin/` stopped using `siteBanner()`, `siteNav()` and `siteFooter()` on
  * 1 October 2026** — they carry the club website's header and footer from `club-chrome.ts`
  * now, ADR-052. Everything below about `/account/` and `/admin/` is the history of why these
- * were built. **They are still rendered**, by `/nn/<year>/results/` in `nn-results.ts`, and go
- * when the race pages move onto the club's chrome after the race. `faviconLink()` is still on
- * every page the Worker builds.
+ * were built. **`siteBanner()` and `siteFooter()` are still rendered**, by `/nn/<year>/results/`
+ * and the race photos pages, and go when the race pages move onto the club's chrome after the
+ * race. ⚠️ **`siteNav()` is rendered by nothing since 2 November 2026**, when the results page
+ * moved into the race's own frame — a campaign page carries the race masthead and never the
+ * club bar (ADR-014). It is kept only until that same post-race tidy deletes it with the rest.
+ * `faviconLink()` is still on every page the Worker builds.
  *
  * **This is a third copy of markup that already exists twice, and that is the established
  * shape here rather than a shortcut.** `src/components/SiteBanner.astro` is the Astro one and
@@ -142,7 +145,22 @@ export function siteBanner(): Html {
  * *tool* — `CLAUDE.md` says so in as many words — and a row of social icons under a table of
  * entries is furniture nobody working there wants.
  */
-export function siteFooter(): Html {
+/**
+ * One race's own links in the footer — `SiteFooter.astro`'s `race` prop, for a Worker page that
+ * belongs to one running. Optional, and absent everywhere it was absent before.
+ */
+export interface FooterRace {
+  /** As it is titled, so a reader knows whose links these are. */
+  name: string;
+  /** The year-scoped entry terms and race rules, where the page belongs to an entry. */
+  terms?: string;
+  /** The race's privacy notice, which is not the club's. */
+  privacy: string;
+  /** Where a question about this race goes. */
+  contact: string;
+}
+
+export function siteFooter(race?: FooterRace): Html {
   return html`<footer class="site-footer">
     <p class="site-footer-heading">Follow the club</p>
     <ul class="site-footer-social">
@@ -163,6 +181,20 @@ export function siteFooter(): Html {
           </li>`,
       )}
     </ul>
+    ${
+      race === undefined
+        ? null
+        : html`<p class="site-footer-heading site-footer-race-heading">${race.name}</p>
+            <ul class="site-footer-links">
+              ${
+                race.terms === undefined
+                  ? null
+                  : html`<li><a href="${race.terms}">Entry terms and race rules</a></li>`
+              }
+              <li><a href="${race.privacy}">What the club does with your details</a></li>
+              <li><a href="mailto:${race.contact}">${race.contact}</a></li>
+            </ul>`
+    }
     <p class="site-footer-legal"><a href="/privacy/">Privacy notice</a></p>
   </footer>`;
 }

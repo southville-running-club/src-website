@@ -46,8 +46,11 @@ const [, , VIEWBOX_WIDTH, VIEWBOX_HEIGHT] = CLUB_LOGO.viewBox.split(' ').map(Num
  * The wordmark. `labelled` says whether it carries its own accessible name: not in the header,
  * where the link around it already says "Southville Running Club, home", and yes in the
  * footer, where nothing else names it. `ClubLogo.astro`'s rule, unchanged.
+ *
+ * **Exported for `nn-results.ts`**, whose Nightingale Nightmare masthead carries the same mark
+ * at `NnMasthead.astro`'s width — one copy of the artwork rather than a second.
  */
-function clubLogo(className: string, width: number, labelled: boolean): Html {
+export function clubLogo(className: string, width: number, labelled: boolean): Html {
   const height = Math.round((width * VIEWBOX_HEIGHT!) / VIEWBOX_WIDTH!);
 
   return html`<svg

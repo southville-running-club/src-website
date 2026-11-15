@@ -3445,6 +3445,48 @@ describe('resolving an anomaly and correcting the log', () => {
       });
     });
 
+    /**
+     * ⚠️ **The page took the default from the day it was built and nobody noticed until race
+     * day**, when
+     * Nightingale Nightmare's log stopped at "200 captures" with the first finishers missing.
+     * `apps/timing/lib/crossing-log.ts` asks for the ceiling now; this pins both numbers it is
+     * written against. Seeded and read in one transaction and rolled back, so the 250 rows
+     * never reach the triage list a sibling test counts — and with no bib, so that even inside
+     * the transaction none of them is an orphan.
+     */
+    it('returns the newest 200 by default and up to 1,000 when asked', async () => {
+      await db.query('begin');
+      try {
+        await db.query(
+          `insert into timing.crossings (event_id, bib, captured_at)
+           select $1, null, '2026-11-01T12:00:00Z'::timestamptz + n * interval '1 second'
+           from generate_series(1, 250) as n`,
+          [EVENT_ID],
+        );
+        await db.query("select set_config('role', 'authenticated', true)");
+        await db.query(
+          "select set_config('request.jwt.claims', json_build_object('sub', $1::text, 'role', 'authenticated')::text, true)",
+          [RESOLVER],
+        );
+
+        const answer = async (sql: string): Promise<unknown[]> =>
+          (await db.query<{ answer: unknown[] }>(sql, [SLUG])).rows[0]?.answer ?? [];
+
+        expect(await answer('select timing.crossing_log($1) as answer')).toHaveLength(
+          200,
+        );
+        expect(
+          (await answer('select timing.crossing_log($1, null, 1000) as answer')).length,
+        ).toBeGreaterThanOrEqual(250);
+        // Clamped rather than refused, so asking for more than the ceiling still answers.
+        expect(
+          (await answer('select timing.crossing_log($1, null, 5000) as answer')).length,
+        ).toBeGreaterThanOrEqual(250);
+      } finally {
+        await db.query('rollback');
+      }
+    });
+
     it('searches on the bib and on the team number, and on nothing else', async () => {
       const found = await asPerson<Record<string, unknown>[]>(
         RESOLVER,

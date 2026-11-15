@@ -6,6 +6,7 @@ import { parseMembership } from '@src/shared/club-content';
 import { formatPriceWords } from '@src/shared/money';
 
 import { axeViolations } from '../axe';
+import { raceCardIsCurrent } from '../race-card';
 import { expectNoSidewaysScroll } from '../sideways-scroll';
 
 /**
@@ -620,11 +621,20 @@ test.describe('the home page', () => {
    * published — and the entry journey from there is untouched by this change. The date is
    * asserted because the card reading it rather than restating it is the property that stops
    * the front page advertising last year's race.
+   *
+   * ⚠️ **Once the card's `showUntil` has passed, the assertion is that it is gone** — see
+   * `tests/race-card.ts`. A race card still on the page the day after the race is the defect
+   * the expiry exists to prevent.
    */
   test('sends people to the race at its evergreen address', async ({ page }) => {
     await page.goto('/');
 
     const card = page.locator('article').filter({ hasText: 'Nightingale Nightmare' });
+
+    if (!raceCardIsCurrent()) {
+      await expect(card, 'the race card outlived its showUntil').toHaveCount(0);
+      return;
+    }
 
     await expect(card.getByRole('link', { name: 'Race details' })).toHaveAttribute(
       'href',

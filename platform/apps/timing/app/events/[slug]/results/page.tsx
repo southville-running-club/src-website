@@ -2,10 +2,9 @@ import Link from 'next/link';
 import { formatLondon } from '@src/shared';
 import '@src/shared/styles/nn-results.css';
 import { effectiveBib } from '@src/shared/timing/bib';
+import { resultLines, type GuideLine } from '@src/shared/timing/result-lines';
 import {
-  buildResults,
   formatDuration,
-  sortResults,
   type Result,
   type ResultStatus,
 } from '@src/shared/timing/results';
@@ -170,22 +169,52 @@ function ResultRow({
   );
 }
 
-function PreviewTable({ payload }: { payload: ResultsPreview }) {
-  const results = sortResults(
-    buildResults(payload.event, payload.teams, payload.crossings),
-    'total',
+/**
+ * A visually impaired runner's guide, on a row of their own —
+ * [ADR-073](../../../../../../../docs/architecture/decisions/adr-073-a-guide-has-a-time-of-their-own.md).
+ * Their place, their own number and their own time, exactly as the published page draws them —
+ * the place since [ADR-074](../../../../../../../docs/architecture/decisions/adr-074-a-guide-takes-a-place-in-the-finishing-order.md)
+ * — **except that this one says "Guide"**, which `categoryCell()` already says on this screen
+ * and the published page may not: a row saying so says the runner beside them is visually
+ * impaired (ADR-022). The role is in this answer, so it is read rather than assumed.
+ */
+function GuideRow({
+  line,
+  format,
+}: {
+  line: GuideLine<PreviewTeam>;
+  format: TimingEvent['format'];
+}) {
+  return (
+    <tr>
+      <td className="results-num">{line.position === null ? '—' : line.position}</td>
+      <td className="results-num">{line.bib}</td>
+      <td className="results-name">{runnerName(line.guide)}</td>
+      <td>{isGuide(line.guide) ? 'Guide' : '—'}</td>
+      <td className="results-num">{formatDuration(line.result.totalMs)}</td>
+      <td className="results-status">
+        {statusWords(line.result.status, format)}
+        {line.result.hasOpenAnomaly ? (
+          <span className="results-suspect"> — being checked</span>
+        ) : null}
+      </td>
+    </tr>
   );
+}
 
-  if (results.length === 0) {
+function PreviewTable({ payload }: { payload: ResultsPreview }) {
+  // **Positions come from `resultLines()`**, the same function `/nn/<year>/results/` numbers
+  // its table with and `buildExportRows()` builds the file from, so the preview, the published
+  // page and the export cannot disagree about who came third — a guide is counted on all three
+  // (ADR-074).
+  const lines = resultLines(payload.event, payload.teams, payload.crossings);
+
+  if (lines.length === 0) {
     return <p className="results-empty">Nothing has been captured for this race yet.</p>;
   }
 
-  const byId = new Map(payload.teams.map((team) => [team.id, team]));
-
-  // **Position counts finished rows in the order `sortResults` put them in** — the identical
-  // rule `/nn/<year>/results/` and `buildExportRows()` use, so the preview, the published page
-  // and the file cannot disagree about who came third.
-  let finished = 0;
+  // Entries, as the caption has always counted: a guide is on their runner's entry.
+  const entries = lines.filter((line) => line.kind === 'entry').length;
 
   return (
     // ⚠️ **A scrollable region has to be reachable by keyboard, and this table holds nothing
@@ -205,7 +234,7 @@ function PreviewTable({ payload }: { payload: ResultsPreview }) {
     >
       <table className="results-table">
         <caption className="results-meta" id="results-table-caption">
-          {results.length} entries
+          {entries} entries
         </caption>
         <thead>
           <tr>
@@ -218,19 +247,23 @@ function PreviewTable({ payload }: { payload: ResultsPreview }) {
           </tr>
         </thead>
         <tbody>
-          {results.map((result) => {
-            const placed = result.status === 'finished';
-            if (placed) finished += 1;
-            return (
-              <ResultRow
-                key={result.team.id}
-                result={result}
-                team={byId.get(result.team.id)}
+          {lines.map((line) =>
+            line.kind === 'guide' ? (
+              <GuideRow
+                key={`${line.team.id}:guide`}
+                line={line}
                 format={payload.event.format}
-                position={placed ? finished : null}
               />
-            );
-          })}
+            ) : (
+              <ResultRow
+                key={line.result.team.id}
+                result={line.result}
+                team={line.team}
+                format={payload.event.format}
+                position={line.position}
+              />
+            ),
+          )}
         </tbody>
       </table>
     </div>
@@ -239,12 +272,15 @@ function PreviewTable({ payload }: { payload: ResultsPreview }) {
 
 /** "12 finishers · + 3 DNS / DNF / DQ" — Pass the Buck's results count. */
 function resultsCount(payload: ResultsPreview): string {
-  // The same `buildResults()` the table below is drawn from, so the count cannot disagree
-  // with the rows.
-  const results = buildResults(payload.event, payload.teams, payload.crossings);
-  const finishers = results.filter((result) => result.status === 'finished').length;
-  const statuses = results.filter((result) =>
-    ['dns', 'dnf', 'dq'].includes(result.status),
+  // The same `resultLines()` the table is drawn from, so the count cannot disagree with it.
+  // **Finishers are the places the table numbers, and since ADR-074 a guide who finished is one
+  // of them** — so this figure is the last place on the table, not the number of entries the
+  // caption counts. **DNS / DNF / DQ count entries only**: a guide carries their entry's status,
+  // and counting their row too would report one decision twice.
+  const lines = resultLines(payload.event, payload.teams, payload.crossings);
+  const finishers = lines.filter((line) => line.result.status === 'finished').length;
+  const statuses = lines.filter(
+    (line) => line.kind === 'entry' && ['dns', 'dnf', 'dq'].includes(line.result.status),
   ).length;
   return `${finishers} ${finishers === 1 ? 'finisher' : 'finishers'}${
     statuses === 0 ? '' : ` · + ${statuses} DNS / DNF / DQ`

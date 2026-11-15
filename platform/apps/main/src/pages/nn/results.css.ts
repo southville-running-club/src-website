@@ -1,5 +1,6 @@
 import tokens from '@src/shared/styles/tokens.css?raw';
 import base from '@src/shared/styles/base.css?raw';
+import theme from '@src/shared/styles/nn-theme.css?raw';
 import results from '@src/shared/styles/nn-results.css?raw';
 
 /**
@@ -14,14 +15,16 @@ import results from '@src/shared/styles/nn-results.css?raw';
  * `/nn/admin.css` and `/account.css` both document: get the predicate wrong and the Worker
  * answers this request itself and every results page renders unstyled.
  *
- * `nn-theme.css` is deliberately not concatenated here — see `nn-results.css`'s own header for
- * why a staff tool is in the club brand rather than the campaign's.
+ * **`nn-theme.css` is concatenated ahead of the page's own rules**, the order `photos.css.ts`
+ * uses: the page wears the race's frame and the table keeps the club's — see `nn-results.css`'s
+ * own header. Until 2 November 2026 the theme was deliberately left out, when the page was a
+ * staff tool rather than one the public reads.
  */
 
 const IMPORT_STATEMENT = /^@import[^;]*;\s*$/m;
 
 export function GET(): Response {
-  const css = [tokens, base.replace(IMPORT_STATEMENT, ''), results].join('\n');
+  const css = [tokens, base.replace(IMPORT_STATEMENT, ''), theme, results].join('\n');
 
   return new Response(css, {
     headers: {

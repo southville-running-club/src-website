@@ -37,6 +37,7 @@
     "./timing/anomaly": "./src/timing/anomaly.ts",
     "./timing/door": "./src/timing/door.ts",
     "./timing/results": "./src/timing/results.ts",
+    "./timing/result-lines": "./src/timing/result-lines.ts",
     "./timing/leaderboard": "./src/timing/leaderboard.ts",
     "./timing/result-category": "./src/timing/result-category.ts",
     "./timing/result-export": "./src/timing/result-export.ts",
